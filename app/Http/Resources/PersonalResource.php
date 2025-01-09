@@ -6,7 +6,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class PersonalResource extends JsonResource
 {
-    // Aqui mandas las columnas o los datos que van a llegar al front como data
+    // Aqui mandas las columnas o los datos que van a llegar al front como data. únicamente mando los que creo necesarios mostrar por ahora, para no utilizar tantos recursos y filtrar desde el back end. Si son necesarios más, solo agregas las columnas con este formato:
+
+    // clave -> data
+    // Siendo la clave como me va a llegar el JSON y la data lo que sacas de las columnas
+    //Es decir, en vez de id => $this->id, puedes poner "hola" => $this->id y en el JSON el id me llega con la clave "hola".
+
     public function toArray($request)
     {
         return [

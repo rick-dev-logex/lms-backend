@@ -1,12 +1,11 @@
 <?php
 
-// Asegúrate de que el archivo json contenga solo la data: {id: ...}. NO el JSON completo que devuelve la consulta {status, data[{id:..}]}
-
-if (!file_exists('personal_data.json')) { // pon el archivo JSON que deseas que se genere el seeder
+// Asegúrate de que el archivo JSON contenga solo la data relevante: [{id: ...}, {id: ...}]
+if (!file_exists('personal_data.json')) {
     die("Error: personal_data.json no encontrado\n");
 }
 
-$jsonFile = file_get_contents('personal_data.json'); // pon el archivo JSON que deseas que se genere el seeder
+$jsonFile = file_get_contents('personal_data.json');
 if (!$jsonFile) {
     die("Error: No se pudo leer el archivo\n");
 }
@@ -16,9 +15,21 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     die("Error al parsear JSON: " . json_last_error_msg() . "\n");
 }
 
-// ejecuta el comando php generate-seeder.php 
-// Después de que se haya generado, ejecuta php artisan db:seed --class=PersonalSeeder (o el nombre que le pongas en la línea 36)
+// Limpiar fechas inválidas en los registros
+foreach ($data as &$record) {
+    foreach (['date_entered', 'date_modified', 'fecha_nacimiento', 'fecha_contrato', 'fecha_cesante'] as $dateField) {
+        if (
+            isset($record[$dateField]) &&
+            ($record[$dateField] === '0000-00-00 00:00:00' ||
+                $record[$dateField] === '0000-00-00' ||
+                empty($record[$dateField]))
+        ) {
+            $record[$dateField] = null; // Reemplazar valores inválidos con NULL
+        }
+    }
+}
 
+// Crear el contenido del seeder
 $seederContent = <<<EOD
 <?php
 
@@ -32,7 +43,7 @@ class PersonalSeeder extends Seeder
     public function run()
     {
         \$records = json_decode(file_get_contents(database_path('seeders/personal_data.json')), true);
-        
+
         foreach (\$records as \$record) {
             // Convertir strings de booleanos a booleanos reales
             \$record = array_map(function(\$value) {
@@ -40,15 +51,33 @@ class PersonalSeeder extends Seeder
                 if (\$value === "1") return true;
                 return \$value;
             }, \$record);
-            
+
+            // Validar y limpiar fechas en los registros
+            foreach (['date_entered', 'date_modified', 'fecha_nacimiento', 'fecha_contrato', 'fecha_cesante'] as \$dateField) {
+                if (
+                    isset(\$record[\$dateField]) &&
+                    (\$record[\$dateField] === '0000-00-00 00:00:00' || 
+                     \$record[\$dateField] === '0000-00-00' || 
+                     empty(\$record[\$dateField]))
+                ) {
+                    \$record[\$dateField] = null;
+                }
+            }
+
             Personal::create(\$record);
         }
     }
 }
 EOD;
 
-// Copiar el JSON a la carpeta de seeders
-copy('personal_data.json', 'database/seeders/personal_data.json'); //Cambia el nombre de este también
-file_put_contents('database/seeders/PersonalSeeder.php', $seederContent); // Y de este también
+// Guardar el JSON limpio
+$cleanedJsonPath = 'database/seeders/personal_data.json';
+file_put_contents($cleanedJsonPath, json_encode($data, JSON_PRETTY_PRINT));
 
-echo "Seeder generado exitosamente!\n";
+// Guardar el archivo del seeder
+$seederPath = 'database/seeders/PersonalSeeder.php';
+file_put_contents($seederPath, $seederContent);
+
+echo "Seeder generado exitosamente en:\n";
+echo "- Archivo JSON limpio: $cleanedJsonPath\n";
+echo "- Seeder: $seederPath\n";

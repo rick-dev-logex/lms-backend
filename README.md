@@ -47,7 +47,7 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
     DB_PASSWORD=
 ```
 
-<small>Nota: Estas son las credenciales sugeridas únicamente para facilidad en localhost.</small>
+<small style="font-size:.75rem; font-style: italic;">Nota: Estas son las credenciales sugeridas únicamente para facilidad en localhost.</small>
 
 5. Generar la clave de la aplicación:
 

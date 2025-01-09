@@ -115,6 +115,8 @@ return new class extends Migration
             $table->boolean('marcacion_otro')->default(false);
             $table->boolean('discapacidad')->default(false);
 
+            // Siempre agrega este timestamps; esto agrega un created_at y updated_at en las tablas, mismos que automáticamente se actualizan
+
             $table->timestamps();
         });
     }

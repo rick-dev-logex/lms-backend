@@ -34,7 +34,6 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
 
 ```
     cp .env.example .env
-
 ```
 
 4. Configurar el archivo .env con las credenciales de MySQL:
@@ -46,8 +45,6 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
     DB_DATABASE=lms_backend
     DB_USERNAME=root
     DB_PASSWORD=
-
-
 ```
 
 <small>Nota: Estas son las credenciales sugeridas únicamente para facilidad en localhost.</small>
@@ -56,7 +53,6 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
 
 ```
     php artisan key:generate
-
 ```
 
 # Base de datos
@@ -85,7 +81,6 @@ Levantar el servidor de desarrollo con el siguiente comando:
 
 ```
     php artisan serve
-
 ```
 
 Esto iniciará un servidor local que estará disponible en http://127.0.0.1:8000.

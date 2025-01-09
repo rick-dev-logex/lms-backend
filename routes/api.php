@@ -30,5 +30,9 @@ Route::middleware('auth:sanctum')->group(function () {
      | Puedes usar el comando route:clear para borrar la caché de rutas: php artisan route:clear
      | 
      */
-    Route::apiResource('personal', PersonalController::class); // utiliza apiResource, porque si utilizas resource, esto crea rutas create y edit que no nesecitamos. Son URLs más limpias para API REST.
 });
+
+/**
+ * Por cuestiones de prueba únicamente, hasta tener todo listo y al final argegar autenticación, deja todas las rutas acá afuera
+ */
+Route::apiResource('personal', PersonalController::class); // utiliza apiResource, porque si utilizas resource, esto crea rutas create y edit que no nesecitamos. Son URLs más limpias para API REST.

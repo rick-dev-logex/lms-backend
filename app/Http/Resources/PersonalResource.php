@@ -6,6 +6,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class PersonalResource extends JsonResource
 {
+    // Aqui mandas las columnas o los datos que van a llegar al front como data
     public function toArray($request)
     {
         return [

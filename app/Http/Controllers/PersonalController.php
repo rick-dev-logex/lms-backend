@@ -10,11 +10,14 @@ class PersonalController extends Controller
 {
     public function index()
     {
+        // El paginate quiere decir cuantos resultados por página, de la colección donde mandas las columnas que escribiste.
+        // Esta funcion se ejecuta al recibir un GET
         return PersonalResource::collection(Personal::paginate(10));
     }
 
     public function store(Request $request)
     {
+        // La funcion store, como dice su nombre, guarda los datos, se ejecuta cuando recibe el método POST
         $validated = $request->validate([
             'name' => 'required|string',
             'nombres' => 'required|string',
@@ -42,11 +45,15 @@ class PersonalController extends Controller
 
     public function show(Personal $personal)
     {
+        // Esta función show se ejecuta al recibir un GET con el parámetro de búsqueda
+        // Así que solo muestra ese registro. Ej. api/personal?id=1234 muestra el personal con id 1234
         return new PersonalResource($personal);
     }
 
     public function update(Request $request, Personal $personal)
     {
+        // Se ejecuta cuando recibe un PUT o PATCH, y actualiza los campos con las validaciones que le pongas. Si una validación no se cumple, retorna un error 500
+
         $validated = $request->validate([
             'name' => 'sometimes|string',
             'nombres' => 'sometimes|string',
@@ -74,6 +81,7 @@ class PersonalController extends Controller
 
     public function destroy(Personal $personal)
     {
+        // Similar al show, pero se ejecuta al recibir el método DELETE
         $personal->delete();
         return response()->noContent();
     }

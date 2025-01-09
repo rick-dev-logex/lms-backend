@@ -18,6 +18,7 @@ class User extends Authenticatable
     use HasFactory;
     use HasProfilePhoto;
     use Notifiable;
+    use HasApiTokens;
     use TwoFactorAuthenticatable;
 
     /**

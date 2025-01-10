@@ -1,0 +1,186 @@
+[
+    {
+        "id": 1,
+        "cargo": "Analista de Cuentas"
+    },
+    {
+        "id": 2,
+        "cargo": "Auxiliar de Reparto"
+    },
+    {
+        "id": 3,
+        "cargo": "Chofer"
+    },
+    {
+        "id": 4,
+        "cargo": "Auxiliar de Bodega"
+    },
+    {
+        "id": 5,
+        "cargo": "Jefe de Bodega"
+    },
+    {
+        "id": 6,
+        "cargo": "Jefe de Operaciones"
+    },
+    {
+        "id": 7,
+        "cargo": "Movilizador"
+    },
+    {
+        "id": 8,
+        "cargo": "Controlador"
+    },
+    {
+        "id": 9,
+        "cargo": "Asistente Administrativo"
+    },
+    {
+        "id": 10,
+        "cargo": "Monitorista"
+    },
+    {
+        "id": 11,
+        "cargo": "Montacarguista"
+    },
+    {
+        "id": 12,
+        "cargo": "Supervisor T2"
+    },
+    {
+        "id": 13,
+        "cargo": "Safety Champion"
+    },
+    {
+        "id": 14,
+        "cargo": "Accesorista"
+    },
+    {
+        "id": 15,
+        "cargo": "Limpieza"
+    },
+    {
+        "id": 16,
+        "cargo": "Liquidador"
+    },
+    {
+        "id": 17,
+        "cargo": "Portero"
+    },
+    {
+        "id": 18,
+        "cargo": "Pasante"
+    },
+    {
+        "id": 19,
+        "cargo": "Auditor de Inventarios"
+    },
+    {
+        "id": 20,
+        "cargo": "Supervisor de Liquidaciones"
+    },
+    {
+        "id": 21,
+        "cargo": "Tecnico de Refrigeracion"
+    },
+    {
+        "id": 22,
+        "cargo": "Coordinador Admistrativo"
+    },
+    {
+        "id": 23,
+        "cargo": "Despachador"
+    },
+    {
+        "id": 24,
+        "cargo": "Supervisor de Flota"
+    },
+    {
+        "id": 25,
+        "cargo": "Supervisor de Bodega"
+    },
+    {
+        "id": 26,
+        "cargo": "Facturador"
+    },
+    {
+        "id": 27,
+        "cargo": "Champion Flota"
+    },
+    {
+        "id": 28,
+        "cargo": "Jefe Administrativo"
+    },
+    {
+        "id": 29,
+        "cargo": "Notas de Crédito"
+    },
+    {
+        "id": 30,
+        "cargo": "Receptor de Importaciones"
+    },
+    {
+        "id": 31,
+        "cargo": "Almacenista"
+    },
+    {
+        "id": 32,
+        "cargo": "Trabajadora Social"
+    },
+    {
+        "id": 33,
+        "cargo": "Safety driver"
+    },
+    {
+        "id": 34,
+        "cargo": "Auxiliar Accesorista"
+    },
+    {
+        "id": 35,
+        "cargo": "Emision de Picnkings"
+    },
+    {
+        "id": 36,
+        "cargo": "Supervisor de Entregas"
+    },
+    {
+        "id": 37,
+        "cargo": "Analista de Refrigeracion"
+    },
+    {
+        "id": 38,
+        "cargo": "Auxiliar de inventarios"
+    },
+    {
+        "id": 39,
+        "cargo": "Mensajero"
+    },
+    {
+        "id": 40,
+        "cargo": "Control de inventarios"
+    },
+    {
+        "id": 41,
+        "cargo": "Certificador de Carga"
+    },
+    {
+        "id": 42,
+        "cargo": "Gerente de Operaciones"
+    },
+    {
+        "id": 43,
+        "cargo": "Archivo"
+    },
+    {
+        "id": 44,
+        "cargo": "Contador"
+    },
+    {
+        "id": 45,
+        "cargo": "Programador"
+    },
+    {
+        "id": 46,
+        "cargo": "Gerente General"
+    }
+]

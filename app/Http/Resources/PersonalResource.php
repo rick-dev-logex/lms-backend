@@ -31,7 +31,7 @@ class PersonalResource extends JsonResource
             'proyecto' => $this->proyecto,
             'area' => $this->area,
             'subarea' => $this->subarea,
-            'cargo_logex' => $this->cargo_logex,
+            'cargo_logex' => $this->cargo->cargo ?? '', //Aqui obtenemos el nombre del cargo referenciado
             'hora_ingreso_laboral' => $this->hora_ingreso_laboral,
             'hora_salida_laboral' => $this->hora_salida_laboral,
             'created_at' => $this->created_at,

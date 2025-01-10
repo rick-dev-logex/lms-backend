@@ -128,7 +128,7 @@ class Personal extends Model
     //Aquí pones las relaciones
     public function cargo()
     {
-        return $this->belongsTo(Cargo::class, 'cargo_id'); // La clave foránea es 'cargo_id'
+        return $this->belongsTo(Cargo::class, 'cargo_logex', 'id'); // La clave foránea es 'cargo_id'
     }
 }
 

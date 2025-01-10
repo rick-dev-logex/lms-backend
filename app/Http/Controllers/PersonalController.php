@@ -10,7 +10,7 @@ class PersonalController extends Controller
 {
     public function index()
 {
-    $personal = Personal::paginate(10);
+    $personal = Personal::with('cargo')->paginate(10);
     
     return response()->json([
         'data' => PersonalResource::collection($personal),

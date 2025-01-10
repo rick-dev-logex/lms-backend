@@ -13,7 +13,19 @@ class CargoController extends Controller
      */
     public function index()
     {
-        return CargoResource::collection(Cargo::all());
+        $cargo = Cargo::paginate(10);
+    
+    return response()->json([
+        'data' => CargoResource::collection($cargo),
+        'meta' => [
+            'current_page' => $cargo->currentPage(),
+            'from' => $cargo->firstItem(),
+            'last_page' => $cargo->lastPage(),
+            'per_page' => $cargo->perPage(),
+            'to' => $cargo->lastItem(),
+            'total' => $cargo->total(),
+        ]
+    ]);
     }
 
     /**
@@ -25,8 +37,8 @@ class CargoController extends Controller
             'cargo' => 'required|string',
         ]);
 
-        $personal = Cargo::create($validated);
-        return new CargoResource($personal);
+        $cargo = Cargo::create($validated);
+        return new CargoResource($cargo);
     }
 
     /**

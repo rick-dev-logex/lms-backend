@@ -97,7 +97,7 @@ return new class extends Migration
             $table->time('hora_ingreso_laboral')->nullable();
             $table->time('hora_salida_laboral')->nullable();
             $table->tinyInteger('cargo_logex')->nullable();
-            $table->foreignIdFor(Cargo::class, 'cargo_id')->constrained()->onDelete('set null');
+            $table->foreignIdFor(Cargo::class, 'cargo_id')->nullable()->constrained('cargos')->onDelete('set null');
             $table->boolean('teletrabajo')->default(false);
             $table->boolean('pago_sueldo')->default(true);
             $table->boolean('asignacion_multiple')->default(false);

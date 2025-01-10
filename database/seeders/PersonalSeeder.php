@@ -31,6 +31,17 @@ class PersonalSeeder extends Seeder
                 }
             }
 
+            // Validar y limpiar cargos en los registros
+            foreach (['cargo_logex'] as $cargo) {
+                if (
+                    isset($record[$cargo]) &&
+                    ($record[$cargo] === "" || 
+                     empty($record[$cargo]))
+                ) {
+                    $record[$cargo] = null;
+                }
+            }
+
             Personal::create($record);
         }
     }

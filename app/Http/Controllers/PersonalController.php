@@ -9,11 +9,21 @@ use App\Http\Resources\PersonalResource;
 class PersonalController extends Controller
 {
     public function index()
-    {
-        // El paginate quiere decir cuantos resultados por página, de la colección donde mandas las columnas que escribiste.
-        // Esta funcion se ejecuta al recibir un GET
-        return PersonalResource::collection(Personal::paginate(10));
-    }
+{
+    $personal = Personal::paginate(10);
+    
+    return response()->json([
+        'data' => PersonalResource::collection($personal),
+        'meta' => [
+            'current_page' => $personal->currentPage(),
+            'from' => $personal->firstItem(),
+            'last_page' => $personal->lastPage(),
+            'per_page' => $personal->perPage(),
+            'to' => $personal->lastItem(),
+            'total' => $personal->total(),
+        ]
+    ]);
+}
 
     public function store(Request $request)
     {

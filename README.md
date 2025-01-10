@@ -1,5 +1,5 @@
 <span style="display: flex; flex-align: center; justify-items: center; place-self: center; height:auto; width: 300px">
-<img src="https://www.logex.com.ec/wp-content/uploads/2024/05/cropped-logoweb.png" alt="LogeX Logo" />
+<img src="https://www.logex.com.ec/wp-content/uploads/2024/05/cropped-logoweb.png" alt="LogeX Logo" style="max-width: 100%;display: grid;place-self: center;" />
 </span>
 <br/>
 <br/>

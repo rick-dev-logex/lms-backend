@@ -124,4 +124,20 @@ class Personal extends Model
         'discapacidad' => 'boolean',
         'deleted' => 'boolean',
     ];
+
+    //Aquí pones las relaciones
+    public function cargo()
+    {
+        return $this->belongsTo(Cargo::class, 'cargo_id'); // La clave foránea es 'cargo_id'
+    }
 }
+
+// Para obtener el cargo de un personal:
+
+// $personal = Personal::find(1);
+// $cargo = $personal->cargo; // Obtiene el cargo asociado a este personal
+
+// Para obtener todos los personales de un cargo:
+
+// $cargo = Cargo::find(1);
+// $personals = $cargo->personals; // Obtiene todos los personales asociados a este cargo

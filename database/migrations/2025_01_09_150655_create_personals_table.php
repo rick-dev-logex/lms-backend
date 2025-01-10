@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Cargo;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -95,7 +96,8 @@ return new class extends Migration
             $table->string('alimentacion')->nullable();
             $table->time('hora_ingreso_laboral')->nullable();
             $table->time('hora_salida_laboral')->nullable();
-            $table->string('cargo_logex')->default("No Definido")->nullable();
+            $table->tinyInteger('cargo_logex')->nullable();
+            $table->foreignIdFor(Cargo::class, 'cargo_id')->constrained()->onDelete('set null');
             $table->boolean('teletrabajo')->default(false);
             $table->boolean('pago_sueldo')->default(true);
             $table->boolean('asignacion_multiple')->default(false);

@@ -1,0 +1,248 @@
+<?php
+
+namespace App\Http\Controllers\API;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Validation\ValidationException;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
+
+class AuthController extends Controller
+{
+    /**
+     * Registro de usuario
+     */
+    public function register(Request $request)
+    {
+        // \Log::info('Datos recibidos en register:', $request->all());
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'role_id' => 'required|exists:roles,id'
+        ]);
+
+        try {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make("L0g3x2025*"),
+                'role_id' => $request->role_id
+            ]);
+
+            // Si se proporcionan permisos específicos, los asignamos
+            if ($request->has('permissions')) {
+                $user->permissions()->attach($request->permissions);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'Usuario creado exitosamente',
+                'user' => $user->load(['role', 'permissions']),
+                'access_token' => $token,
+                'token_type' => 'Bearer'
+            ], 201);
+        } catch (\Exception $e) {
+            // \Log::error('Error en registro: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error al crear el usuario',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function login(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+            'remember' => 'boolean'
+        ]);
+
+        try {
+            // Buscar usuario con sus relaciones
+            $user = User::where('email', $request->email)
+                ->with(['role', 'permissions'])
+                ->first();
+
+            if (!$user || !Hash::check($request->password, $user->password)) {
+                throw ValidationException::withMessages([
+                    'email' => ['Las credenciales proporcionadas son incorrectas.'],
+                ]);
+            }
+
+            // Crear payload para JWT
+            $payload = [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'name' => $user->name,
+                'role' => $user->role?->name,
+                'permissions' => $user->permissions->pluck('name'),
+                'iat' => time(),
+                'exp' => time() + ($request->remember ? 5 * 24 * 60 * 60 : 60 * 60)
+            ];
+
+            $jwt = JWT::encode($payload, config('app.key'), 'HS256');
+
+            // Crear token de Sanctum
+            $tokenExpiration = $request->remember ? null : now()->addHour();
+            $token = $user->createToken('auth_token', [], $tokenExpiration)->plainTextToken;
+
+            // Estructurar la respuesta con toda la información
+            return response()->json([
+                'access_token' => $token,
+                'jwt_token' => $jwt,
+                'token_type' => 'Bearer',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => [
+                        'id' => $user->role?->id,
+                        'name' => $user->role?->name
+                    ],
+                    'permissions' => $user->permissions->map(function ($permission) {
+                        return [
+                            'id' => $permission->id,
+                            'name' => $permission->name
+                        ];
+                    }),
+                    'profile_photo_path' => $user->profile_photo_path,
+                    'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at
+                ]
+            ]);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            // \Log::error('Error en login: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error al iniciar sesión',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cerrar sesión
+     */
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+        return response()->json(['message' => 'Sesión cerrada exitosamente']);
+    }
+
+    /**
+     * Renovar token
+     */
+    public function refresh(Request $request)
+    {
+        try {
+            $decoded = JWT::decode(
+                $request->token,
+                new Key(config('app.key'), 'HS256')
+            );
+
+            if ($decoded->exp < time()) {
+                return response()->json(['error' => 'Token expirado'], 401);
+            }
+
+            $user = User::find($decoded->user_id);
+
+            $newPayload = [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'name' => $user->name,
+                'iat' => time(),
+                'exp' => time() + (60 * 60) // 1 hora
+            ];
+
+            $newToken = JWT::encode($newPayload, config('app.key'), 'HS256');
+
+            return response()->json([
+                'access_token' => $user->createToken('auth_token')->plainTextToken,
+                'jwt_token' => $newToken,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Token inválido'], 401);
+        }
+    }
+
+    /**
+     * Cambiar contraseña
+     */
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|min:8|different:current_password|confirmed'
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json(['error' => 'La contraseña actual es incorrecta'], 400);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json(['message' => 'Contraseña actualizada exitosamente']);
+    }
+
+    /**
+     * Enviar enlace para resetear contraseña
+     */
+    public function forgotPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $status = Password::sendResetLink(
+            $request->only('email')
+        );
+
+        if ($status === Password::RESET_LINK_SENT) {
+            return response()->json(['message' => 'Se ha enviado el enlace de recuperación a su correo']);
+        }
+
+        throw ValidationException::withMessages([
+            'email' => [trans($status)],
+        ]);
+    }
+
+    /**
+     * Resetear contraseña
+     */
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:8|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->password = Hash::make($password);
+                $user->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return response()->json(['message' => 'Contraseña restablecida exitosamente']);
+        }
+
+        throw ValidationException::withMessages([
+            'email' => [trans($status)],
+        ]);
+    }
+}

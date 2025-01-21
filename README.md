@@ -76,21 +76,11 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
 
 Crear una base de datos llamada lms_backend en phpMyAdmin u otra herramienta de administración de MySQL.
 
-Ejecutar las migraciones para crear las tablas:
+Ejecutar las migraciones para crear las tablas y cargar los seeders:
 
 ```
-    php artisan migrate
+    php artisan migrate --seed
 ```
-
-Agregar los seeders necesarios. Asegúrate de tener los archivos JSON en la raíz del proyecto si vas a generar seeders automáticamente con el script de generate-seeder.php.
-
-Cargar los datos en la base de datos con los seeders. Por ejemplo, para PersonalSeeder, que ya está generado:
-
-```
-    php artisan db:seed --class=PersonalSeeder
-```
-
-Para otros seeders, cambia PersonalSeeder por el nombre del seeder correspondiente.
 
 # Servidor de desarrollo
 

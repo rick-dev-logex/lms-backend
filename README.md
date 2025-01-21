@@ -95,6 +95,5 @@ Esto iniciará un servidor local que estará disponible en http://127.0.0.1:8000
 ## Notas importantes
 
 Este proyecto utiliza Laravel Sanctum para la autenticación API. Asegúrate de revisar la [documentación oficial de Sanctum](https://laravel.com/docs/11.x/sanctum) si necesitas personalizar esta funcionalidad.
-Si necesitas ayuda para crear seeders adicionales, el script incluido en el proyecto te permite generar seeders automáticamente desde archivos JSON.
 
-Si encuentras algún problema, no dudes en contactar al equipo. 😊
+Si encuentras algún problema, no dudes en contactar al equipo de desarrollo. 😊

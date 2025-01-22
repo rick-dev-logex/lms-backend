@@ -11,11 +11,10 @@
             max-width: 600px;
             margin: 0 auto;
             font-family: Arial, sans-serif;
-            color: #333333;
+            color: #fafafa;
         }
 
         .header {
-            /* background: #991b1b; */
             background: #dc2626;
             padding: 20px;
             text-align: center;
@@ -34,11 +33,15 @@
         .button {
             display: inline-block;
             padding: 12px 24px;
-            background-color: #4a90e2;
+            background-color: #dc2626;
             color: #ffffff !important;
             text-decoration: none;
             border-radius: 4px;
             margin: 20px 0;
+        }
+
+        .button:hover {
+            background-color: #991b1b;
         }
 
         .footer {
@@ -58,7 +61,7 @@
         </div>
 
         <div class="content">
-            <h2>Hola {{ $user->name ?? 'John!' }},</h2>
+            <h2>¡Hola, {{ $user->name ?? '' }}!</h2>
 
             <p>{{ $content }}</p>
         </div>

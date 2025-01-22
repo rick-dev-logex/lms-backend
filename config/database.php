@@ -31,7 +31,7 @@ return [
 
     'connections' => [
 
-        'mysql' => [
+        'lms' => [
             'driver' => 'mysql',
             'host' => env('DB_LOCAL_HOST', '127.0.0.1'),
             'port' => env('DB_LOCAL_PORT', '3306'),

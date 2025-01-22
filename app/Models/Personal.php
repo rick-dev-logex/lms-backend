@@ -11,7 +11,7 @@ class Personal extends Authenticatable
 {
     use HasApiTokens, Notifiable, HasUuids;
 
-    protected $connection = 'sistema_onix';
+    protected $connection = 'onix';
     protected $table = 'onix_personal';
     public $timestamps = false;
 
@@ -40,5 +40,10 @@ class Personal extends Authenticatable
     public function accounts()
     {
         return $this->hasMany(Account::class, 'project', 'proyecto');
+    }
+
+    public function area()
+    {
+        return $this->belongsTo(Area::class, 'area_id', 'id');
     }
 }

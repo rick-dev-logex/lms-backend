@@ -4,10 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Request extends Model
 {
     use HasFactory;
+    use HasApiTokens;
+
+    protected $connection = 'lms'; // lms_backend
 
     protected $fillable = [
         'unique_id',

@@ -4,11 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Account extends Model
 {
     use HasFactory;
+    use HasApiTokens;
 
+    protected $connection = 'lms'; // lms_backend
+    protected $table = 'accounts';
     protected $fillable = ['name', 'account_number', 'account_type'];
 
     // Relación con personal de Onix a través del proyecto

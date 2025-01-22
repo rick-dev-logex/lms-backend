@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
 
 class Project extends Model
 {
     use HasFactory;
+    use HasApiTokens;
 
     protected $connection = 'onix'; // Usa la conexión a sistema_onix
     protected $table = 'onix_proyectos'; // Define el nombre de la tabla

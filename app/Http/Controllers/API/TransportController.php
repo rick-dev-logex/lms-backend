@@ -10,7 +10,7 @@ class TransportController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Transport::select('name')->where('deleted', '0');
+        $query = Transport::select('id', 'name')->where('deleted', '0');
 
         if ($request->filled('proyecto')) {
             $query->where('proyecto', $request->input('proyecto'));

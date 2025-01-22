@@ -10,19 +10,19 @@ class ResponsibleController extends Controller
 {
     public function index(Request $request)
     {
-        // Construcción del query base
-        $query = Personal::select('nombres', 'proyecto', 'area')
-            ->where('estado_personal', 'activo');
+        $query = Personal::select('nombres', 'proyecto', 'area', 'id')
+            ->where('estado_personal', 'activo'); // Filtro base
 
         // Filtros opcionales
         foreach (['proyecto', 'area'] as $filter) {
             if ($request->filled($filter)) {
-                $query->where('estado_personal', 'activo')->where($filter, $request->input($filter)); // Comparación exacta
+                $query->where($filter, $request->input($filter)); // Comparación exacta
             }
         }
 
         return response()->json($query->get());
     }
+
 
 
 

@@ -11,12 +11,13 @@ class ProjectController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $projects = Project::select('id', 'name')
-            ->where('activo', '1')
-            ->when($request->has('proyecto'), function ($query) use ($request) {
-                return $query->where('proyecto', $request->proyecto);
-            })
-            ->get();
+        $query = Project::where('deleted', '0')->where('activo', '1');
+
+        if ($request->filled('proyecto')) {
+            $query->where('proyecto', $request->input('proyecto'));
+        }
+
+        $projects = $query->select('id', 'name')->get();
 
         return response()->json($projects);
     }

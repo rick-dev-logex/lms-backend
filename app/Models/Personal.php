@@ -13,6 +13,8 @@ class Personal extends Authenticatable
 
     protected $connection = 'onix';
     protected $table = 'onix_personal';
+    public $incrementing = false; // Indica que no es un número incremental
+    protected $keyType = 'string'; // Indica que el ID es un string, no un entero
     public $timestamps = false;
 
     protected $fillable = [

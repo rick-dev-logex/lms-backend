@@ -13,6 +13,8 @@ class Project extends Model
 
     protected $connection = 'onix'; // Usa la conexión a sistema_onix
     protected $table = 'onix_proyectos'; // Define el nombre de la tabla
+    public $incrementing = false; // Indica que no es un número incremental
+    protected $keyType = 'string'; // Indica que el ID es un string, no un entero
 
     protected $fillable = ['proyecto', 'tipo'];
 

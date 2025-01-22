@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('account_id')->constrained('accounts');
             $table->decimal('amount', 10, 2);
             $table->string('project');
-            $table->string('responsible_id');
+            $table->string('responsible_id')->nullable();
             $table->unsignedBigInteger('transport_id')->nullable();
             $table->string('attachment_path')->nullable();
             $table->text('note');

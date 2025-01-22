@@ -24,12 +24,12 @@ class RequestController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:expense,discount',
             'personnel_type' => 'required|in:nomina,transportista',
-            'request_date' => 'required|date',
+            'request_date' => 'required|date' || date('Y-m-d'),
             'invoice_number' => 'required|string',
             'account_id' => 'required|exists:accounts,id',
             'amount' => 'required|numeric|min:0',
             'project' => ['required', new ProjectAccountRule($request)],
-            'responsible_id' => ['required', new ActivePersonnelRule($request, $this->personnelService)],
+            'responsible_id' => $request->personnel_type === 'nomina' ? ['required', new ActivePersonnelRule($request, $this->personnelService)] : 'nullable',
             'transport_id' => $request->personnel_type === 'transportista' ? 'required|exists:vehiculos,id' : 'nullable',
             'attachment_path' => 'required|string',
             'note' => 'required|string'

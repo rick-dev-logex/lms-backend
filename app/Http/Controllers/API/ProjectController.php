@@ -9,9 +9,15 @@ use Illuminate\Http\JsonResponse;
 
 class ProjectController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $projects = Project::all();
+        $projects = Project::select('id', 'name')
+            ->where('activo', '1')
+            ->when($request->has('proyecto'), function ($query) use ($request) {
+                return $query->where('proyecto', $request->proyecto);
+            })
+            ->get();
+
         return response()->json($projects);
     }
 

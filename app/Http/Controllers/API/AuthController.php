@@ -20,6 +20,10 @@ class AuthController extends Controller
     {
         // \Log::info('Datos recibidos en register:', $request->all());
 
+        if ($request->isMethod('OPTIONS')) {
+            return response()->json('OK', 200);
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -48,10 +52,11 @@ class AuthController extends Controller
                 'access_token' => $token,
                 'token_type' => 'Bearer'
             ], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
-            // \Log::error('Error en registro: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Error al crear el usuario',
+                'message' => 'Error al iniciar sesión',
                 'error' => $e->getMessage()
             ], 500);
         }

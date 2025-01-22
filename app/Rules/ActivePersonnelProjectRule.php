@@ -28,7 +28,7 @@ class ActivePersonnelProjectRule implements Rule
         }
 
         if ($this->type === 'transportista') {
-            return DB::connection('tms')
+            return DB::connection('sistema_onix')
                 ->table('onix_vehiculos')
                 ->where('name', $value)
                 ->where('proyecto', $this->project)
@@ -56,7 +56,6 @@ class ValidProjectAccountRule implements Rule
 
     public function passes($attribute, $value)
     {
-        // For nomina type, check lms_backend projects table
         if ($this->type === 'nomina') {
             return DB::connection('lms_backend')
                 ->table('projects')
@@ -65,7 +64,6 @@ class ValidProjectAccountRule implements Rule
                 ->exists();
         }
 
-        // For transportista type, check for provider type
         if ($this->type === 'transportista') {
             return DB::connection('lms_backend')
                 ->table('projects')

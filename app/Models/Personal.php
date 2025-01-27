@@ -11,7 +11,7 @@ class Personal extends Authenticatable
 {
     use HasApiTokens, Notifiable, HasUuids;
 
-    protected $connection = 'onix';
+    protected $connection = 'sistema_onix';
     protected $table = 'onix_personal';
     public $incrementing = false; // Indica que no es un número incremental
     protected $keyType = 'string'; // Indica que el ID es un string, no un entero
@@ -36,7 +36,7 @@ class Personal extends Authenticatable
     // Relación con las solicitudes donde la persona es responsable
     public function responsibleFor()
     {
-        return $this->hasMany(Request::class, 'responsible_id', 'nombres');
+        return $this->hasMany(Request::class, 'responsible_id', 'nombre_completo');
     }
     // Relación con las cuentas a través del proyecto
     public function accounts()

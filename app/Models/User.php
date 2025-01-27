@@ -12,12 +12,13 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected $connection = 'mysql';
+    protected $connection = 'lms_backend';
     protected $table = 'users';
 
     protected $fillable = [
         'name',
         'email',
+        'dob',
         'password',
         'profile_photo_path',
         'current_team_id',
@@ -27,6 +28,7 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'dob' => 'date',
     ];
 
     /**

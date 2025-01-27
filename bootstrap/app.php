@@ -13,17 +13,18 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__ . '/../routes/api.php'
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // Global middleware - se ejecuta primero
+        // Global middleware - se ejecuta primero 
         $middleware->use([
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
-            \Illuminate\Http\Middleware\HandleCors::class,
+            \App\Http\Middleware\HandleCors::class,
         ]);
 
         // API middleware group
         $middleware->api([
             'throttle:60,1',
+            'cors',
         ]);
 
         // Aliases
@@ -34,6 +35,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+            'cors' => \App\Http\Middleware\HandleCors::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

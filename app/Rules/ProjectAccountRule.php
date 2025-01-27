@@ -17,15 +17,15 @@ class ProjectAccountRule implements Rule
 
     public function passes($attribute, $value): bool
     {
-        $query = DB::connection('lms_backend')
-            ->table('projects')
+        $query = DB::connection('sistema_onix')
+            ->table('onix_proyectos')
             ->where('id', $value);
 
         // Para descuentos, validamos el tipo
-        if ($this->request->type === 'discount') {
-            $tipo = $this->request->personnel_type === 'nomina' ? 'empleado' : 'proveedor';
-            $query->where('tipo', $tipo);
-        }
+        // if ($this->request->type === 'discount') {
+        //     $tipo = $this->request->personnel_type === 'nomina' ? 'empleado' : 'proveedor';
+        //     $query->where('tipo', $tipo);
+        // }
 
         return $query->exists();
     }

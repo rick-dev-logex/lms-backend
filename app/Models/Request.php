@@ -11,22 +11,34 @@ class Request extends Model
     use HasFactory;
     use HasApiTokens;
 
-    protected $connection = 'lms'; // lms_backend
+    protected $connection = 'lms_backend'; // lms_backend
 
     protected $fillable = [
-        'unique_id',
         'type',
-        'status',
+        'personnel_type',
+        'project',
         'request_date',
         'invoice_number',
         'account_id',
         'amount',
-        'project_id',
+        'note',
+        'unique_id',
+        'attachment_path',
         'responsible_id',
         'transport_id',
-        'attachment_path',
-        'note',
+        'status'
     ];
+
+    protected $casts = [
+        'request_date' => 'date',
+        'amount' => 'decimal:2'
+    ];
+
+    // Obtiene la reposición a la que pertenece esta solicitud
+    public function reposicion()
+    {
+        return $this->belongsTo(Reposicion::class, 'unique_id', 'detail');
+    }
 
     public function account()
     {
@@ -46,5 +58,17 @@ class Request extends Model
     public function transport()
     {
         return $this->belongsTo(Transport::class);
+    }
+
+    // Scope para filtrar solicitudes pendientes de reposición
+    public function scopePendingReposition($query)
+    {
+        return $query->whereNull('reposicion_id')->where('status', 'approved');
+    }
+
+    // Scope para filtrar por proyecto
+    public function scopeByProject($query, $project)
+    {
+        return $query->where('project', $project);
     }
 }

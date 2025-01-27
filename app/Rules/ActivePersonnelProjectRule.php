@@ -19,7 +19,7 @@ class ActivePersonnelProjectRule implements Rule
     public function passes($attribute, $value)
     {
         if ($this->type === 'nomina') {
-            return DB::connection('sistema_onix')
+            return DB::connection('onix')
                 ->table('onix_personal')
                 ->where('nombres', $value)
                 ->where('proyecto', $this->project)
@@ -28,7 +28,7 @@ class ActivePersonnelProjectRule implements Rule
         }
 
         if ($this->type === 'transportista') {
-            return DB::connection('sistema_onix')
+            return DB::connection('onix')
                 ->table('onix_vehiculos')
                 ->where('name', $value)
                 ->where('proyecto', $this->project)
@@ -57,16 +57,16 @@ class ValidProjectAccountRule implements Rule
     public function passes($attribute, $value)
     {
         if ($this->type === 'nomina') {
-            return DB::connection('lms_backend')
-                ->table('projects')
+            return DB::connection('onix')
+                ->table('onix_proyectos')
                 ->where('id', $value)
                 ->where('tipo', 'empleado')
                 ->exists();
         }
 
         if ($this->type === 'transportista') {
-            return DB::connection('lms_backend')
-                ->table('projects')
+            return DB::connection('onix')
+                ->table('onix_proyectos')
                 ->where('id', $value)
                 ->where('tipo', 'proveedor')
                 ->exists();

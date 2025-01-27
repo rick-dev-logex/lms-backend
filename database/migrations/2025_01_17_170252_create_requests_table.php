@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('unique_id')->unique(); // Prefijo 'g-' o 'd-' según sea gasto o descuento
             $table->enum('type', ['expense', 'discount']);
+            $table->string('personnel_type');
             $table->enum('status', ['pending', 'approved', 'rejected', 'review']);
             $table->date('request_date');
             $table->string('invoice_number');
@@ -19,7 +20,7 @@ return new class extends Migration
             $table->decimal('amount', 10, 2);
             $table->string('project');
             $table->string('responsible_id')->nullable();
-            $table->unsignedBigInteger('transport_id')->nullable();
+            $table->string('transport_id')->nullable();
             $table->string('attachment_path')->nullable();
             $table->text('note');
             $table->timestamps();

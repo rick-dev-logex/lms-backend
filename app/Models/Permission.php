@@ -11,6 +11,9 @@ class Permission extends Model
     use HasFactory;
     use HasApiTokens;
 
+    protected $connection = 'lms_backend';
+    protected $table = 'permissions';
+
     protected $fillable = ['name'];
 
     public function users()

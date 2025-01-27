@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'mysql'),
 
     /*
     |--------------------------------------------------------------------------
@@ -31,7 +31,7 @@ return [
 
     'connections' => [
 
-        'lms' => [
+        'lms_backend' => [
             'driver' => 'mysql',
             'host' => env('DB_LOCAL_HOST', '127.0.0.1'),
             'port' => env('DB_LOCAL_PORT', '3306'),
@@ -45,7 +45,7 @@ return [
             'engine' => null,
         ],
 
-        'onix' => [ // Conexión adicional para sistema_onix
+        'sistema_onix' => [ // Conexión adicional para sistema_onix
             'driver' => 'mysql',
             'host' => env('ONIX_DB_HOST', '127.0.0.1'),
             'port' => env('ONIX_DB_PORT', '3306'),
@@ -102,33 +102,33 @@ return [
     |
     */
 
-    'redis' => [
+    // 'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+    //     'client' => env('REDIS_CLIENT', 'phpredis'),
 
-        'options' => [
-            'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_') . '_database_'),
-        ],
+    //     'options' => [
+    //         'cluster' => env('REDIS_CLUSTER', 'redis'),
+    //         'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_') . '_database_'),
+    //     ],
 
-        'default' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_DB', '0'),
-        ],
+    //     'default' => [
+    //         'url' => env('REDIS_URL'),
+    //         'host' => env('REDIS_HOST', '127.0.0.1'),
+    //         'username' => env('REDIS_USERNAME'),
+    //         'password' => env('REDIS_PASSWORD'),
+    //         'port' => env('REDIS_PORT', '6379'),
+    //         'database' => env('REDIS_DB', '0'),
+    //     ],
 
-        'cache' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_CACHE_DB', '1'),
-        ],
+    //     'cache' => [
+    //         'url' => env('REDIS_URL'),
+    //         'host' => env('REDIS_HOST', '127.0.0.1'),
+    //         'username' => env('REDIS_USERNAME'),
+    //         'password' => env('REDIS_PASSWORD'),
+    //         'port' => env('REDIS_PORT', '6379'),
+    //         'database' => env('REDIS_CACHE_DB', '1'),
+    //     ],
 
-    ],
+    // ],
 
 ];

@@ -10,22 +10,31 @@ class ResponsibleController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Personal::select('nombres', 'proyecto', 'area', 'id')
-            ->where('estado_personal', 'activo'); // Filtro base
+        if ($request->input('action') === 'count') {
+            return response()->json(Personal::where('estado_personal', 'activo')->count());
+        } else {
+            $query = Personal::where('estado_personal', 'activo');
 
-        // Filtros opcionales
-        foreach (['proyecto', 'area'] as $filter) {
-            if ($request->filled($filter)) {
-                $query->where($filter, $request->input($filter)); // Comparación exacta
+            // Seleccionar campos específicos si se solicitan
+            if ($request->filled('fields')) {
+                $query->select(explode(',', $request->fields));
             }
+
+            if ($request->filled('proyecto')) {
+                $query->where('proyecto', $request->proyecto);
+            }
+
+            if ($request->filled('area')) {
+                $query->where('area', $request->area);
+            }
+
+            if ($request === 'count') {
+                $query->count();
+            }
+
+            return response()->json($query->get());
         }
-
-        return response()->json($query->get());
     }
-
-
-
-
 
     public function store(Request $request)
     {

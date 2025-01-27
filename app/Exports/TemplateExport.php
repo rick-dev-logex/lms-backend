@@ -55,7 +55,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                         return str_replace(',', ' ', $name); // Evitar problemas con comas
                     })->toArray();
 
-                $projects = DB::connection('onix')
+                $projects = DB::connection('sistema_onix')
                     ->table('onix_personal')
                     ->select('proyecto')
                     ->distinct()
@@ -106,7 +106,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                         $validation->setShowInputMessage(true);
                         $validation->setShowErrorMessage(true);
                         $validation->setErrorTitle('Error');
-                        $validation->setError('Por favor seleccione un valor de la lista');
+                        $validation->setError('Por favor selecciona un valor de la lista');
                         $validation->setFormula1($validationList);
                     }
                 }

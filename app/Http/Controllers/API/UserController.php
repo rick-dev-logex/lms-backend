@@ -8,18 +8,23 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $users = User::with(['role', 'permissions'])
+        if ($request->input('action') === 'count') {
+            return response()->json(User::count());
+        }
+
+        $query = User::with(['role', 'permissions'])
             ->latest()
             ->get();
 
-        return response()->json($users);
+        return response()->json($query);
     }
 
     public function store(StoreUserRequest $request): JsonResponse

@@ -5,8 +5,6 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Request;
 use App\Notifications\RequestNotification;
-use App\Rules\ActivePersonnelRule;
-use App\Rules\ProjectAccountRule;
 use App\Services\PersonnelService;
 use Illuminate\Http\Request as HttpRequest;
 
@@ -19,37 +17,114 @@ class RequestController extends Controller
         $this->personnelService = $personnelService;
     }
 
-    public function store(HttpRequest $request)
+    public function index(HttpRequest $request)
     {
-        $validated = $request->validate([
-            'type' => 'required|in:expense,discount',
-            'personnel_type' => 'required|in:nomina,transportista',
-            'request_date' => 'required|date' || date('Y-m-d'),
-            'invoice_number' => 'required|string',
-            'account_id' => 'required|exists:accounts,id',
-            'amount' => 'required|numeric|min:0',
-            'project' => ['required', new ProjectAccountRule($request)],
-            'responsible_id' => $request->personnel_type === 'nomina' ? ['required', new ActivePersonnelRule($request, $this->personnelService)] : 'nullable',
-            'transport_id' => $request->personnel_type === 'transportista' ? 'required|exists:vehiculos,id' : 'nullable',
-            'attachment_path' => 'required|string',
-            'note' => 'required|string'
-        ]);
+        $query = Request::query();
 
-        $prefix = $validated['type'] === 'expense' ? 'G-' : 'D-';
-        $validated['unique_id'] = $prefix . uniqid();
-        $validated['status'] = 'pending';
+        if ($request->input('action') === 'count') {
+            $query = $query->where('status', $request->status);
 
-        $request = Request::create($validated);
+            if ($request->filled('month')) {
+                $query->whereMonth('created_at', $request->input('month'));
+            }
+            if ($request->filled('year')) {
+                $query->whereYear('created_at', $request->input('year'));
+            }
 
-        return response()->json([
-            'message' => 'Request created successfully',
-            'data' => $request
-        ], 201);
+            return response()->json($query->count());
+        }
+
+        if ($request->filled('fields')) {
+            $query->select(explode(',', $request->fields));
+        }
+
+        foreach ($request->all() as $key => $value) {
+            if ($key === 'fields' || $key === 'action') {
+                continue;
+            }
+            if ($key === 'month') {
+                $query->whereMonth('created_at', $value);
+            } elseif ($key === 'year') {
+                $query->whereYear('created_at', $value);
+            } else {
+                $query->where($key, $value);
+            }
+        }
+
+        $query = $query->get();
+
+        return response()->json($query);
     }
 
-    public function show(Request $request)
+
+    public function store(HttpRequest $request)
     {
-        return response()->json($request->load(['account', 'project', 'responsible', 'transport']));
+        try {
+            $baseRules = [
+                'type' => 'required|in:expense,discount',
+                'personnel_type' => 'required|in:nomina,transportista',
+                'request_date' => 'required|date',
+                'invoice_number' => 'required|string',
+                'account_id' => 'required|exists:accounts,id',
+                'amount' => 'required|numeric|min:0',
+                'project' => 'required|string',
+                'attachment' => 'required|file',
+                'note' => 'required|string'
+            ];
+
+            if ($request->input('personnel_type') === 'nomina') {
+                $baseRules['responsible_id'] = 'required|exists:sistema_onix.onix_personal,id';
+            } else {
+                $baseRules['transport_id'] = 'required|exists:sistema_onix.onix_vehiculos,id';
+            }
+
+            $validated = $request->validate($baseRules);
+
+            // Generar el identificador único incremental con prefijo
+            $prefix = $validated['type'] === 'expense' ? 'G-' : 'D-';
+            $lastRecord = Request::where('type', $validated['type'])->orderBy('id', 'desc')->first();
+            $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
+            $unique_id = $prefix . $nextId;
+
+            $requestData = [
+                'type' => $validated['type'],
+                'personnel_type' => $validated['personnel_type'],
+                'project' => strtoupper($validated['project']),
+                'request_date' => $validated['request_date'],
+                'invoice_number' => $validated['invoice_number'],
+                'account_id' => $validated['account_id'],
+                'amount' => $validated['amount'],
+                'note' => $validated['note'],
+                'unique_id' => $unique_id,
+                'attachment_path' => $request->file('attachment')->store('attachments')
+            ];
+
+            if (isset($validated['responsible_id'])) {
+                $requestData['responsible_id'] = $validated['responsible_id'];
+            }
+            if (isset($validated['transport_id'])) {
+                $requestData['transport_id'] = $validated['transport_id'];
+            }
+
+            $newRequest = Request::create($requestData);
+
+            return response()->json([
+                'message' => 'Request created successfully',
+                'data' => $newRequest
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error creating request',
+                'error' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+
+    public function show(HttpRequest $request)
+    {
+        $request->has('status') ? $requests = Request::where('status', $request->status)->get() : $requests = Request::all();
+        return response()->json($requests->load(['account', 'project', 'responsible', 'transport']));
     }
 
     public function update(HttpRequest $request, Request $requestRecord)

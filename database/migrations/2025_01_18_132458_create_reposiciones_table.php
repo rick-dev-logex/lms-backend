@@ -13,20 +13,22 @@ return new class extends Migration
     {
         Schema::create('reposiciones', function (Blueprint $table) {
             $table->id();
-            $table->foreignID('request_id')->constrained('requests')->onDelete('cascade');
-            $table->string('fecha_reposicion')->nullable();
-            $table->string('total_reposicion')->default(0);
-            $table->string('status')->default('pending');
-            $table->string('project')->nullable();
+            $table->timestamp('fecha_reposicion')->nullable();
+            $table->decimal('total_reposicion', 10, 2)->default(0);
+            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
+            $table->string('project', 100)->nullable();
             $table->json('detail');
-            $table->string('month')->nullable();
-            $table->enum('when', ['rol', 'liquidación', 'decimo_tercero', 'decimo_cuarto', 'utilidades'])->default('rol');
-            $table->string('note')->nullable();
+            $table->string('month', 7)->nullable(); // formato: YYYY-MM
+            $table->enum('when', ['rol', 'liquidación', 'decimo_tercero', 'decimo_cuarto', 'utilidades'])
+                ->default('rol');
+            $table->text('note')->nullable();
             $table->timestamps();
 
-            $table->index('project');
-            $table->index('status');
-            $table->index('month');
+            $table->index('fecha_reposicion');
+            $table->index(['project', 'status']);
+            $table->index(['status', 'month']);
+            $table->index(['month', 'when']);
+            $table->index(['status', 'created_at']);
         });
     }
 

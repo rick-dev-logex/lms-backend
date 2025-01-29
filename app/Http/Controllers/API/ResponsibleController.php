@@ -13,8 +13,7 @@ class ResponsibleController extends Controller
         if ($request->input('action') === 'count') {
             return response()->json(Personal::where('estado_personal', 'activo')->count());
         } else {
-            $query = Personal::where('estado_personal', 'activo');
-
+            $query = Personal::where('estado_personal', 'activo')->orderBy('nombre_completo', 'asc');
             // Seleccionar campos específicos si se solicitan
             if ($request->filled('fields')) {
                 $query->select(explode(',', $request->fields));

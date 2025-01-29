@@ -24,7 +24,7 @@ class TransportController extends Controller
                 $query->where('proyecto', $request->input('proyecto'));
             }
 
-            return response()->json($query->get());
+            return response()->json($query->orderBy('name', 'asc')->get());
         }
     }
 

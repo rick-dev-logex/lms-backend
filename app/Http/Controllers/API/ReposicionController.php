@@ -13,27 +13,132 @@ class ReposicionController extends Controller
 {
     public function index(HttpRequest $request)
     {
-        $query = Reposicion::query();
+        try {
+            $query = Reposicion::query();
 
-        // Utilizamos los nuevos scopes
-        if ($request->has('project')) {
-            $query->byProject($request->project);
+            // Aplicar filtros
+            if ($request->filled('search')) {
+                $searchTerm = $request->search;
+                $query->where(function ($q) use ($searchTerm) {
+                    $q->where('project', 'like', "%{$searchTerm}%")
+                        ->orWhere('total_reposicion', 'like', "%{$searchTerm}%")
+                        ->orWhere('note', 'like', "%{$searchTerm}%");
+                });
+            }
+
+            if ($request->filled('project')) {
+                $query->byProject($request->project);
+            }
+
+            if ($request->filled('status')) {
+                $query->byStatus($request->status);
+            }
+
+            if ($request->filled('month')) {
+                $query->byMonth($request->month);
+            }
+
+            // Ordenamiento
+            $sortField = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('sort_order', 'desc');
+            $allowedSortFields = ['created_at', 'fecha_reposicion', 'total_reposicion', 'project', 'status'];
+
+            if (in_array($sortField, $allowedSortFields)) {
+                $query->orderBy($sortField, $sortOrder);
+            }
+
+            // Paginación
+            $perPage = $request->input('per_page', 10);
+            $page = $request->input('page', 1);
+
+            $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+
+            // Obtener todos los unique_ids de las solicitudes
+            $allRequestIds = collect($paginator->items())
+                ->pluck('detail')
+                ->flatten()
+                ->unique()
+                ->values()
+                ->toArray();
+
+            // Cargar todas las solicitudes relacionadas de una vez
+            $requests = Request::whereIn('unique_id', $allRequestIds)
+                ->with('account:id,name')
+                ->get()
+                ->keyBy('unique_id');
+
+            // Obtener IDs únicos para responsables y transportes
+            $responsibleIds = $requests->pluck('responsible_id')->filter()->unique();
+            $transportIds = $requests->pluck('transport_id')->filter()->unique();
+
+            // Cargar datos de la base de datos externa
+            $responsibles = $responsibleIds->isNotEmpty()
+                ? DB::connection('sistema_onix')
+                ->table('onix_personal')
+                ->whereIn('id', $responsibleIds)
+                ->select('id', 'nombre_completo')
+                ->get()
+                ->keyBy('id')
+                : collect();
+
+            $transports = $transportIds->isNotEmpty()
+                ? DB::connection('sistema_onix')
+                ->table('onix_vehiculos')
+                ->whereIn('id', $transportIds)
+                ->select('id', 'name')
+                ->get()
+                ->keyBy('id')
+                : collect();
+
+            // Mapear los datos
+            $data = collect($paginator->items())->map(function ($reposicion) use ($requests, $responsibles, $transports) {
+                $reposicionRequests = collect($reposicion->detail)->map(function ($requestId) use ($requests, $responsibles, $transports) {
+                    $request = $requests->get($requestId);
+                    if ($request) {
+                        // Agregar datos de responsable y transporte si existen
+                        if ($request->responsible_id && $responsibles->has($request->responsible_id)) {
+                            $request->responsible = $responsibles->get($request->responsible_id);
+                        }
+                        if ($request->transport_id && $transports->has($request->transport_id)) {
+                            $request->transport = $transports->get($request->transport_id);
+                        }
+                    }
+                    return $request;
+                })->filter();
+
+                $reposicion->requests = $reposicionRequests->values();
+                return $reposicion;
+            });
+
+            return response()->json([
+                'data' => $data,
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'last_page' => $paginator->lastPage(),
+                    'per_page' => $paginator->perPage(),
+                    'total' => $paginator->total(),
+                    'has_more' => $paginator->hasMorePages(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error en ReposicionController@index: ' . $e->getMessage());
+            \Log::error($e->getTraceAsString());
+
+            return response()->json([
+                'message' => 'Error al procesar la solicitud',
+                'error' => $e->getMessage()
+            ], 500);
         }
+    }
 
-        if ($request->has('status')) {
-            $query->byStatus($request->status);
-        }
+    public function show($id)
+    {
+        $reposicion = Reposicion::findOrFail($id);
 
-        if ($request->has('month')) {
-            $query->byMonth($request->month);
-        }
+        // Cargar las solicitudes con sus relaciones
+        $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
 
-        // Cargamos las relaciones usando el nuevo método requests()
-        return response()->json(
-            $query->with(['requests' => function ($query) {
-                $query->with(['account', 'responsible', 'transport']);
-            }])->get()
-        );
+        return response()->json($reposicion);
     }
 
     public function store(HttpRequest $request)
@@ -45,15 +150,10 @@ class ReposicionController extends Controller
             $validated = $request->validate([
                 'request_ids' => 'required|array',
                 'request_ids.*' => 'exists:requests,unique_id',
-                'month' => 'required|string', // formato: "2025-01"
-                'when' => 'required|in:rol,liquidación,decimo_tercero,decimo_cuarto,utilidades',
-                'note' => 'required|string',
             ]);
 
-            // Obtener las solicitudes y verificar que sean del mismo proyecto
-            // Usamos el nuevo scope byProject
-            $requests = Request::whereIn('unique_id', $validated['request_ids'])
-                ->get();
+            // Obtener las solicitudes usando el array directamente
+            $requests = Request::whereIn('unique_id', $validated['request_ids'])->get();
 
             if ($requests->isEmpty()) {
                 throw new \Exception('No requests found with the provided IDs');
@@ -65,30 +165,27 @@ class ReposicionController extends Controller
                 throw new \Exception('All requests must belong to the same project');
             }
 
-            // Crear la reposición usando los nuevos casts
+            // Crear la reposición
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => Carbon::now(),
                 'total_reposicion' => $requests->sum('amount'),
                 'status' => 'pending',
                 'project' => $project,
-                'detail' => $validated['request_ids'], // Ahora se castea automáticamente a JSON
-                'month' => $validated['month'],
-                'when' => $validated['when'],
-                'note' => $validated['note']
+                'detail' => $validated['request_ids'] // Aquí pasamos directamente el array
             ]);
 
             // Actualizar el estado de las solicitudes relacionadas
             Request::whereIn('unique_id', $validated['request_ids'])
-                ->update([
-                    'status' => 'in_reposition'
-                ]);
+                ->update(['status' => 'in_reposition']);
 
             DB::commit();
 
-            // Cargar las relaciones usando el nuevo método requests()
+            // Cargar las solicitudes para la respuesta
+            $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+
             return response()->json([
                 'message' => 'Reposición created successfully',
-                'data' => $reposicion->load('requests')
+                'data' => $reposicion
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -97,19 +194,6 @@ class ReposicionController extends Controller
                 'error' => $e->getMessage()
             ], 422);
         }
-    }
-
-    public function show($id)
-    {
-        // Usar las nuevas relaciones para cargar los datos
-        $reposicion = Reposicion::with(['requests' => function ($query) {
-            $query->with(['account', 'responsible', 'transport']);
-        }])->findOrFail($id);
-
-        // Agregar el total calculado usando el nuevo método
-        $reposicion->calculated_total = $reposicion->calculateTotal();
-
-        return response()->json($reposicion);
     }
 
     public function update(HttpRequest $request, $id)

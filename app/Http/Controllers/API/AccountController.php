@@ -10,7 +10,7 @@ class AccountController extends Controller
 {
     public function index(Request $request)
     {
-        $request->has('account_type') ? $accounts = Account::where('account_type', $request->account_type)->get() : $accounts = Account::all();
+        $request->has('account_type') ? $accounts = Account::where('account_type', $request->account_type)->get() : $accounts = Account::orderBy('name', 'asc')->get();
         return response()->json($accounts);
     }
 

@@ -5,13 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\Builder;
 
 class Request extends Model
 {
-    use HasFactory;
-    use HasApiTokens;
+    use HasFactory, HasApiTokens;
 
-    protected $connection = 'lms_backend'; // lms_backend
+    protected $connection = 'lms_backend';
 
     protected $fillable = [
         'type',
@@ -31,10 +31,17 @@ class Request extends Model
 
     protected $casts = [
         'request_date' => 'date',
-        'amount' => 'decimal:2'
+        'amount' => 'decimal:2',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
 
-    // Obtiene la reposición a la que pertenece esta solicitud
+    // Define las relaciones que siempre necesitas cargar
+    protected $with = ['account:id,name'];
+
+    // Define los campos que quieres ocultar en las respuestas JSON
+    protected $hidden = ['deleted_at'];
+
     public function reposicion()
     {
         return $this->belongsTo(Reposicion::class, 'unique_id', 'detail');
@@ -42,7 +49,7 @@ class Request extends Model
 
     public function account()
     {
-        return $this->belongsTo(Account::class);
+        return $this->belongsTo(Account::class)->select(['id', 'name']);
     }
 
     public function project()
@@ -52,23 +59,61 @@ class Request extends Model
 
     public function responsible()
     {
-        return $this->belongsTo(User::class, 'responsible_id');
+        return $this->belongsTo(User::class, 'responsible_id')
+            ->select(['id', 'nombre_completo']);
     }
 
     public function transport()
     {
-        return $this->belongsTo(Transport::class);
+        return $this->belongsTo(Transport::class)
+            ->select(['id', 'name']);
     }
 
-    // Scope para filtrar solicitudes pendientes de reposición
-    public function scopePendingReposition($query)
+    // Scopes optimizados
+    public function scopePendingReposition($query): Builder
     {
-        return $query->whereNull('reposicion_id')->where('status', 'approved');
+        return $query->whereNull('reposicion_id')
+            ->where('status', 'approved');
     }
 
-    // Scope para filtrar por proyecto
-    public function scopeByProject($query, $project)
+    public function scopeByProject($query, $project): Builder
     {
         return $query->where('project', $project);
+    }
+
+    public function scopeByStatus($query, $status): Builder
+    {
+        return $query->where('status', $status);
+    }
+
+    public function scopeByType($query, $type): Builder
+    {
+        return $query->where('type', $type);
+    }
+
+    public function scopeByPersonnelType($query, $type): Builder
+    {
+        return $query->where('personnel_type', $type);
+    }
+
+    public function scopeByDate($query, $startDate, $endDate = null): Builder
+    {
+        if ($endDate) {
+            return $query->whereBetween('request_date', [$startDate, $endDate]);
+        }
+        return $query->whereDate('request_date', $startDate);
+    }
+
+    public function scopeSearch($query, $term): Builder
+    {
+        return $query->where(function ($q) use ($term) {
+            $q->where('unique_id', 'like', "%{$term}%")
+                ->orWhere('project', 'like', "%{$term}%")
+                ->orWhere('invoice_number', 'like', "%{$term}%")
+                ->orWhere('amount', 'like', "%{$term}%")
+                ->orWhereHas('account', function ($q) use ($term) {
+                    $q->where('name', 'like', "%{$term}%");
+                });
+        });
     }
 }

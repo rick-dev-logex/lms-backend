@@ -11,7 +11,7 @@ class ProjectController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Project::where('deleted', '0')->where('activo', '1');
+        $query = Project::where('deleted', '0')->where('activo', '1')->orderBy('name', 'asc');
 
         if ($request->filled('proyecto')) {
             $query->where('proyecto', $request->input('proyecto'));

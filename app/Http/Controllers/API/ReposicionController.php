@@ -121,9 +121,6 @@ class ReposicionController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error en ReposicionController@index: ' . $e->getMessage());
-            \Log::error($e->getTraceAsString());
-
             return response()->json([
                 'message' => 'Error al procesar la solicitud',
                 'error' => $e->getMessage()

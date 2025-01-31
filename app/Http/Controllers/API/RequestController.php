@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Events\RequestUpdated;
 use App\Http\Controllers\Controller;
+use App\Models\Account;
 use App\Models\Request;
 use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class RequestController extends Controller
 {
@@ -196,11 +201,46 @@ class RequestController extends Controller
         }
     }
 
-    public function show(HttpRequest $request)
+    public function show(HttpRequest $request, $id)
     {
+        if ($request->input('action') === 'download') {
+            return $this->getFile($id);
+        }
+
         $request->has('status') ? $requests = Request::where('status', $request->status)->get() : $requests = Request::all();
+
         return response()->json($requests->load(['account', 'project', 'responsible', 'transport']));
     }
+
+    public function getFile($id)
+    {
+        $request = Request::find($id);
+
+        if (!$request) {
+            return response()->json(['message' => 'Request not found'], 404);
+        }
+
+        if (!$request->attachment_path) {
+            return response()->json(['message' => 'No attachment found for this request'], 404);
+        }
+
+        $filePath = $request->attachment_path;
+
+        if (!Storage::exists($filePath)) {
+            return response()->json(['message' => 'File not found in storage'], 404);
+        }
+
+        $mimeType = Storage::mimeType($filePath);
+        $fileName = basename($filePath);
+
+        return response()->streamDownload(function () use ($filePath) {
+            echo Storage::get($filePath);
+        }, $fileName, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"'
+        ]);
+    }
+
 
     public function store(HttpRequest $request)
     {
@@ -241,7 +281,7 @@ class RequestController extends Controller
                 'amount' => $validated['amount'],
                 'note' => $validated['note'],
                 'unique_id' => $unique_id,
-                'attachment_path' => $request->file('attachment')->store('attachments')
+                'attachment_path' => $request->file('attachment')->storeAs('attachments', $request->file('attachment')->getClientOriginalName())
             ];
 
             if (isset($validated['responsible_id'])) {
@@ -268,7 +308,7 @@ class RequestController extends Controller
     public function update(HttpRequest $request, Request $requestRecord)
     {
         $validated = $request->validate([
-            'status' => 'sometimes|in:pending,approved,rejected,review,in_reposition',
+            'status' => 'sometimes|in:pending,paid,rejected,review,in_reposition',
             'note' => 'sometimes|string',
         ]);
 
@@ -276,12 +316,22 @@ class RequestController extends Controller
         $requestRecord->update($validated);
 
         if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
+            broadcast(new RequestUpdated($requestRecord))->toOthers();
+        }
+
+        if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
             $responsible = $requestRecord->responsible;
 
-            if ($validated['status'] === 'approved') {
-                $responsible->notify(new RequestNotification($requestRecord, 'approved'));
+            if ($validated['status'] === 'paid') {
+                $responsible->notify(new RequestNotification($requestRecord, 'paid'));
             } elseif ($validated['status'] === 'rejected') {
                 $responsible->notify(new RequestNotification($requestRecord, 'rejected'));
+            } elseif ($validated['status'] === 'in_reposition') {
+                $responsible->notify(new RequestNotification($requestRecord, 'in_reposition'));
+            } elseif ($validated['status'] === 'review') {
+                $responsible->notify(new RequestNotification($requestRecord, 'review'));
+            } elseif ($validated['status'] === 'pending') {
+                $responsible->notify(new RequestNotification($requestRecord, 'pending'));
             }
         }
 
@@ -292,5 +342,200 @@ class RequestController extends Controller
     {
         $requestRecord->delete();
         return response()->json(['message' => 'Request deleted successfully.']);
+    }
+
+    // Importar descuentos desde Excel
+    public function uploadDiscounts(HttpRequest $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file|mimes:xlsx,xls',
+                'data' => 'required|json'
+            ]);
+
+            $discounts = json_decode($request->data, true);
+            $processedCount = 0;
+            $errors = [];
+
+            DB::beginTransaction();
+
+            foreach ($discounts as $index => $discount) {
+                try {
+                    // Normalizar el tipo de personal (convertir a minúsculas y quitar tildes)
+                    $personnelType = $this->normalizePersonnelType($discount['Tipo']);
+                    if (!in_array($personnelType, ['nomina', 'transportista'])) {
+                        throw new \Exception("Tipo de personal inválido: {$discount['Tipo']}. Debe ser 'Nómina/nomina' o 'Transportista/transportista'");
+                    }
+
+                    // Validar y obtener el ID del proyecto
+                    $projectId = $this->getProjectId($discount['Proyecto']);
+
+                    // Validar y obtener ID del responsable según el tipo
+                    $responsibleId = null;
+                    $transportId = null;
+
+                    if ($personnelType === 'nomina') {
+                        $responsibleId = $this->getResponsibleId($discount['Responsable']);
+                    } else {
+                        if (!isset($discount['Placa']) || empty($discount['Placa'])) {
+                            throw new \Exception("La placa del vehículo es requerida para transportistas");
+                        }
+                        $transportId = $this->getTransportId($discount['Placa']);
+                    }
+
+                    // Mapear campos del Excel a la base de datos
+                    $mappedData = [
+                        'type' => 'discount',
+                        'personnel_type' => $personnelType,
+                        'status' => 'pending',
+                        'request_date' => date('Y-m-d', strtotime($discount['Fecha'])),
+                        'invoice_number' => $discount['No. Factura'],
+                        'account_id' => $this->getAccountId($discount['Cuenta']),
+                        'amount' => floatval($discount['Valor']),
+                        'project' => $projectId,
+                        'responsible_id' => $responsibleId,
+                        'transport_id' => $transportId,
+                        'note' => $discount['Observación'],
+                    ];
+
+                    // Validar datos mapeados
+                    $validator = Validator::make($mappedData, [
+                        'type' => 'required|in:expense,discount',
+                        'personnel_type' => 'required|in:nomina,transportista',
+                        'request_date' => 'required|date',
+                        'invoice_number' => 'required|string',
+                        'account_id' => 'required|exists:accounts,id',
+                        'amount' => 'required|numeric|min:0',
+                        'project' => 'required|string',
+                        'note' => 'required|string'
+                    ]);
+
+                    // Añadir reglas condicionales según el tipo de personal
+                    if ($personnelType === 'nomina') {
+                        $validator->addRules([
+                            'responsible_id' => 'required|exists:sistema_onix.onix_personal,id'
+                        ]);
+                    } else {
+                        $validator->addRules([
+                            'transport_id' => 'required|exists:sistema_onix.onix_vehiculos,id'
+                        ]);
+                    }
+
+                    if ($validator->fails()) {
+                        $errorMessages = $validator->errors()->all();
+                        throw new \Exception("Error en la fila " . ($index + 2) . ": " . implode(", ", $errorMessages));
+                    }
+
+                    // Generar identificador único
+                    $prefix = 'D-';
+                    $lastRecord = Request::where('type', 'discount')
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    $nextId = $lastRecord ?
+                        ((int)str_replace(
+                            $prefix,
+                            '',
+                            $lastRecord->unique_id
+                        ) + 1) : 1;
+                    $mappedData['unique_id'] = $prefix . $nextId;
+
+                    // Crear el registro
+                    Request::create($mappedData);
+                    $processedCount++;
+                } catch (\Exception $e) {
+                    // Guardamos el error con información de contexto
+                    $errors[] = [
+                        'row' => $index + 2, // +2 porque Excel empieza en 1 y tiene cabecera
+                        'data' => $discount, // Guardamos los datos de la fila para contexto
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+
+            if (empty($errors)) {
+                DB::commit();
+                return response()->json([
+                    'message' => 'Descuentos procesados exitosamente',
+                    'processed' => $processedCount
+                ], 201);
+            } else {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Se encontraron errores al procesar los descuentos',
+                    'errors' => $errors
+                ], 422);
+            }
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error al procesar los descuentos',
+                'error' => $e->getMessage()
+            ], 422);
+        }
+    }
+
+    private function normalizePersonnelType($type)
+    {
+        // Convertir a minúsculas y quitar tildes
+        $normalized = strtolower(trim($type));
+        $normalized = str_replace('ó', 'o', $normalized);
+
+        // Mapear variaciones comunes
+        $mappings = [
+            'nomina' => 'nomina',
+            'nómina' => 'nomina',
+            'transportista' => 'transportista',
+            'transporte' => 'transportista'
+        ];
+
+        return $mappings[$normalized] ?? $normalized;
+    }
+
+    private function getAccountId($accountName)
+    {
+        $account = Account::where('name', $accountName)->first();
+        if (!$account) {
+            throw new \Exception("Cuenta no encontrada: {$accountName}");
+        }
+        return $account->id;
+    }
+
+    private function getProjectId($projectName)
+    {
+        $project = DB::connection('sistema_onix')
+            ->table('onix_proyectos')
+            ->where('name', $projectName)
+            ->first();
+
+        if (!$project) {
+            throw new \Exception("Proyecto no encontrado: {$projectName}");
+        }
+        return $project->id;
+    }
+
+    private function getResponsibleId($responsibleName)
+    {
+        $responsible = DB::connection('sistema_onix')
+            ->table('onix_personal')
+            ->where('nombre_completo', $responsibleName)
+            ->first();
+
+        if (!$responsible) {
+            throw new \Exception("Responsable no encontrado: {$responsibleName}");
+        }
+        return $responsible->id;
+    }
+
+    private function getTransportId($plate)
+    {
+        $transport = DB::connection('sistema_onix')
+            ->table('onix_vehiculos')
+            ->where('name', $plate)
+            ->first();
+
+        if (!$transport) {
+            throw new \Exception("Vehículo no encontrado con placa: {$plate}");
+        }
+        return $transport->id;
     }
 }

@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 
 class Reposicion extends Model
 {
-    use HasApiTokens;
+    use HasApiTokens, Notifiable;
 
     protected $connection = 'lms_backend';
     protected $table = 'reposiciones';

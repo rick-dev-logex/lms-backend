@@ -201,7 +201,7 @@ class ReposicionController extends Controller
             $reposicion = Reposicion::findOrFail($id);
 
             $validated = $request->validate([
-                'status' => 'sometimes|in:pending,approved,rejected',
+                'status' => 'sometimes|in:pending,paid,rejected,review',
                 'month' => 'sometimes|string',
                 'when' => 'sometimes|in:rol,liquidación,decimo_tercero,decimo_cuarto,utilidades',
                 'note' => 'sometimes|string',
@@ -209,26 +209,39 @@ class ReposicionController extends Controller
 
             // Si se está actualizando el estado
             if (isset($validated['status']) && $validated['status'] !== $reposicion->status) {
-                if ($validated['status'] === 'approved') {
-                    // Verificar que el total coincida antes de aprobar
+                // Actualizar estado de las solicitudes según el estado de la reposición
+                $requestStatus = match ($validated['status']) {
+                    'paid' => 'paid',
+                    'rejected' => 'rejected',
+                    'pending' => 'pending',
+                    'review' => 'review', // Cuando va a revisión, las solicitudes quedan en review
+                    default => 'pending'
+                };
+
+                // Actualizar todas las solicitudes asociadas
+                Request::whereIn('unique_id', $reposicion->detail)
+                    ->update([
+                        'status' => $requestStatus,
+                        'note' => $validated['note'] ?? null // Pasar la observación a las solicitudes
+                    ]);
+
+                // Verificación adicional para aprobación
+                if ($validated['status'] === 'paid') {
                     $calculatedTotal = $reposicion->calculateTotal();
                     if ($calculatedTotal != $reposicion->total_reposicion) {
                         throw new \Exception('Total mismatch between requests and reposicion');
                     }
-                } elseif ($validated['status'] === 'rejected') {
-                    // Restaurar las solicitudes a estado pendiente
-                    Request::whereIn('unique_id', $reposicion->detail)
-                        ->update(['status' => 'pending']);
                 }
             }
 
             $reposicion->update($validated);
+            $reposicion = $reposicion->fresh(); // Recargar la instancia
 
             DB::commit();
 
             return response()->json([
                 'message' => 'Reposición updated successfully',
-                'data' => $reposicion->load('requests')
+                'data' => $reposicion
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
@@ -255,12 +268,12 @@ class ReposicionController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Reposición deleted successfully'
+                'message' => 'Reposición eliminada correctamente'
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Error deleting reposición',
+                'message' => 'Error al eliminar la reposición',
                 'error' => $e->getMessage()
             ], 422);
         }

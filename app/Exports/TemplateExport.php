@@ -2,139 +2,308 @@
 
 namespace App\Exports;
 
-use App\Models\Account;
-use App\Models\User;
-use App\Models\Transport;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use PhpOffice\PhpSpreadsheet\Style\Color;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTitle
 {
+    // Colores corporativos
+    private const COLOR_PRIMARY = '941e1e';    // Rojo LogeX - opaco
+    private const COLOR_SECONDARY = '1E2837';  // Azul oscuro del sidebar
+    private const COLOR_LIGHT = 'F8FAFC';     // Fondo claro
+    private const COLOR_HOVER = 'E2E8F0';     // Color hover
+
     public function title(): string
     {
-        return 'Plantilla de descuentos masivos';
+        return 'Plantilla de Descuentos';
     }
 
     public function headings(): array
     {
         return [
-            'Fecha (YYYY-MM-DD)',
-            'Número de Factura',
+            'Fecha',
+            'Tipo',
+            'No. Factura',
             'Cuenta',
-            'Monto',
+            'Valor',
             'Proyecto',
             'Responsable',
-            'Transportista',
-            'Observaciones'
+            'Placa',
+            'Observación'
         ];
     }
 
     public function collection()
     {
-        return new Collection();
+        return new Collection([
+            [
+                '2025-01-31',
+                'Nómina',
+                'F001',
+                'Alimentación',
+                '100.00',
+                'ADMIN',
+                'VEINTIMILLA CRESPO JUAN ERNESTO',
+                '',
+                'Ejemplo de descuento - Puedes eliminar esta fila.'
+            ]
+        ]);
     }
 
     public function registerEvents(): array
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                $worksheet = $event->sheet->getDelegate();
+                $sheet = $event->sheet;
+                $lastRow = 100;
 
-                // Obtener los datos
-                $accounts = Account::select('id', 'name')
-                    ->orderBy('name')
-                    ->pluck('name')
-                    ->map(function ($name) {
-                        return str_replace(',', ' ', $name); // Evitar problemas con comas
-                    })->toArray();
+                // Título y descripción
+                $sheet->insertNewRowBefore(1, 2);
+                $sheet->mergeCells('A1:I1');
+                $sheet->mergeCells('A2:I2');
+                $sheet->setCellValue('A1', 'PLANTILLA DE DESCUENTOS');
+                $sheet->setCellValue('A2', '📝 Completa una fila por cada descuento que quieras registrar');
 
-                $projects = DB::connection('sistema_onix')
-                    ->table('onix_personal')
-                    ->select('proyecto')
-                    ->distinct()
-                    ->whereNotNull('proyecto')
-                    ->where('proyecto', '<>', '')
-                    ->orderBy('proyecto')
-                    ->pluck('proyecto')
-                    ->map(function ($name) {
-                        return str_replace(',', ' ', $name);
-                    })->toArray();
-
-                $users = User::select('id', 'name')
-                    ->orderBy('name')
-                    ->pluck('name')
-                    ->map(function ($name) {
-                        return str_replace(',', ' ', $name);
-                    })->toArray();
-
-                $transports = Transport::select('id', 'placa')
-                    ->whereNotNull('placa')
-                    ->where('placa', '<>', '')
-                    ->orderBy('placa')
-                    ->pluck('placa')
-                    ->map(function ($name) {
-                        return str_replace(',', ' ', $name);
-                    })->toArray();
-
-                // Crear validaciones
-                $validations = [
-                    'C' => $accounts,
-                    'E' => $projects,
-                    'F' => $users,
-                    'G' => $transports
-                ];
-
-                foreach ($validations as $column => $values) {
-                    // Convertir array a string para la validación
-                    $validationList = implode(',', array_map(function ($value) {
-                        return '"' . str_replace('"', '""', $value) . '"';
-                    }, $values));
-
-                    // Aplicar validación a cada celda
-                    for ($row = 2; $row <= 1000; $row++) {
-                        $validation = $worksheet->getCell($column . $row)->getDataValidation();
-                        $validation->setType(DataValidation::TYPE_LIST);
-                        $validation->setErrorStyle(DataValidation::STYLE_STOP);
-                        $validation->setAllowBlank(false);
-                        $validation->setShowInputMessage(true);
-                        $validation->setShowErrorMessage(true);
-                        $validation->setErrorTitle('Error');
-                        $validation->setError('Por favor selecciona un valor de la lista');
-                        $validation->setFormula1($validationList);
-                    }
-                }
-
-                // Formato de fecha
-                $worksheet->getStyle('A2:A1000')
-                    ->getNumberFormat()
-                    ->setFormatCode(NumberFormat::FORMAT_DATE_YYYYMMDD);
-
-                // Formato de número para monto
-                $worksheet->getStyle('D2:D1000')
-                    ->getNumberFormat()
-                    ->setFormatCode(NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED2);
-
-                // Estilos de cabecera
-                $worksheet->getStyle('A1:H1')->applyFromArray([
-                    'font' => ['bold' => true],
+                // Estilo del título principal
+                $sheet->getStyle('A1')->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'size' => 16,
+                        'color' => ['rgb' => self::COLOR_LIGHT]
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER
+                    ],
                     'fill' => [
-                        'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                        'startColor' => ['rgb' => 'E2E8F0']
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => self::COLOR_PRIMARY]
+                    ]
+                ]);
+                $sheet->getRowDimension(1)->setRowHeight(38);
+
+                // Estilo de la descripción
+                $sheet->getStyle('A2')->applyFromArray([
+                    'font' => [
+                        'size' => 11,
+                        'color' => ['rgb' => '64748B']
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => self::COLOR_LIGHT]
                     ]
                 ]);
 
-                // Ajustar ancho de columnas
-                foreach (range('A', 'H') as $col) {
-                    $worksheet->getColumnDimension($col)->setAutoSize(true);
+                // Estilo de cabeceras
+                $sheet->getStyle('A3:I3')->applyFromArray([
+                    'font' => [
+                        'bold' => true,
+                        'color' => ['rgb' => self::COLOR_LIGHT]
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => self::COLOR_SECONDARY]
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER
+                    ]
+                ]);
+
+                // Validaciones
+                $this->setupDataValidations($sheet, $lastRow);
+
+                // Estilos de las celdas de datos
+                $dataRange = "A4:I$lastRow";
+                $sheet->getStyle($dataRange)->applyFromArray([
+                    'borders' => [
+                        'allBorders' => [
+                            'borderStyle' => Border::BORDER_THIN,
+                            'color' => ['rgb' => 'E2E8F0']
+                        ]
+                    ],
+                    'alignment' => [
+                        'vertical' => Alignment::VERTICAL_CENTER
+                    ]
+                ]);
+
+                // Filas alternas
+                for ($row = 4; $row <= $lastRow; $row += 2) {
+                    $sheet->getStyle("A$row:I$row")->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->setStartColor(new Color(self::COLOR_LIGHT));
                 }
+
+                // Formatos específicos
+                $sheet->getStyle("A4:A$lastRow")
+                    ->getNumberFormat()
+                    ->setFormatCode('yyyy-mm-dd');
+
+                $sheet->getStyle("E4:E$lastRow")
+                    ->getNumberFormat()
+                    ->setFormatCode('#,##0.00');
+
+                $sheet->getSheetView()
+                    ->setZoomScale(100)  // zoom al 100%
+                    ->setZoomScaleNormal(100)
+                    ->setView('pageLayout'); // asegura que se vea desde el inicio
+
+                $sheet->setSelectedCell('A4');
+
+                // Anchos de columna optimizados
+                $columnWidths = [
+                    'A' => 12,  // Fecha
+                    'B' => 15,  // Tipo
+                    'C' => 15,  // No. Factura
+                    'D' => 35,  // Cuenta
+                    'E' => 12,  // Valor
+                    'F' => 20,  // Proyecto
+                    'G' => 30,  // Responsable
+                    'H' => 15,  // Placa
+                    'I' => 40   // Observación
+                ];
+
+                foreach ($columnWidths as $col => $width) {
+                    $sheet->getColumnDimension($col)->setWidth($width);
+                }
+
+                // Comentarios amigables
+                $this->setupFriendlyComments($sheet);
+
+                // Congelar paneles
+                $sheet->freezePane('A4');
             }
         ];
+    }
+
+    private function setupDataValidations($sheet, $lastRow)
+    {
+        // Validación de tipo
+        $tipoValidation = $sheet->getCell('B4')->getDataValidation();
+        $tipoValidation->setType(DataValidation::TYPE_LIST);
+        $tipoValidation->setAllowBlank(false);
+        $tipoValidation->setShowDropDown(true);
+        $tipoValidation->setFormula1('"Nómina,Transportista"');
+        $tipoValidation->setShowErrorMessage(true);
+        $tipoValidation->setErrorTitle('¡Ups! Tipo no válido');
+        $tipoValidation->setError('Por favor, selecciona "Nómina" o "Transportista"');
+        $sheet->setDataValidation("B4:B$lastRow", $tipoValidation);
+
+        // Validación de fecha
+        $dateValidation = $sheet->getCell('A4')->getDataValidation();
+        $dateValidation->setType(DataValidation::TYPE_DATE);
+        $dateValidation->setAllowBlank(false);
+        $dateValidation->setShowErrorMessage(true);
+        $dateValidation->setErrorTitle('Fecha incorrecta');
+        $dateValidation->setError('Ingresa la fecha en formato YYYY-MM-DD');
+        $sheet->setDataValidation("A4:A$lastRow", $dateValidation);
+
+        // Validación de valor
+        $valorValidation = $sheet->getCell('E4')->getDataValidation();
+        $valorValidation->setType(DataValidation::TYPE_DECIMAL);
+        $valorValidation->setAllowBlank(false);
+        $valorValidation->setShowErrorMessage(true);
+        $valorValidation->setErrorTitle('Valor no válido');
+        $valorValidation->setError('El valor debe ser mayor a 0');
+        $valorValidation->setFormula1('0');
+        $valorValidation->setOperator(DataValidation::OPERATOR_GREATERTHAN);
+        $sheet->setDataValidation("E4:E$lastRow", $valorValidation);
+
+        // Validación para la columna Responsable (G)
+        $responsableValidation = $sheet->getCell("G4")->getDataValidation();
+        $responsableValidation->setType(DataValidation::TYPE_CUSTOM);
+        $responsableValidation->setErrorTitle('Campo no aplicable');
+        $responsableValidation->setError('Este campo solo aplica cuando el tipo es Nómina');
+        $responsableValidation->setFormula1('INDIRECT("B4")="Nómina"');
+        $responsableValidation->setShowErrorMessage(true);
+
+        // Validación para la columna Placa (H)
+        $placaValidation = $sheet->getCell("H4")->getDataValidation();
+        $placaValidation->setType(DataValidation::TYPE_CUSTOM);
+        $placaValidation->setErrorTitle('Campo no aplicable');
+        $placaValidation->setError('Este campo solo aplica cuando el tipo es Transportista');
+        $placaValidation->setFormula1('INDIRECT("B4")="Transportista"');
+        $placaValidation->setShowErrorMessage(true);
+
+        $conditionalStyleResponsable = new \PhpOffice\PhpSpreadsheet\Style\Conditional();
+        $conditionalStyleResponsable->setConditionType(\PhpOffice\PhpSpreadsheet\Style\Conditional::CONDITION_EXPRESSION)
+            ->setOperatorType(\PhpOffice\PhpSpreadsheet\Style\Conditional::OPERATOR_EQUAL)
+            ->addCondition('=B4="Transportista"')
+            ->getStyle()->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->setStartColor(new Color('EEEEEE'));
+
+        $conditionalStylePlaca = new \PhpOffice\PhpSpreadsheet\Style\Conditional();
+        $conditionalStylePlaca->setConditionType(\PhpOffice\PhpSpreadsheet\Style\Conditional::CONDITION_EXPRESSION)
+            ->setOperatorType(\PhpOffice\PhpSpreadsheet\Style\Conditional::OPERATOR_EQUAL)
+            ->addCondition('=B4="Nómina"')
+            ->getStyle()->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->setStartColor(new Color('EEEEEE'));
+
+        $sheet->getStyle("G4:G$lastRow")->setConditionalStyles([$conditionalStyleResponsable]);
+        $sheet->getStyle("H4:H$lastRow")->setConditionalStyles([$conditionalStylePlaca]);
+    }
+
+    private function setupFriendlyComments($sheet)
+    {
+        $comments = [
+            'A3' => [
+                'título' => 'Fecha del descuento',
+                'texto' => "👉 Ingresa la fecha en formato YYYY-MM-DD\nPor ejemplo: 2025-01-31"
+            ],
+            'B3' => [
+                'título' => 'Tipo de descuento',
+                'texto' => "👥 Elige el tipo:\n- Nómina: para empleados\n- Transportista: para conductores"
+            ],
+            'C3' => [
+                'título' => 'Número de factura',
+                'texto' => "📄 Ingresa el número de factura o documento de respaldo"
+            ],
+            'D3' => [
+                'título' => 'Cuenta',
+                'texto' => "💰 Selecciona la cuenta contable correspondiente"
+            ],
+            'E3' => [
+                'título' => 'Valor',
+                'texto' => "💵 Ingresa el monto usando punto para decimales\nEjemplo: 100.50"
+            ],
+            'F3' => [
+                'título' => 'Proyecto',
+                'texto' => "🏢 Selecciona el proyecto al que pertenece"
+            ],
+            'G3' => [
+                'título' => 'Responsable',
+                'texto' => "👤 Nombre completo de la persona"
+            ],
+            'H3' => [
+                'título' => 'Placa',
+                'texto' => "🚛 Solo si el tipo es Transportista\nDeja en blanco si es Nómina"
+            ],
+            'I3' => [
+                'título' => 'Observación',
+                'texto' => "✍️ Describe brevemente el motivo del descuento"
+            ]
+        ];
+
+        foreach ($comments as $cell => $commentData) {
+            $comment = $sheet->getComment($cell);
+            $comment->getText()->createTextRun($commentData['título'])->getFont()->setBold(true);
+            $comment->getText()->createTextRun("\n\n" . $commentData['texto']);
+            $comment->setWidth('200pt');
+            $comment->setHeight('100pt');
+        }
     }
 }

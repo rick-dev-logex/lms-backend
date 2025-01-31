@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Notifications\Notifiable;
 
 class Request extends Model
 {
-    use HasFactory, HasApiTokens;
+    use HasFactory, HasApiTokens, Notifiable;
 
     protected $connection = 'lms_backend';
 

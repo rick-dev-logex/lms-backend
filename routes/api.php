@@ -21,9 +21,9 @@ Route::middleware(['throttle:6,1', 'cors'])->group(function () {
     // Rutas públicas
     Route::post('/login', [AuthController::class, 'login']);
 });
+
 Route::middleware(['cors'])->group(function () {
     // Rutas públicas
-
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
@@ -34,6 +34,10 @@ Route::middleware(['cors'])->group(function () {
     Route::apiResource('/responsibles', ResponsibleController::class);
     Route::apiResource('/projects', ProjectController::class);
     Route::apiResource('/requests', RequestController::class);
+    //Excel
+    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+
+
     Route::apiResource('/reposiciones', ReposicionController::class);
     Route::apiResource('/areas', AreaController::class);
     Route::apiResource('/roles', RoleController::class);
@@ -48,7 +52,6 @@ Route::middleware(['cors'])->group(function () {
 Route::middleware(['auth:sanctum', 'cors'])->get('/test', function (Request $request) {
     dd($request->user());
 });
-
 
 // Rutas protegidas por autenticación
 Route::middleware(['auth:sanctum', 'verify.jwt', 'cors'])->group(function () {

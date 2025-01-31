@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('unique_id')->unique(); // Prefijo 'g-' o 'd-' según sea gasto o descuento
             $table->enum('type', ['expense', 'discount']);
             $table->string('personnel_type');
-            $table->enum('status', ['pending', 'approved', 'rejected', 'review', 'in_reposition']);
+            $table->enum('status', ['pending', 'paid', 'rejected', 'review', 'in_reposition']);
             $table->date('request_date');
             $table->string('invoice_number');
             $table->foreignId('account_id')->constrained('accounts');

@@ -16,45 +16,44 @@ use App\Http\Controllers\TestMailController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-// Rutas públicas
 Route::middleware(['throttle:6,1', 'cors'])->group(function () {
     // Rutas públicas
     Route::post('/login', [AuthController::class, 'login']);
 });
 
-Route::middleware(['cors'])->group(function () {
-    // Rutas públicas
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-    Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
+// Route::middleware(['cors'])->group(function () {
+//     // Rutas públicas
+//     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+//     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+//     Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 
-    Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
-    Route::apiResource('/accounts', AccountController::class);
-    Route::apiResource('/transports', TransportController::class);
-    Route::apiResource('/responsibles', ResponsibleController::class);
-    Route::apiResource('/projects', ProjectController::class);
-    Route::apiResource('/requests', RequestController::class);
-    //Excel
-    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+//     Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
+//     Route::apiResource('/accounts', AccountController::class);
+//     Route::apiResource('/transports', TransportController::class);
+//     Route::apiResource('/responsibles', ResponsibleController::class);
+//     Route::apiResource('/projects', ProjectController::class);
+//     Route::apiResource('/requests', RequestController::class);
+//     //Excel
+//     Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
 
 
-    Route::apiResource('/reposiciones', ReposicionController::class);
-    Route::apiResource('/areas', AreaController::class);
-    Route::apiResource('/roles', RoleController::class);
-    Route::get('/roles/{role}/permissions', [RoleController::class, 'permissions']);
-    Route::apiResource('/permissions-list', PermissionController::class);
+//     Route::apiResource('/reposiciones', ReposicionController::class);
+//     Route::apiResource('/areas', AreaController::class);
+//     Route::apiResource('/roles', RoleController::class);
+//     Route::get('/roles/{role}/permissions', [RoleController::class, 'permissions']);
+//     Route::apiResource('/permissions-list', PermissionController::class);
 
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::apiResource('users', UserController::class);
-    Route::apiResource('/permissions', AuthController::class);
-});
+//     Route::post('/register', [AuthController::class, 'register']);
+//     Route::apiResource('users', UserController::class);
+//     Route::apiResource('/permissions', AuthController::class);
+// });
 
 Route::middleware(['auth:sanctum', 'cors'])->get('/test', function (Request $request) {
-    dd($request->user());
+    return $request->user();
 });
 
 // Rutas protegidas por autenticación
-Route::middleware(['auth:sanctum', 'verify.jwt', 'cors'])->group(function () {
+Route::middleware(['verify.jwt', 'cors'])->group(function () {
     // Rutas generales para usuarios autenticados
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
@@ -80,11 +79,21 @@ Route::middleware(['auth:sanctum', 'verify.jwt', 'cors'])->group(function () {
     // Rutas que requieren múltiples permisos
     Route::middleware(['permission:view_reports,generate_reports'])->group(function () {
         // Rutas para reportes
-        // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
-        // Route::apiResource('/accounts', AccountController::class);
-        // Route::apiResource('/transports', TransportController::class);
-        // Route::apiResource('/responsibles', ResponsibleController::class);
-        // Route::apiResource('/projects', ProjectController::class);
+        Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
+        Route::apiResource(
+            '/accounts',
+            AccountController::class
+        );
+        Route::apiResource('/transports', TransportController::class);
+        Route::apiResource('/responsibles', ResponsibleController::class);
+        Route::apiResource(
+            '/projects',
+            ProjectController::class
+        );
+        Route::apiResource(
+            '/requests',
+            RequestController::class
+        );
     });
 
     // Rutas que requieren rol específico Y permiso específico

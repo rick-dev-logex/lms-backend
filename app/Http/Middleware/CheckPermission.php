@@ -4,23 +4,42 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class CheckPermission
 {
-    public function handle(Request $request, Closure $next, ...$permissions)
+    /**
+     * Los permisos requeridos se pueden pasar como argumentos.
+     */
+    public function handle(Request $request, Closure $next, ...$requiredPermissions)
     {
-        if (!$request->user()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        // Suponiendo que el payload del JWT fue inyectado en la request
+        $jwtPayload = $request->get('jwt_payload', []);
+        $userPermissions = $jwtPayload['permissions'] ?? [];
 
-        $userPermissions = $request->user()->permissions->pluck('name')->toArray();
+        // Agregar logs para depuración
+        Log::info('CheckPermission middleware', [
+            'required_permissions' => $requiredPermissions,
+            'user_permissions'     => $userPermissions,
+        ]);
 
-        foreach ($permissions as $permission) {
+        // Si se requiere al menos uno de los permisos, por ejemplo:
+        $hasPermission = false;
+        foreach ($requiredPermissions as $permission) {
             if (in_array($permission, $userPermissions)) {
-                return $next($request);
+                $hasPermission = true;
+                break;
             }
         }
 
-        return response()->json(['message' => 'Insufficient permissions'], 403);
+        if (!$hasPermission) {
+            Log::warning('Acceso denegado por permisos insuficientes', [
+                'user_permissions'     => $userPermissions,
+                'required_permissions' => $requiredPermissions,
+            ]);
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        return $next($request);
     }
 }

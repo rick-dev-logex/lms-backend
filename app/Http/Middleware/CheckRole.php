@@ -4,19 +4,28 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class CheckRole
 {
     public function handle(Request $request, Closure $next, ...$roles)
     {
-        if (!$request->user() || !$request->user()->role) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $jwtPayload = $request->get('jwt_payload', []);
+        $userRole = $jwtPayload['role'] ?? null;
+
+        Log::info('CheckRole middleware', [
+            'required_roles' => $roles,
+            'user_role'      => $userRole,
+        ]);
+
+        if (!$userRole || !in_array($userRole, $roles)) {
+            Log::warning('Acceso denegado por rol insuficiente', [
+                'user_role'      => $userRole,
+                'required_roles' => $roles,
+            ]);
+            return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        if (in_array($request->user()->role->name, $roles)) {
-            return $next($request);
-        }
-
-        return response()->json(['message' => 'Unauthorized access'], 403);
+        return $next($request);
     }
 }

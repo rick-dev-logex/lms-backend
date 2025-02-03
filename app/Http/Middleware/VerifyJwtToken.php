@@ -6,39 +6,38 @@ use Closure;
 use Illuminate\Http\Request;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Firebase\JWT\ExpiredException;
-use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Log;
 
-class VerifyJwtToken
+class VerifyJWTToken
 {
-    /**
-     * Handle an incoming request.
-     *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
-     */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next)
     {
+        // Buscar token en header o en cookie
+        $token = $request->bearerToken() ?? $request->cookie('jwt-token');
+
+        if (!$token) {
+            return response()->json(['error' => 'JWT Token not found'], 401);
+        }
+
         try {
-            $jwt = $request->header('X-JWT-Token');
+            $secret = config('jwt.secret');
 
-            if (!$jwt) {
-                return response()->json(['error' => 'JWT Token not found'], 401);
-            }
+            // Decodificar el token
+            $decoded = JWT::decode($token, new Key($secret, 'HS256'));
 
-            $decoded = JWT::decode($jwt, new Key(config('app.key'), 'HS256'));
-
-            // Verificar si el token está por expirar (menos de 2 minutos)
-            if ($decoded->exp - time() < 120) {
-                // Agregar header para indicar que el token está por expirar
-                $response = $next($request);
-                $response->headers->set('X-Token-Expire-Warning', 'true');
-                return $response;
-            }
+            Log::info('JWT Payload in request', ['payload' => (array)$decoded]);
+            // Agregar el payload decodificado a la request (si es necesario)
+            $request->merge(['jwt_payload' => (array)$decoded]);
 
             return $next($request);
-        } catch (ExpiredException $e) {
-            return response()->json(['error' => 'Token has expired'], 401);
+        } catch (\Firebase\JWT\ExpiredException $e) {
+            Log::error('Token expirado', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Token expired'], 401);
+        } catch (\Firebase\JWT\SignatureInvalidException $e) {
+            Log::error('Firma del token inválida', ['error' => $e->getMessage()]);
+            return response()->json(['error' => 'Invalid token signature'], 401);
         } catch (\Exception $e) {
+            Log::error('Error al decodificar el token', ['error' => $e->getMessage()]);
             return response()->json(['error' => 'Invalid token'], 401);
         }
     }

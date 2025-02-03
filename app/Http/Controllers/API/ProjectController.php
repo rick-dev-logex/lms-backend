@@ -25,6 +25,8 @@ class ProjectController extends Controller
     public function show(int $id): JsonResponse
     {
         $project = Project::findOrFail($id);
+        $this->authorize('view', $project);
+
         return response()->json($project);
     }
 

@@ -2,16 +2,20 @@
 
 namespace App\Events;
 
+use Illuminate\Broadcasting\Channel;
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Request;
 
-class RequestUpdated implements ShouldBroadcastNow
+class RequestUpdated implements ShouldBroadcast
 {
-    use SerializesModels;
+    use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public Request $request;
+    public $request;
 
     public function __construct(Request $request)
     {
@@ -20,11 +24,15 @@ class RequestUpdated implements ShouldBroadcastNow
 
     public function broadcastOn()
     {
-        return ['requests'];
+        return new PrivateChannel('requests.' . $this->request->responsible_id);
     }
 
-    public function broadcastAs()
+    public function broadcastWith()
     {
-        return 'request.updated';
+        return [
+            'id' => $this->request->id,
+            'status' => $this->request->status,
+            'message' => 'La solicitud ha sido actualizada.',
+        ];
     }
 }

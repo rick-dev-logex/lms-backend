@@ -24,7 +24,7 @@ class RedirectIfAuthenticated
                         'message' => 'Already authenticated.'
                     ], 200);
                 }
-                return redirect(\Illuminate\Foundation\Support\Providers\RouteServiceProvider::HOME);
+                return response()->json(['message' => "You are currently unauthenticated"], 401);
             }
         }
 

@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Response;
 
 class AuthController extends Controller
 {
@@ -67,11 +71,9 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
-            'remember' => 'boolean'
         ]);
 
         try {
-            // Buscar usuario con sus relaciones
             $user = User::where('email', $request->email)
                 ->with(['role', 'permissions'])
                 ->first();
@@ -82,55 +84,34 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Crear payload para JWT
+            // Crear el payload
             $payload = [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'name' => $user->name,
-                'role' => $user->role?->name,
+                'user_id'     => $user->id,
+                'email'       => $user->email,
+                'name'        => $user->name,
+                'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'iat' => time(),
-                'exp' => time() + ($request->remember ? 5 * 24 * 60 * 60 : 60 * 60)
+                'iat'         => time(),
+                'exp'         => time() + ($request->remember ? 5 * 24 * 60 * 60 : 60 * 60)
             ];
 
-            $jwt = JWT::encode($payload, config('app.key'), 'HS256');
+            // Generar el token usando la clave de JWT (definida en config/jwt.php)
+            $jwt = JWT::encode($payload, config('jwt.secret'), 'HS256');
 
-            // Crear token de Sanctum
-            $tokenExpiration = $request->remember ? null : now()->addHour();
-            $token = $user->createToken('auth_token', [], $tokenExpiration)->plainTextToken;
+            // Establecer el token en una cookie
+            $cookie = Cookie::make('jwt-token', $jwt, 60 * 24, null, null, true, false);
 
-            // Estructurar la respuesta con toda la información
             return response()->json([
-                'access_token' => $token,
-                'jwt_token' => $jwt,
-                'token_type' => 'Bearer',
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'dob' => $user->dob,
-                    'role' => [
-                        'id' => $user->role?->id,
-                        'name' => $user->role?->name
-                    ],
-                    'permissions' => $user->permissions->map(function ($permission) {
-                        return [
-                            'id' => $permission->id,
-                            'name' => $permission->name
-                        ];
-                    }),
-                    'profile_photo_path' => $user->profile_photo_path,
-                    'created_at' => $user->created_at,
-                    'updated_at' => $user->updated_at
-                ]
-            ]);
+                'message' => 'Login successful',
+                'user'    => $user,
+            ])->withCookie($cookie);
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
-            // \Log::error('Error en login: ' . $e->getMessage());
+            Log::error('Error en login', ['error' => $e->getMessage()]);
             return response()->json([
                 'message' => 'Error al iniciar sesión',
-                'error' => $e->getMessage()
+                'error'   => $e->getMessage()
             ], 500);
         }
     }

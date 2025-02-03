@@ -316,7 +316,10 @@ class RequestController extends Controller
         $requestRecord->update($validated);
 
         if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
+            $responsible = $requestRecord->responsible;
+            // Disparar el evento de broadcasting
             broadcast(new RequestUpdated($requestRecord))->toOthers();
+            $responsible->notify(new RequestNotification($requestRecord, $validated['status']));
         }
 
         if (isset($validated['status']) && $validated['status'] !== $oldStatus) {

@@ -72,6 +72,12 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
     php artisan storage:link
 ```
 
+7. Generar token con el secreto de JWT:
+
+```
+    php artisan jwt:secret
+```
+
 # Base de datos
 
 Crear una base de datos llamada lms_backend en phpMyAdmin u otra herramienta de administración de MySQL.

@@ -54,11 +54,11 @@ class UserSeeder extends Seeder
         ])->get();
 
         $user = User::firstOrCreate(
-            ['email' => 'user@logex.ec'],
+            ['email' => 'damian.frutos@logex.ec'],
             [
-                'name' => 'Usuario Regular',
+                'name' => 'Damián Frutos',
                 'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $userRole->id,
+                'role_id' => $developer->id,
             ]
         );
 

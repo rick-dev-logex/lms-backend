@@ -44,13 +44,38 @@ Route::middleware(['verify.jwt', 'cors'])->group(function () {
 
     // Rutas solo para administradores
     Route::middleware(['role:admin,developer'])->group(function () {
+        Route::prefix('users')->group(function () {
+            Route::get('/', [UserController::class, 'index']);
+            Route::post('/', [UserController::class, 'store']);
+            Route::get('/{user}', [UserController::class, 'show']);
+            Route::put('/{user}', [UserController::class, 'update']);
+            Route::delete('/{user}', [UserController::class, 'destroy']);
+            Route::put('users/{user}/permissions', [UserController::class, 'updatePermissions']);
+        });
+
+        // Rutas de Roles
+        Route::prefix('roles')->group(function () {
+            Route::get('/', [RoleController::class, 'index']);
+            Route::post('/', [RoleController::class, 'store']);
+            Route::get('/{role}', [RoleController::class, 'show']);
+            Route::put('/{role}', [RoleController::class, 'update']);
+            Route::delete('/{role}', [RoleController::class, 'destroy']);
+            Route::get('/{role}/permissions', [RoleController::class, 'permissions']);
+            Route::put('/{role}/permissions', [RoleController::class, 'updatePermissions']);
+        });
+
+        // Rutas de Permisos
+        Route::prefix('permissions')->group(function () {
+            Route::get('/', [PermissionController::class, 'index']);
+            Route::post('/', [PermissionController::class, 'store']);
+            Route::get('/{permission}', [PermissionController::class, 'show']);
+            Route::put('/{permission}', [PermissionController::class, 'update']);
+            Route::delete('/{permission}', [PermissionController::class, 'destroy']);
+            Route::post('/{permission}/assign-to-role', [PermissionController::class, 'assignToRole']);
+        });
+
         Route::post('/register', [AuthController::class, 'register']);
-        Route::apiResource('users', UserController::class);
-        Route::apiResource('/permissions', AuthController::class);
         Route::apiResource('/areas', AreaController::class);
-        Route::apiResource('/roles', RoleController::class);
-        Route::get('/roles/{role}/permissions', [RoleController::class, 'permissions']);
-        Route::apiResource('/permissions-list', PermissionController::class);
     });
 
     // Rutas que requieren múltiples permisos

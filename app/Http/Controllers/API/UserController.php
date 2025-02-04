@@ -34,7 +34,7 @@ class UserController extends Controller
                 $userData = [
                     'name' => $request->name,
                     'email' => $request->email,
-                    'password' => Hash::make($request->password),
+                    'password' => Hash::make($request->password ?? 'L0g3X2025*'),
                     'role_id' => $request->role_id ?? Role::where('name', 'user')->value('id'),
                 ];
 
@@ -59,7 +59,14 @@ class UserController extends Controller
 
     public function show(User $user): JsonResponse
     {
-        return response()->json($user->load(['role', 'permissions']));
+        try {
+            return response()->json($user->load(['role', 'permissions']));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse
@@ -110,6 +117,30 @@ class UserController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error deleting user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function updatePermissions(Request $request, User $user): JsonResponse
+    {
+        try {
+            $request->validate([
+                'permissions' => 'required|array',
+                'permissions.*' => 'exists:permissions,id'
+            ]);
+
+            return DB::transaction(function () use ($request, $user) {
+                $user->permissions()->sync($request->permissions);
+
+                return response()->json([
+                    'message' => 'Permissions updated successfully',
+                    'user' => $user->fresh(['role', 'permissions'])
+                ]);
+            });
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error updating permissions',
                 'error' => $e->getMessage()
             ], 500);
         }

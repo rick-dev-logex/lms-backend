@@ -56,6 +56,31 @@ Este proyecto está desarrollado en Laravel 11 y sirve como backend para la apli
     TMS_DB_USERNAME=usuario_de_tms
     TMS_DB_PASSWORD=contraseña_de_tms
 
+    FRONTEND_URL=url_de_la_app_en_produccion
+
+    SESSION_DRIVER=cookie
+    SANCTUM_STATEFUL_DOMAINS=
+    SESSION_DOMAIN=localhost
+    CORS_ALLOWED_ORIGINS=url_de_la_app_en_produccion
+
+    #IMPORTANTE PARA AUTH CON TOKEN. Utilizar php artisan jwt:secret
+    JWT_SECRET=secreto_generado_con_el_comando
+    JWT_ALGO=HS256
+
+    SESSION_SECURE_COOKIE=false
+    SESSION_HTTP_ONLY=false
+
+    # Configuración del correo
+
+    MAIL_MAILER=smtp
+    MAIL_HOST=smtp.sendgrid.net
+    MAIL_PORT=587
+    MAIL_USERNAME=apikey
+    SENDGRID_API_KEY=clave_de_sendgrid
+    MAIL_ENCRYPTION=tls
+    MAIL_FROM_NAME="LMS | LogeX"
+    MAIL_FROM_ADDRESS='notificaciones-lms@logex.ec'
+
 ```
 
 <small style="font-size:.75rem; font-style: italic;">Nota: Estas son las credenciales sugeridas únicamente para facilidad en localhost.</small>

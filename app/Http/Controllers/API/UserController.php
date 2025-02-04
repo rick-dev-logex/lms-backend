@@ -16,15 +16,42 @@ class UserController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        if ($request->input('action') === 'count') {
-            return response()->json(User::count());
+        try {
+            $query = User::with(['role', 'permissions']);
+
+            if ($request->input('action') === 'count') {
+                return response()->json($query->count());
+            }
+
+            // Filtros
+            if ($request->has('search')) {
+                $search = $request->input('search');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+
+            if ($request->has('role_id')) {
+                $query->where('role_id', $request->input('role_id'));
+            }
+
+            // Ordenamiento
+            $sortField = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('order', 'desc');
+            $query->orderBy($sortField, $sortOrder);
+
+            // Paginación
+            $perPage = $request->input('per_page', 10);
+            $results = $perPage === 'all' ? $query->get() : $query->paginate($perPage);
+
+            return response()->json($results);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching users',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $query = User::with(['role', 'permissions'])
-            ->latest()
-            ->get();
-
-        return response()->json($query);
     }
 
     public function store(StoreUserRequest $request): JsonResponse

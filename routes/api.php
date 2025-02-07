@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1', 'cors'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
-    Route::post('/login', [AuthController::class, 'login']);
 });
+Route::post('/login', [AuthController::class, 'login']);
 
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);

@@ -17,8 +17,8 @@ return new class extends Migration
             $table->decimal('total_reposicion', 10, 2)->default(0);
             $table->enum('status', ['pending', 'paid', 'rejected', 'review'])->default('pending');
             $table->string('project', 100)->nullable();
-            $table->json('detail');
-            $table->string('month', 7)->nullable(); // formato: YYYY-MM
+            $table->longText('detail')->nullable(); // Cambiado de json a longText
+            $table->string('month', 7)->nullable();
             $table->enum('when', ['rol', 'liquidación', 'decimo_tercero', 'decimo_cuarto', 'utilidades'])->nullable();
             $table->text('note')->nullable();
             $table->timestamps();

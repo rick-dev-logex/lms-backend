@@ -12,9 +12,20 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        // Crear usuario desarrollador
         $devRole = Role::where('name', 'developer')->first();
+        $adminRole = Role::where('name', 'admin')->first();
+
+        $userRole = Role::where('name', 'user')->first();
+
         $allPermissions = Permission::all();
+        $basicPermissions = Permission::whereIn('name', [
+            'view_discounts',
+            'view_expenses',
+            'view_requests',
+            'view_reports',
+            'view_budget',
+            'manage_support'
+        ])->get();
 
         $developer = User::firstOrCreate(
             ['email' => 'ricardo.estrella@logex.ec'],
@@ -25,12 +36,7 @@ class UserSeeder extends Seeder
             ]
         );
 
-        // Asignar todos los permisos al desarrollador
-        $developer->permissions()->sync($allPermissions->pluck('id'));
-
-        // Crear usuario administrador por defecto si es necesario
-        $adminRole = Role::where('name', 'admin')->first();
-        $admin = User::firstOrCreate(
+        $jk = User::firstOrCreate(
             ['email' => 'jk@logex.ec'],
             [
                 'name' => 'John Kenyon',
@@ -39,21 +45,25 @@ class UserSeeder extends Seeder
             ]
         );
 
-        // Asignar todos los permisos al administrador
-        $admin->permissions()->sync($allPermissions->pluck('id'));
+        $cp = User::firstOrCreate(
+            ['email' => 'claudia.pereira@logex.ec'],
+            [
+                'name' => 'Claudia Pereira',
+                'password' => Hash::make('L0g3X2025*'),
+                'role_id' => $adminRole->id,
+            ]
+        );
 
-        // Crear usuario regular por defecto
-        $userRole = Role::where('name', 'user')->first();
-        $basicPermissions = Permission::whereIn('name', [
-            'view_discounts',
-            'view_expenses',
-            'view_requests',
-            'view_reports',
-            'view_budget',
-            'manage_support'
-        ])->get();
+        $or = User::firstOrCreate(
+            ['email' => 'omar.rubio@logex.ec'],
+            [
+                'name' => 'Omar Rubio',
+                'password' => Hash::make('L0g3X2025*'),
+                'role_id' => $adminRole->id,
+            ]
+        );
 
-        $user = User::firstOrCreate(
+        $df = User::firstOrCreate(
             ['email' => 'damian.frutos@logex.ec'],
             [
                 'name' => 'Damián Frutos',
@@ -62,7 +72,11 @@ class UserSeeder extends Seeder
             ]
         );
 
-        // Asignar permisos básicos al usuario regular
-        $user->permissions()->sync($basicPermissions->pluck('id'));
+        // Asignar permisos
+        $developer->permissions()->sync($allPermissions->pluck('id'));
+        $df->permissions()->sync($basicPermissions->pluck('id'));
+        $jk->permissions()->sync($allPermissions->pluck('id'));
+        $cp->permissions()->sync($allPermissions->pluck('id'));
+        $or->permissions()->sync($allPermissions->pluck('id'));
     }
 }

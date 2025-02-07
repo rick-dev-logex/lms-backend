@@ -13,11 +13,6 @@ class CheckRole
         $jwtPayload = $request->get('jwt_payload', []);
         $userRole = $jwtPayload['role'] ?? null;
 
-        Log::info('CheckRole middleware', [
-            'required_roles' => $roles,
-            'user_role'      => $userRole,
-        ]);
-
         if (!$userRole || !in_array($userRole, $roles)) {
             Log::warning('Acceso denegado por rol insuficiente', [
                 'user_role'      => $userRole,

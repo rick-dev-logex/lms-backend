@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['throttle:6,1', 'cors'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
 });
-Route::post('/login', [AuthController::class, 'login']);
 
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
@@ -27,6 +26,10 @@ Route::middleware(['auth:sanctum', 'cors'])->get('/test', function (Request $req
     return $request->user();
 });
 
+Route::post('/login', [AuthController::class, 'login']);
+Route::options('/login', function () {
+    return response()->json('OK', 200);
+});
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt', 'cors'])->group(function () {
     // Rutas generales para usuarios autenticados
@@ -50,7 +53,7 @@ Route::middleware(['verify.jwt', 'cors'])->group(function () {
             Route::get('/{user}', [UserController::class, 'show']);
             Route::put('/{user}', [UserController::class, 'update']);
             Route::delete('/{user}', [UserController::class, 'destroy']);
-            Route::put('users/{user}/permissions', [UserController::class, 'updatePermissions']);
+            Route::put('/{user}/permissions', [UserController::class, 'updatePermissions']);
         });
 
         // Rutas de Roles

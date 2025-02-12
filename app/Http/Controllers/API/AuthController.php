@@ -92,14 +92,24 @@ class AuthController extends Controller
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
                 'iat'         => time(),
-                'exp'         => time() + ($request->remember ? 5 * 24 * 60 * 60 : 60 * 60)
+                'exp'         => time() + ($request->remember ? 60 * 60 * 10 : 60 * 60)
             ];
 
             // Generar el token usando la clave de JWT (definida en config/jwt.php)
             $jwt = JWT::encode($payload, config('jwt.secret'), 'HS256');
 
             // Establecer el token en una cookie
-            $cookie = Cookie::make('jwt-token', $jwt, 60 * 24, null, null, true, false);
+            $cookie = Cookie::make(
+                'jwt-token',    // nombre de la cookie
+                $jwt,           // valor (el token)
+                60 * 10,        // duración en minutos (10 horas, por ejemplo)
+                '/',            // ruta
+                '.lms.logex.com.ec', // dominio: nota el punto al inicio para abarcar todos los subdominios. Alternatica: env('SESSION_DOMAIN),
+                true,           // secure: solo se envía por HTTPS
+                false           // httpOnly: false si quieres que JavaScript pueda leerla (aunque por seguridad se recomienda httpOnly)
+            )->withSameSite('None');
+
+            // $cookie = Cookie::make('jwt-token', $jwt, 60 * 10, null, null, true, false);
 
             return response()->json([
                 'message' => 'Login successful',

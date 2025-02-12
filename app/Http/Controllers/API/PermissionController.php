@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Permission;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -14,9 +15,15 @@ class PermissionController extends Controller
     public function index(): JsonResponse
     {
         try {
-            $permissions = Permission::select('id', 'name')
-                ->orderBy('name')
-                ->get();
+            $permissions = Cache::remember('permissions', 3600, function () {
+                return
+                    Permission::select('id', 'name')
+                    ->orderBy('name')
+                    ->get();
+            });
+            // $permissions = Permission::select('id', 'name')
+            //     ->orderBy('name')
+            //     ->get();
 
             return response()->json($permissions);
         } catch (\Exception $e) {

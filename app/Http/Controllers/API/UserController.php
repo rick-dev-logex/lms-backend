@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -100,50 +101,47 @@ class UserController extends Controller
     {
         try {
             return DB::transaction(function () use ($request, $user) {
+                // Validar datos básicos
+                $validated = $request->validated();
+
+                // Preparar datos de actualización
                 $userData = [
-                    'name' => $request->name,
-                    'email' => $request->email,
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
                 ];
 
-                if ($request->filled('password')) {
-                    $userData['password'] = Hash::make($request->password);
+                // Actualizar role_id si se proporciona
+                if (isset($validated['role_id'])) {
+                    $userData['role_id'] = $validated['role_id'];
                 }
 
-                if ($request->filled('role_id')) {
-                    $userData['role_id'] = $request->role_id;
+                // Actualizar password si se proporciona
+                if (!empty($validated['password'])) {
+                    $userData['password'] = Hash::make($validated['password']);
                 }
 
+                // Actualizar usuario
                 $user->update($userData);
 
-                if ($request->has('permissions')) {
-                    $user->permissions()->sync($request->permissions);
+                // Sincronizar permisos si se proporcionan
+                if (isset($validated['permissions'])) {
+                    // Asegurarse de que los permisos sean un array y convertir a enteros
+                    $permissions = array_map('intval', (array) $validated['permissions']);
+                    $user->permissions()->sync($permissions);
                 }
+
+                // Cargar relaciones y devolver respuesta
+                $user->load(['role', 'permissions']);
 
                 return response()->json([
                     'message' => 'User updated successfully',
-                    'user' => $user->fresh(['role', 'permissions'])
+                    'user' => $user
                 ]);
             });
         } catch (\Exception $e) {
+            Log::error('Error updating user: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Error updating user',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function destroy(User $user): JsonResponse
-    {
-        try {
-            $user->permissions()->detach();
-            $user->delete();
-
-            return response()->json([
-                'message' => 'User deleted successfully'
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error deleting user',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -152,22 +150,69 @@ class UserController extends Controller
     public function updatePermissions(Request $request, User $user): JsonResponse
     {
         try {
-            $request->validate([
+            // Validación específica para permisos
+            $validated = $request->validate([
                 'permissions' => 'required|array',
-                'permissions.*' => 'exists:permissions,id'
+                'permissions.*' => 'required|integer|exists:permissions,id'
             ]);
 
-            return DB::transaction(function () use ($request, $user) {
-                $user->permissions()->sync($request->permissions);
+            return DB::transaction(function () use ($validated, $user) {
+                // Convertir todos los IDs a enteros
+                $permissions = array_map('intval', $validated['permissions']);
+
+                // Sincronizar permisos
+                $user->permissions()->sync($permissions);
+
+                // Recargar el modelo con sus relaciones
+                $user->load(['role', 'permissions']);
 
                 return response()->json([
                     'message' => 'Permissions updated successfully',
-                    'user' => $user->fresh(['role', 'permissions'])
+                    'user' => $user
                 ]);
             });
         } catch (\Exception $e) {
+            Log::error('Error updating permissions: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Error updating permissions',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function destroy(User $user): JsonResponse
+    {
+        try {
+            if (!$user) {
+                return response()->json([
+                    'message' => 'User not found'
+                ], 404);
+            }
+
+            // Verificar si es el usuario actual usando request()->user()
+            if ($user->id === request()->user()?->id) {
+                return response()->json([
+                    'message' => 'Cannot delete your own account'
+                ], 403);
+            }
+
+            DB::beginTransaction();
+            try {
+                $user->permissions()->detach();
+                $user->delete();
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'User deleted successfully'
+                ]);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                throw $e;
+            }
+        } catch (\Exception $e) {
+            Log::error('Error deleting user: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error deleting user',
                 'error' => $e->getMessage()
             ], 500);
         }

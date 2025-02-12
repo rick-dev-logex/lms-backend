@@ -38,6 +38,7 @@ class PermissionSeeder extends Seeder
             ['name' => 'manage_special_income'],
             ['name' => 'view_budget'],
             ['name' => 'manage_budget'],
+            ['name' => 'view_provisions'],
             ['name' => 'manage_provisions'],
             ['name' => 'manage_support'],
         ];

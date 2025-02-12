@@ -15,13 +15,13 @@ class UpdateUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $this->user->id],
-            'password' => ['nullable', 'confirmed', Password::defaults()],
-            'role_id' => ['nullable', 'exists:roles,id'],
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:users,email,' . $this->user->id,
+            'role_id' => 'sometimes|required|exists:roles,id',
+            'password' => 'sometimes|nullable|min:8',
             'dob' => ['nullable', 'date'],
-            'permissions' => ['nullable', 'array'],
-            'permissions.*' => ['exists:permissions,id'],
+            'permissions' => 'sometimes|array',
+            'permissions.*' => 'integer|exists:permissions,id'
         ];
     }
 }

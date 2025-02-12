@@ -32,13 +32,13 @@ class VerifyJWTToken
             return $next($request);
         } catch (\Firebase\JWT\ExpiredException $e) {
             Log::error('Token expirado', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Token expired'], 401);
+            return response()->json(['error' => 'Token expirado.'], 401);
         } catch (\Firebase\JWT\SignatureInvalidException $e) {
             Log::error('Firma del token inválida', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Invalid token signature'], 401);
+            return response()->json(['error' => 'Firma del token inválida.'], 401);
         } catch (\Exception $e) {
             Log::error('Error al decodificar el token', ['error' => $e->getMessage()]);
-            return response()->json(['error' => 'Invalid token'], 401);
+            return response()->json(['error' => 'Token inválido.'], 401);
         }
     }
 }

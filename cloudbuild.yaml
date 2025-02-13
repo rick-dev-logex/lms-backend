@@ -2,7 +2,6 @@ steps:
   # Construir la imagen del backend
   - name: "gcr.io/cloud-builders/docker"
     args: ["build", "-t", "gcr.io/$PROJECT_ID/backend:$SHORT_SHA", "."]
-    dir: "backend"
 
   # Subir la imagen al Container Registry
   - name: "gcr.io/cloud-builders/docker"

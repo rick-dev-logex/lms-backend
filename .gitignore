@@ -6,11 +6,10 @@
 /storage/*.key
 /storage/pail
 /vendor
-.env.*
+.env
 .env.backup
 .env.production
 .env.local
-.env.production
 .phpactor.json
 .phpunit.result.cache
 Homestead.json
@@ -23,3 +22,4 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+local.lms.com.conf

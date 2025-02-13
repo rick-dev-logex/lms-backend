@@ -5,6 +5,7 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
+use App\Models\Project;
 use App\Models\User;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
@@ -44,9 +45,25 @@ class UserController extends Controller
 
             // Paginación
             $perPage = $request->input('per_page', 10);
+
             $results = $perPage === 'all' ? $query->get() : $query->paginate($perPage);
 
-            return response()->json($results);
+            // Agregar los códigos de proyecto a cada usuario
+            $data = $perPage === 'all' ? $results : $results->getCollection();
+            $data->transform(function ($user) {
+                // Crear un array con los datos del usuario
+                $userData = $user->toArray();
+                // Agregar los códigos de proyecto como un campo adicional
+                $userData['projects'] = $user->project_details;
+                return $userData;
+            });
+
+            if ($perPage !== 'all') {
+                $results->setCollection($data);
+                return response()->json($results);
+            }
+
+            return response()->json($data);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error fetching users',
@@ -216,5 +233,84 @@ class UserController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Obtener proyectos de un usuario específico
+     */
+    public function getUserProjects(User $user): JsonResponse
+    {
+        try {
+            return response()->json([
+                'projects' => $user->project_details,
+                'project_codes' => $user->project_codes
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching user projects: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error fetching user projects',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Asignar proyectos a un usuario
+     */
+    public function assignProjects(Request $request, User $user): JsonResponse
+    {
+        try {
+            $validated = $request->validate([
+                'project_ids' => 'required|array',
+                'project_ids.*' => 'required|uuid|exists:sistema_onix.onix_proyectos,id,deleted,0,activo,1'
+            ]);
+
+            DB::transaction(function () use ($validated, $user) {
+                $user->projects()->sync($validated['project_ids']);
+            });
+
+            return response()->json([
+                'message' => 'Projects assigned successfully',
+                'projects' => $user->project_details,
+                'project_codes' => $user->project_codes
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error assigning projects: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error assigning projects',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    /**
+     * Los proyectos asignados al usuario
+     */
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'user_project')
+            ->withTimestamps();
+    }
+
+    /**
+     * Obtener los códigos de proyecto como string
+     */
+    public function getProjectCodesAttribute(): string
+    {
+        return $this->projects()
+            ->active()
+            ->pluck('proyecto')
+            ->join(', ');
+    }
+
+    /**
+     * Obtener información completa de proyectos
+     */
+    public function getProjectDetailsAttribute(): array
+    {
+        return $this->projects()
+            ->active()
+            ->select('id', 'name as code', 'description as name')
+            ->get()
+            ->toArray();
     }
 }

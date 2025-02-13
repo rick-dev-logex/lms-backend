@@ -43,7 +43,12 @@ Route::middleware(['verify.jwt', 'cors'])->group(function () {
     Route::apiResource('/accounts', AccountController::class);
     Route::apiResource('/transports', TransportController::class);
     Route::apiResource('/responsibles', ResponsibleController::class);
-    Route::apiResource('/projects', ProjectController::class);
+
+    Route::prefix('projects')->group(function () {
+        Route::apiResource('/', ProjectController::class);
+        Route::get('/{id}/users', [ProjectController::class, 'getProjectUsers']);
+        Route::post('/{id}/users', [ProjectController::class, 'assignUsers']);
+    });
 
     // Rutas solo para administradores
     Route::middleware(['role:admin,developer'])->group(function () {
@@ -53,7 +58,13 @@ Route::middleware(['verify.jwt', 'cors'])->group(function () {
             Route::get('/{user}', [UserController::class, 'show']);
             Route::put('/{user}', [UserController::class, 'update']);
             Route::delete('/{user}', [UserController::class, 'destroy']);
+
+            //Permisos
             Route::put('/{user}/permissions', [UserController::class, 'updatePermissions']);
+
+            //Proyectos
+            Route::get('/{user}/projects', [UserController::class, 'getUserProjects']);
+            Route::post('/{user}/projects', [UserController::class, 'assignProjects']);
         });
 
         // Rutas de Roles

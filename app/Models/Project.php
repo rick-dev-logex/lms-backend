@@ -27,4 +27,21 @@ class Project extends Model
     {
         return static::where('proyecto', $project)->get();
     }
+
+    /**
+     * Los usuarios asignados al proyecto
+     */
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'user_project', 'project_id', 'user_id')
+            ->using(UserProject::class);
+    }
+
+    /**
+     * Scope para proyectos activos
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('deleted', '0')->where('activo', '1');
+    }
 }

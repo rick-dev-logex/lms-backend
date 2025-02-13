@@ -11,13 +11,22 @@ class ProjectController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Project::where('deleted', '0')->where('activo', '1')->orderBy('name', 'asc');
+        $query = Project::where('deleted', '0')->where('activo', '1');
 
         if ($request->filled('proyecto')) {
             $query->where('proyecto', $request->input('proyecto'));
         }
 
-        $projects = $query->select('id', 'name')->get();
+        // Filtrar por usuario si se proporciona user_id
+        if ($request->filled('user_id')) {
+            $query->whereHas('users', function ($q) use ($request) {
+                $q->where('users.id', $request->input('user_id'));
+            });
+        }
+
+        $projects = $query->select('id', 'name', 'description')
+            ->orderBy('name', 'asc')
+            ->get();
 
         return response()->json($projects);
     }
@@ -65,5 +74,60 @@ class ProjectController extends Controller
             'message' => 'Project deleted successfully',
             'id' => $id
         ]);
+    }
+
+    /**
+     * Obtener usuarios asignados al proyecto
+     */
+    public function getProjectUsers(int $id): JsonResponse
+    {
+        try {
+            $project = Project::findOrFail($id);
+
+            $users = $project->users()
+                ->select('users.id', 'users.name', 'users.email')
+                ->get();
+
+            return response()->json($users);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error fetching project users',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Asignar usuarios al proyecto
+     */
+    public function assignUsers(Request $request, int $id): JsonResponse
+    {
+        try {
+            $project = Project::findOrFail($id);
+
+            // Verificar que el proyecto esté activo
+            if ($project->activo != '1' || $project->deleted != '0') {
+                return response()->json([
+                    'message' => 'Cannot assign users to inactive project'
+                ], 400);
+            }
+
+            $validated = $request->validate([
+                'user_ids' => 'required|array',
+                'user_ids.*' => 'required|integer|exists:users,id'
+            ]);
+
+            $project->users()->sync($validated['user_ids']);
+
+            return response()->json([
+                'message' => 'Users assigned successfully',
+                'users' => $project->users()->select('users.id', 'users.name', 'users.email')->get()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error assigning users',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -28,6 +28,8 @@ class ProjectController extends Controller
             ->orderBy('name', 'asc')
             ->get();
 
+        dd($projects);
+
         return response()->json($projects);
     }
 

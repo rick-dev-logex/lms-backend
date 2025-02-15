@@ -23,8 +23,13 @@ WORKDIR /var/www/html
 # Copiar archivos del backend
 COPY . .
 
+# Verificar que el archivo está presente
+RUN ls -la app/Http/Middleware && cat app/Http/Middleware/VerifyJWTToken.php || echo "No se encontró el archivo"
+
+
 # Instalar dependencias de Laravel
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader \
+    && composer dump-autoload -o
 
 # Crear directorios necesarios y establecer permisos
 RUN mkdir -p storage/framework/{sessions,views,cache} \

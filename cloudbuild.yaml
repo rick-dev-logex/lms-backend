@@ -1,11 +1,12 @@
 steps:
   # Construir la imagen del backend
   - name: "gcr.io/cloud-builders/docker"
-    args: ["build", "-t", "gcr.io/$PROJECT_ID/backend:$SHORT_SHA", "."]
+    args:
+      ["build", "-t", "gcr.io/logex-alfresco-180118/lms-backend:latest", "."]
 
   # Subir la imagen al Container Registry
   - name: "gcr.io/cloud-builders/docker"
-    args: ["push", "gcr.io/$PROJECT_ID/backend:$SHORT_SHA"]
+    args: ["push", "gcr.io/logex-alfresco-180118/lms-backend:latest"]
 
   # Desplegar en Cloud Run
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
@@ -13,8 +14,8 @@ steps:
     args:
       - "-c"
       - |
-        gcloud run deploy backend-service \
-          --image gcr.io/$PROJECT_ID/backend:$SHORT_SHA \
+        gcloud run deploy lms-backend \
+          --image gcr.io/logex-alfresco-180118/lms-backend:latest \
           --region us-east1 \
           --platform managed \
           --allow-unauthenticated \
@@ -24,6 +25,6 @@ steps:
           --set-secrets SENDGRID_API_KEY=SENDGRID_API_KEY:latest \
           --set-env-vars APP_NAME=LMS,APP_ENV=production,APP_DEBUG=true,APP_KEY=base64:p7tR5ZsljVHi003Ob+gFZsFVJVVws7JxsD5FEwCLioQ=,APP_URL=https://api.lms.logex.com.ec,FRONTEND_URL=https://lms.logex.com.ec,FRONTEND_PRODUCTION_URL=https://lms.logex.com.ec,DB_CONNECTION=mysql,DB_HOST=sgt.logex.com.ec,DB_PORT=3306,DB_DATABASE=lms_backend,DB_USERNAME=restrella,DB_PASSWORD=LogeX-?2028*,ONIX_DB_HOST=sgt.logex.com.ec,ONIX_DB_PORT=3306,ONIX_DB_DATABASE=sistema_onix,ONIX_DB_USERNAME=restrella,ONIX_DB_PASSWORD=LogeX-?2028*,TMS_DB_HOST=sgt.logex.com.ec,TMS_DB_PORT=3306,TMS_DB_DATABASE=tms,TMS_DB_USERNAME=restrella,TMS_DB_PASSWORD=LogeX-?2028*,SANCTUM_STATEFUL_DOMAINS=lms.logex.com.ec,SESSION_DOMAIN=.lms.logex.com.ec,CORS_ALLOWED_ORIGINS=https://lms.logex.com.ec,SESSION_SECURE_COOKIE=true,SESSION_HTTP_ONLY=true,BROADCAST_DRIVER=reverb,CACHE_DRIVER=database,QUEUE_CONNECTION=database,MAIL_MAILER=smtp,MAIL_HOST=smtp.sendgrid.net,MAIL_PORT=587,MAIL_USERNAME=apikey,MAIL_ENCRYPTION=tls,MAIL_FROM_NAME="LMS de LogeX",MAIL_FROM_ADDRESS=notificaciones-lms@logex.ec,PUSHER_APP_ID=1934836,PUSHER_APP_KEY=09ffcad9a49a480d032e,PUSHER_APP_CLUSTER=us2
 images:
-  - "gcr.io/$PROJECT_ID/backend:$SHORT_SHA"
+  - "gcr.io/logex-alfresco-180118/lms-backend:latest"
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -36,8 +36,8 @@ RUN mkdir -p storage/framework/{sessions,views,cache} \
     && chmod -R 775 storage \
     && chmod -R 775 bootstrap/cache \
     && chown -R www-data:www-data storage \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && chown -R www-data:www-data bootstrap/cache
+    && chown -R www-data:www-data bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
 
 # Configurar Apache para escuchar en el puerto definido por Cloud Run
 RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf

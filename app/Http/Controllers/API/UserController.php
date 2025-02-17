@@ -260,12 +260,14 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            $projectIds = json_decode($request->getContent(), true);
+            // Obtener los project_ids del request
+            $projectIds = $request->input('project_ids');
 
+            // Validar que project_ids es un array
             if (!is_array($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'Invalid data format'
+                    'error' => 'project_ids must be an array'
                 ], 400);
             }
 
@@ -285,6 +287,7 @@ class UserController extends Controller
                 ], 400);
             }
 
+            // Realizar la sincronización en la base de datos LMS
             DB::connection('mysql')->transaction(function () use ($projectIds, $user) {
                 $user->projects()->sync($projectIds);
             });
@@ -295,11 +298,6 @@ class UserController extends Controller
                 'project_codes' => $user->project_codes
             ]);
         } catch (\Exception $e) {
-            Log::error('Error assigning projects:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
             return response()->json([
                 'message' => 'Error assigning projects',
                 'error' => $e->getMessage()

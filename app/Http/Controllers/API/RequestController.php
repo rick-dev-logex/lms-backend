@@ -25,13 +25,23 @@ class RequestController extends Controller
 
     public function index(HttpRequest $request)
     {
-        if ($request->input('action') === 'count') {
-            return $this->handleCountRequest($request);
-        }
-
         try {
-            // Iniciar la consulta base
+            // Obtener el usuario autenticado (JWT debería establecerlo correctamente)
+            $user = auth()->user();
+            $assignedProjectIds = [];
+
+            // Si el usuario tiene asignación de proyectos, extraer los IDs
+            if ($user && $user->assignedProjects) {
+                $assignedProjectIds = $user->assignedProjects->projects;
+            }
+
+            // Iniciar la consulta base sobre el modelo Request
             $query = Request::query();
+
+            // Si el usuario tiene proyectos asignados, filtrar por esos proyectos
+            if (!empty($assignedProjectIds)) {
+                $query->whereIn('project', $assignedProjectIds);
+            }
 
             // Aplicar búsqueda global
             if ($request->filled('search')) {
@@ -44,11 +54,10 @@ class RequestController extends Controller
                 });
             }
 
-            // Aplicar filtros
+            // Aplicar filtros adicionales
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
             }
-
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
             }
@@ -61,16 +70,15 @@ class RequestController extends Controller
                 $query->orderBy($sortField, $sortOrder);
             }
 
-            // Solo cargar la relación account que está en la misma base de datos
+            // Cargar la relación 'account' que está en la misma base de datos
             $query->with(['account:id,name']);
 
             // Paginación
             $perPage = $request->input('per_page', 10);
             $page = $request->input('page', 1);
-
             $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-            // Obtener IDs únicos para responsible y transport
+            // Obtener IDs únicos para 'responsible' y 'transport'
             $responsibleIds = collect($paginator->items())
                 ->pluck('responsible_id')
                 ->filter()
@@ -83,7 +91,7 @@ class RequestController extends Controller
                 ->unique()
                 ->values();
 
-            // Obtener datos de la base de datos externa
+            // Obtener datos externos desde sistema_onix
             $responsibles = [];
             $transports = [];
 
@@ -96,7 +104,6 @@ class RequestController extends Controller
                     ->keyBy('id')
                     ->toArray();
             }
-
             if ($transportIds->isNotEmpty()) {
                 $transports = DB::connection('sistema_onix')
                     ->table('onix_vehiculos')
@@ -107,7 +114,7 @@ class RequestController extends Controller
                     ->toArray();
             }
 
-            // Mapear los datos relacionados a cada request
+            // Mapear los datos relacionados a cada solicitud
             $data = collect($paginator->items())->map(function ($item) use ($responsibles, $transports) {
                 if ($item->responsible_id && isset($responsibles[$item->responsible_id])) {
                     $item->responsible = $responsibles[$item->responsible_id];

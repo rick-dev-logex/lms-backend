@@ -50,12 +50,41 @@ class User extends Authenticatable implements JWTSubject
         return $this->belongsToMany(Permission::class)->withTimestamps();
     }
 
-    public function projects()
+    public function assignedProjects()
     {
-        return $this->belongsToMany(Project::class, 'user_project')
-            ->using(UserProject::class)
-            ->withTimestamps();
+        return $this->hasOne(UserAssignedProjects::class);
     }
+    /**
+     * Accesor para obtener los detalles de los proyectos asignados.
+     * Se consulta la base de datos sistema_onix (modelo Project).
+     */
+    public function getProjectDetailsAttribute()
+    {
+        // Obtiene el registro de asignación de proyectos (en lms_backend)
+        $assigned = $this->assignedProjects;
+        $projectIds = $assigned ? $assigned->projects : [];
+
+        // Si no hay asignaciones, retorna una colección vacía
+        if (empty($projectIds)) {
+            return collect([]);
+        }
+
+        // Consulta los proyectos en sistema_onix (el modelo Project ya tiene:
+        // protected $connection = 'sistema_onix' y la tabla 'onix_proyectos')
+        return Project::whereIn('id', $projectIds)
+            ->active() // Si tienes un scope active definido en Project
+            ->get();
+    }
+
+    /**
+     * Accesor para obtener únicamente los códigos de proyecto.
+     * Suponemos que en el modelo Project, el campo 'proyecto' es el código.
+     */
+    public function getProjectCodesAttribute()
+    {
+        return $this->project_details->pluck('proyecto');
+    }
+
 
     /**
      * Get the identifier that will be stored in the subject claim of the JWT.

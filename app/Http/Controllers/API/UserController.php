@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\Role;
+use App\Models\UserAssignedProjects;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -242,8 +243,8 @@ class UserController extends Controller
     {
         try {
             return response()->json([
-                'projects' => $user->project_details,
-                'project_codes' => $user->project_codes
+                'projects' => $user->project_details,  // Detalles completos de proyectos consultados en sistema_onix
+                'project_codes' => $user->project_codes // Solo los códigos de proyecto
             ]);
         } catch (\Exception $e) {
             Log::error('Error fetching user projects: ' . $e->getMessage());
@@ -254,51 +255,28 @@ class UserController extends Controller
         }
     }
 
+
     /**
      * Asignar proyectos a un usuario
      */
-    public function assignProjects(Request $request, User $user): JsonResponse
+    public function assignProjects(Request $request, User $user)
     {
+        // Validamos que projectIds es un arreglo de strings
+        $data = $request->validate([
+            'projectIds' => 'required|array',
+            'projectIds.*' => 'string'
+        ]);
+
         try {
-
-            // Obtener los project_ids del request
-            $projectIds = $request->input('projectIds', []);
-
-            // Verificar si es un array
-            if (!is_array($projectIds)) {
-                return response()->json([
-                    'message' => 'Error assigning projects',
-                    'error' => 'projectIds must be an array',
-                    'received' => $projectIds
-                ], 400);
-            }
-
-            // Validar que los proyectos existen en sistema_onix
-            $existingProjects = DB::connection('sistema_onix')
-                ->table('onix_proyectos')
-                ->whereIn('id', $projectIds)
-                ->where('deleted', 0)
-                ->where('activo', 1)
-                ->pluck('id')
-                ->toArray();
-
-            if (count($existingProjects) !== count($projectIds)) {
-                return response()->json([
-                    'message' => 'Error assigning projects',
-                    'error' => 'Some projects do not exist or are inactive'
-                ], 400);
-            }
-
-            // Realizar la sincronización en la base de datos LMS
-            DB::connection('lms_backend')->transaction(function () use ($projectIds, $user) {
-                $user->setConnection('lms_backend');
-                $user->projects()->sync($projectIds);
-            });
+            // Actualizamos o creamos el registro de proyectos asignados para el usuario
+            UserAssignedProjects::updateOrCreate(
+                ['user_id' => $user->id],
+                ['projects' => $data['projectIds']]
+            );
 
             return response()->json([
                 'message' => 'Projects assigned successfully',
-                'projects' => $user->project_details,
-                'project_codes' => $user->project_codes
+                'assigned_projects' => $data['projectIds']
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -308,14 +286,6 @@ class UserController extends Controller
         }
     }
 
-    /**
-     * Los proyectos asignados al usuario
-     */
-    public function projects()
-    {
-        return $this->belongsToMany(Project::class, 'user_project')
-            ->withTimestamps();
-    }
 
     /**
      * Obtener los códigos de proyecto como string

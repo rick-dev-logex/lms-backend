@@ -260,14 +260,20 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Obtener los projectIds del request
-            $projectIds = $request->input('projectIds');
+            // Debug: Ver qué está recibiendo Laravel
+            \Log::info('Request data:', $request->all());
 
-            // Validar que projectIds es un array
+            // Obtener los project_ids del request
+            $projectIds = $request->input('projectIds', []);
+            // $projectIds = json_decode($request->getContent(), true)['projectIds'] ?? [];
+
+
+            // Verificar si es un array
             if (!is_array($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'projectIds must be an array'
+                    'error' => 'projectIds must be an array',
+                    'received' => $projectIds
                 ], 400);
             }
 
@@ -304,6 +310,7 @@ class UserController extends Controller
             ], 500);
         }
     }
+
     /**
      * Los proyectos asignados al usuario
      */

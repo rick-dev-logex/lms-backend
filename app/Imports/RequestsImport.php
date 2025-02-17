@@ -66,4 +66,6 @@ class RequestsImport implements ToModel, WithHeadingRow
             'note' => $row['note'],
         ]);
     }
+
+    public function importExcelData(array $row) {}
 }

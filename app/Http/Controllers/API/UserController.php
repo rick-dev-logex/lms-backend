@@ -259,6 +259,8 @@ class UserController extends Controller
      */
     public function assignProjects(Request $request, User $user): JsonResponse
     {
+        Log::info('Received project_ids:', $request->all());
+
         try {
             $validated = $request->validate([
                 'project_ids' => 'required|array',

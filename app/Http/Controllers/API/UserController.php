@@ -260,9 +260,8 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            $projectIds = $request->json()->all();  // Recibimos directamente el array
+            $projectIds = $request->input('project_ids');
 
-            // Validar que los proyectos existen en sistema_onix
             $existingProjects = DB::connection('sistema_onix')
                 ->table('onix_proyectos')
                 ->whereIn('id', $projectIds)
@@ -278,7 +277,6 @@ class UserController extends Controller
                 ], 400);
             }
 
-            // Realizar la sincronización en la base de datos LMS
             DB::connection('mysql')->transaction(function () use ($projectIds, $user) {
                 $user->projects()->sync($projectIds);
             });

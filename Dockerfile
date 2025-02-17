@@ -26,14 +26,17 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copiar solo archivos esenciales de Laravel para que Artisan esté disponible
-COPY composer.json composer.lock artisan ./
+# Copiar archivos de Composer para aprovechar la cache
+COPY composer.json composer.lock ./
 
-# Instalar dependencias de Laravel antes de copiar todo el código
-RUN composer install --no-dev --optimize-autoloader
+# Instalar dependencias de Composer sin ejecutar el comando de discovery
+RUN composer install --no-dev --optimize-autoloader --no-scripts
 
-# Ahora copiamos el resto del código de la aplicación
+# Copiar el resto del código de la aplicación
 COPY . .
+
+# Asegurarse de que el archivo 'artisan' está presente antes de ejecutar comandos
+RUN ls -la /var/www/html && php artisan --version
 
 # Crear y configurar directorios de Laravel y establecer permisos
 RUN mkdir -p storage/framework/{sessions,views,cache} \

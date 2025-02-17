@@ -259,17 +259,47 @@ class UserController extends Controller
      */
     public function assignProjects(Request $request, User $user): JsonResponse
     {
-        Log::info('Received project_ids:', $request->all());
-
         try {
+            // Log la solicitud completa
+            Log::info('Request data:', [
+                'all' => $request->all(),
+                'input' => $request->input(),
+                'project_ids' => $request->input('project_ids'),
+                'content' => $request->getContent()
+            ]);
+
+            // Validación más simple primero
+            if (!$request->has('project_ids')) {
+                return response()->json([
+                    'message' => 'Error assigning projects',
+                    'error' => 'No project_ids field in request'
+                ], 400);
+            }
+
+            if (!is_array($request->input('project_ids'))) {
+                return response()->json([
+                    'message' => 'Error assigning projects',
+                    'error' => 'project_ids must be an array'
+                ], 400);
+            }
+
+            // Validación completa
             $validated = $request->validate([
                 'project_ids' => 'required|array',
                 'project_ids.*' => 'required|string|exists:sistema_onix.onix_proyectos,id,deleted,0,activo,1'
             ]);
 
+            Log::info('Validated data:', $validated);
+
             DB::transaction(function () use ($validated, $user) {
                 $user->projects()->sync($validated['project_ids']);
             });
+
+            // Log el resultado
+            Log::info('Projects synced successfully for user:', [
+                'user_id' => $user->id,
+                'projects' => $validated['project_ids']
+            ]);
 
             return response()->json([
                 'message' => 'Projects assigned successfully',
@@ -277,10 +307,18 @@ class UserController extends Controller
                 'project_codes' => $user->project_codes
             ]);
         } catch (\Exception $e) {
-            Log::error('Error assigning projects: ' . $e->getMessage());
+            Log::error('Error assigning projects:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'message' => 'Error assigning projects',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'debug_info' => [
+                    'request_data' => $request->all(),
+                    'error_trace' => $e->getTraceAsString()
+                ]
             ], 500);
         }
     }

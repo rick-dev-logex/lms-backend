@@ -50,9 +50,6 @@ class User extends Authenticatable implements JWTSubject
         return $this->belongsToMany(Permission::class)->withTimestamps();
     }
 
-    /**
-     * Los proyectos asignados al usuario
-     */
     public function projects()
     {
         return $this->belongsToMany(Project::class, 'user_project')

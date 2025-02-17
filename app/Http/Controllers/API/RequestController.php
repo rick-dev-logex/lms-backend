@@ -253,7 +253,6 @@ class RequestController extends Controller
                 'account_id' => 'required|exists:accounts,id',
                 'amount' => 'required|numeric|min:0',
                 'project' => 'required|string',
-                'attachment' => 'required|file',
                 'note' => 'required|string'
             ];
 

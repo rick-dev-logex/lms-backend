@@ -142,7 +142,6 @@ class ReposicionController extends Controller
     {
         try {
             DB::beginTransaction();
-
             // Validar la entrada
             $validated = $request->validate([
                 'request_ids' => 'required|array',
@@ -168,7 +167,8 @@ class ReposicionController extends Controller
                 'total_reposicion' => $requests->sum('amount'),
                 'status' => 'pending',
                 'project' => $project,
-                'detail' => $validated['request_ids'] // Aquí pasamos directamente el array
+                'detail' => $validated['request_ids'],
+                'attachment' => 'required|file'
             ]);
 
             // Actualizar el estado de las solicitudes relacionadas

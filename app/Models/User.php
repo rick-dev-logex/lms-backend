@@ -57,8 +57,12 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->belongsToMany(Project::class, 'user_project')
             ->using(UserProject::class)
-            ->withTimestamps();
+            ->withTimestamps()
+            ->withPivot('user_id', 'project_id')
+            ->as('user_project')
+            ->connection('lms_backend'); // Asegura que use la conexión correcta
     }
+
 
     /**
      * Get the identifier that will be stored in the subject claim of the JWT.

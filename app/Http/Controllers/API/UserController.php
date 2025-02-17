@@ -260,36 +260,38 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Debug logs
-            Log::info('Received request for project assignment:', [
-                'raw_content' => $request->getContent(),
-                'all_data' => $request->all(),
-                'headers' => $request->headers->all()
-            ]);
+            // Obtener el contenido raw
+            $rawContent = $request->getContent();
 
-            // Obtener y validar los project_ids
-            $projectIds = $request->input('project_ids');
-
-            if (empty($projectIds)) {
-                // Intentar obtener del contenido raw si no está en el input
-                $jsonData = json_decode($request->getContent(), true);
-                $projectIds = $jsonData['project_ids'] ?? null;
+            // Si el contenido viene como string JSON, decodificarlo una vez
+            if (is_string($rawContent)) {
+                $decodedOnce = json_decode($rawContent, true);
+                // Si aún es string, decodificar una segunda vez
+                if (is_string($decodedOnce)) {
+                    $decodedTwice = json_decode($decodedOnce, true);
+                    $projectIds = $decodedTwice['project_ids'] ?? null;
+                } else {
+                    $projectIds = $decodedOnce['project_ids'] ?? null;
+                }
             }
 
+            // Si aún no tenemos project_ids, intentar obtenerlo del input
+            if (empty($projectIds)) {
+                $projectIds = $request->input('project_ids');
+            }
+
+            // Validar que tenemos project_ids
             if (empty($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
                     'error' => 'No project_ids field in request',
                     'debug' => [
                         'received_data' => $request->all(),
-                        'raw_content' => $request->getContent()
+                        'raw_content' => $rawContent,
+                        'decoded_once' => $decodedOnce ?? null,
+                        'decoded_twice' => $decodedTwice ?? null
                     ]
                 ], 400);
-            }
-
-            // Convertir a array si viene como string (por el longtext)
-            if (is_string($projectIds)) {
-                $projectIds = json_decode($projectIds, true);
             }
 
             // Asegurarse de que es un array
@@ -320,12 +322,8 @@ class UserController extends Controller
 
             // Realizar la sincronización
             DB::transaction(function () use ($projectIds, $user) {
-                // Almacenar como string JSON ya que usamos longtext
                 $user->projects()->sync($projectIds);
             });
-
-            // Obtener los datos actualizados
-            $user->refresh();
 
             return response()->json([
                 'message' => 'Projects assigned successfully',
@@ -337,7 +335,7 @@ class UserController extends Controller
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'request_data' => $request->all(),
-                'raw_content' => $request->getContent()
+                'raw_content' => $rawContent ?? null
             ]);
 
             return response()->json([

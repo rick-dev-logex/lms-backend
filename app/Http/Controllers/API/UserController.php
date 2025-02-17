@@ -260,15 +260,49 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Obtener el contenido y decodificarlo
-            $rawContent = $request->getContent();
-            $decodedData = json_decode($rawContent, true);
-            $projectIds = $decodedData['project_ids'] ?? null;
+            // Debug logs
+            Log::info('Request data:', [
+                'raw_content' => $request->getContent(),
+                'all_data' => $request->all(),
+                'json' => $request->json()->all(),
+                'input' => $request->input(),
+                'headers' => $request->headers->all()
+            ]);
+
+            // Intentar obtener project_ids de diferentes formas
+            $projectIds = null;
+
+            // Método 1: Directamente del JSON
+            if ($request->json()->has('project_ids')) {
+                $projectIds = $request->json()->get('project_ids');
+            }
+
+            // Método 2: Del input
+            if (empty($projectIds) && $request->has('project_ids')) {
+                $projectIds = $request->input('project_ids');
+            }
+
+            // Método 3: Decodificar manualmente
+            if (empty($projectIds)) {
+                $jsonData = json_decode($request->getContent(), true);
+                $projectIds = $jsonData['project_ids'] ?? null;
+            }
+
+            // Log los project_ids encontrados
+            Log::info('Project IDs found:', [
+                'project_ids' => $projectIds
+            ]);
 
             if (empty($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'No project_ids field in request'
+                    'error' => 'No project_ids field in request',
+                    'debug' => [
+                        'raw_content' => $request->getContent(),
+                        'all_data' => $request->all(),
+                        'json' => $request->json()->all(),
+                        'input' => $request->input(),
+                    ]
                 ], 400);
             }
 
@@ -281,10 +315,19 @@ class UserController extends Controller
                 ->pluck('id')
                 ->toArray();
 
+            Log::info('Existing projects found:', [
+                'searched_ids' => $projectIds,
+                'found_ids' => $existingProjects
+            ]);
+
             if (count($existingProjects) !== count($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'Some projects do not exist or are inactive'
+                    'error' => 'Some projects do not exist or are inactive',
+                    'debug' => [
+                        'received_ids' => $projectIds,
+                        'found_ids' => $existingProjects
+                    ]
                 ], 400);
             }
 
@@ -293,7 +336,7 @@ class UserController extends Controller
                 $user->projects()->sync($projectIds);
             });
 
-            // Refrescar el usuario para obtener los proyectos actualizados
+            // Refrescar el usuario
             $user->refresh();
 
             return response()->json([
@@ -304,7 +347,9 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Error in assignProjects:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+                'raw_content' => $request->getContent()
             ]);
 
             return response()->json([
@@ -312,6 +357,14 @@ class UserController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+    /**
+     * Los proyectos asignados al usuario
+     */
+    public function projects()
+    {
+        return $this->belongsToMany(Project::class, 'user_project')
+            ->withTimestamps();
     }
 
     /**

@@ -294,9 +294,10 @@ class UserController extends Controller
             }
 
             // Realizar la sincronización en la base de datos LMS
-            DB::connection('lms_backend')->table('user_project')->transaction(function () use ($projectIds, $user) {
+            DB::connection('lms_backend')->transaction(function () use ($projectIds, $user) {
                 $user->projects()->sync($projectIds);
             });
+
 
             return response()->json([
                 'message' => 'Projects assigned successfully',

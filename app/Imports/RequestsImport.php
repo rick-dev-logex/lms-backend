@@ -3,10 +3,12 @@
 namespace App\Imports;
 
 use App\Models\Request;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use PDO;
 
 class RequestsImport implements ToModel, WithHeadingRow
 {
@@ -67,5 +69,39 @@ class RequestsImport implements ToModel, WithHeadingRow
         ]);
     }
 
-    public function importExcelData(array $row) {}
+    public function handleImport($filepath): void
+    {
+        // Aquí deberías convertir el excel a csv
+
+        // Insertar datos
+        $pdo = DB::connection()->getPdo();
+        $pdo->setAttribute(PDO::MYSQL_ATTR_LOCAL_INFILE, true);
+        $filepath = str_replace('\\', '/', $filepath);
+
+        $query = <<<SQL
+LOAD DATA LOCAL INFILE '$filepath'
+INTO TABLE requests
+FIELDS TERMINATED BY ','
+ENCLOSED BY '"'
+LINES TERMINATED BY '\n'
+IGNORE 1 LINES
+SET
+    unique_id = @col,
+    type = @col,
+    status = @col,
+    request_date = @col3,
+    invoice_number = @col3,
+    account_id = @col3,
+    amount = @col3,
+    project_id = @col3,
+    responsible_id = @col3,
+    transport_id = @col3,
+    attachment_path = @col3,
+    note = @col3,
+    created_at = NOW(),
+    updated_at = NOW()
+SQL;
+
+        $pdo->exec($query);
+    }
 }

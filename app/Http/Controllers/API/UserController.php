@@ -260,46 +260,72 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Log la solicitud completa
-            Log::info('Request data:', [
-                'all' => $request->all(),
-                'input' => $request->input(),
-                'project_ids' => $request->input('project_ids'),
-                'content' => $request->getContent()
+            // Debug logs
+            Log::info('Received request for project assignment:', [
+                'raw_content' => $request->getContent(),
+                'all_data' => $request->all(),
+                'headers' => $request->headers->all()
             ]);
 
-            // Validación más simple primero
-            if (!$request->has('project_ids')) {
+            // Obtener y validar los project_ids
+            $projectIds = $request->input('project_ids');
+
+            if (empty($projectIds)) {
+                // Intentar obtener del contenido raw si no está en el input
+                $jsonData = json_decode($request->getContent(), true);
+                $projectIds = $jsonData['project_ids'] ?? null;
+            }
+
+            if (empty($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'No project_ids field in request'
+                    'error' => 'No project_ids field in request',
+                    'debug' => [
+                        'received_data' => $request->all(),
+                        'raw_content' => $request->getContent()
+                    ]
                 ], 400);
             }
 
-            if (!is_array($request->input('project_ids'))) {
+            // Convertir a array si viene como string (por el longtext)
+            if (is_string($projectIds)) {
+                $projectIds = json_decode($projectIds, true);
+            }
+
+            // Asegurarse de que es un array
+            if (!is_array($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'project_ids must be an array'
+                    'error' => 'project_ids must be an array',
+                    'received' => $projectIds
                 ], 400);
             }
 
-            // Validación completa
-            $validated = $request->validate([
-                'project_ids' => 'required|array',
-                'project_ids.*' => 'required|string|exists:sistema_onix.onix_proyectos,id,deleted,0,activo,1'
-            ]);
+            // Validar que todos los proyectos existen
+            $existingProjects = DB::table('sistema_onix.onix_proyectos')
+                ->whereIn('id', $projectIds)
+                ->where('deleted', 0)
+                ->where('activo', 1)
+                ->pluck('id')
+                ->toArray();
 
-            Log::info('Validated data:', $validated);
+            if (count($existingProjects) !== count($projectIds)) {
+                return response()->json([
+                    'message' => 'Error assigning projects',
+                    'error' => 'Some projects do not exist or are inactive',
+                    'received' => $projectIds,
+                    'found' => $existingProjects
+                ], 400);
+            }
 
-            DB::transaction(function () use ($validated, $user) {
-                $user->projects()->sync($validated['project_ids']);
+            // Realizar la sincronización
+            DB::transaction(function () use ($projectIds, $user) {
+                // Almacenar como string JSON ya que usamos longtext
+                $user->projects()->sync($projectIds);
             });
 
-            // Log el resultado
-            Log::info('Projects synced successfully for user:', [
-                'user_id' => $user->id,
-                'projects' => $validated['project_ids']
-            ]);
+            // Obtener los datos actualizados
+            $user->refresh();
 
             return response()->json([
                 'message' => 'Projects assigned successfully',
@@ -307,18 +333,16 @@ class UserController extends Controller
                 'project_codes' => $user->project_codes
             ]);
         } catch (\Exception $e) {
-            Log::error('Error assigning projects:', [
+            Log::error('Error in assignProjects:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+                'raw_content' => $request->getContent()
             ]);
 
             return response()->json([
                 'message' => 'Error assigning projects',
-                'error' => $e->getMessage(),
-                'debug_info' => [
-                    'request_data' => $request->all(),
-                    'error_trace' => $e->getTraceAsString()
-                ]
+                'error' => $e->getMessage()
             ], 500);
         }
     }

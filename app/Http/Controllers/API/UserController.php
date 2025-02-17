@@ -262,7 +262,7 @@ class UserController extends Controller
         try {
             $validated = $request->validate([
                 'project_ids' => 'required|array',
-                'project_ids.*' => 'required|uuid|exists:sistema_onix.onix_proyectos,id,deleted,0,activo,1'
+                'project_ids.*' => 'required|string|exists:sistema_onix.onix_proyectos,id,deleted,0,activo,1'
             ]);
 
             DB::transaction(function () use ($validated, $user) {

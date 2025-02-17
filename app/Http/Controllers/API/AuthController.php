@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Response;
 
 class AuthController extends Controller
 {
+    const TOKEN_EXPIRATION = 60 * 60 * 10; // 10 horas en segundos
     /**
      * Registro de usuario
      */
@@ -92,7 +93,7 @@ class AuthController extends Controller
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
                 'iat'         => time(),
-                'exp'         => time() + ($request->remember ? 60 * 60 * 10 : 60 * 60)
+                'exp'         => time() + self::TOKEN_EXPIRATION
             ];
 
             // Generar el token usando la clave de JWT (definida en config/jwt.php)
@@ -102,7 +103,7 @@ class AuthController extends Controller
             $cookie = Cookie::make(
                 'jwt-token',    // nombre de la cookie
                 $jwt,           // valor (el token)
-                60 * 10,        // duración en minutos (10 horas, por ejemplo)
+                self::TOKEN_EXPIRATION,
                 '/',            // ruta
                 '.lms.logex.com.ec', // dominio: nota el punto al inicio para abarcar todos los subdominios. Alternatica: env('SESSION_DOMAIN),
                 true,           // secure: solo se envía por HTTPS
@@ -143,31 +144,44 @@ class AuthController extends Controller
         try {
             $decoded = JWT::decode(
                 $request->token,
-                new Key(config('app.key'), 'HS256')
+                new Key(config('jwt.secret'), 'HS256') // Usa la misma clave que en login
             );
 
-            if ($decoded->exp < time()) {
-                return response()->json(['error' => 'Token expirado'], 401);
+            $user = User::with(['role', 'permissions'])->find($decoded->user_id);
+
+            if (!$user) {
+                return response()->json(['error' => 'Usuario no encontrado'], 404);
             }
 
-            $user = User::find($decoded->user_id);
-
             $newPayload = [
-                'user_id' => $user->id,
-                'email' => $user->email,
-                'name' => $user->name,
-                'iat' => time(),
-                'exp' => time() + (60 * 60) // 1 hora
+                'user_id'     => $user->id,
+                'email'       => $user->email,
+                'name'        => $user->name,
+                'role'        => $user->role?->name,
+                'permissions' => $user->permissions->pluck('name'),
+                'iat'         => time(),
+                'exp'         => time() + self::TOKEN_EXPIRATION
             ];
 
-            $newToken = JWT::encode($newPayload, config('app.key'), 'HS256');
+            $newToken = JWT::encode($newPayload, config('jwt.secret'), 'HS256');
+
+            $cookie = Cookie::make(
+                'jwt-token',
+                $newToken,
+                self::TOKEN_EXPIRATION / 60,
+                '/',
+                '.lms.logex.com.ec',
+                true,
+                false
+            )->withSameSite('None');
 
             return response()->json([
-                'access_token' => $user->createToken('auth_token')->plainTextToken,
-                'jwt_token' => $newToken,
-            ]);
+                'message' => 'Token refreshed successfully',
+                'user'    => $user,
+            ])->withCookie($cookie);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Token inválido'], 401);
+            Log::error('Error refreshing token: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al renovar el token'], 401);
         }
     }
 

@@ -9,6 +9,8 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use PDO;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\Exception as ReaderException;
 
 class RequestsImport implements ToModel, WithHeadingRow
 {
@@ -104,5 +106,41 @@ SET
 SQL;
 
         $pdo->exec($query);
+    }
+
+    public function convertExcelToCsv(string $filepath): string
+    {
+        // Si el archivo ya es CSV, se retorna directamente
+        $extension = strtolower(pathinfo($filepath, PATHINFO_EXTENSION));
+        if ($extension === 'csv') {
+            return $filepath;
+        }
+
+        try {
+            // Carga el archivo Excel (xls o xlsx)
+            $spreadsheet = IOFactory::load($filepath);
+        } catch (ReaderException $e) {
+            throw new \Exception('Error al leer el archivo Excel: ' . $e->getMessage());
+        }
+
+        // Crea el escritor CSV
+        $writer = IOFactory::createWriter($spreadsheet, 'Csv');
+        // Configuraciones opcionales para el CSV
+        $writer->setDelimiter(',');
+        $writer->setEnclosure('"');
+        $writer->setLineEnding("\n");
+        $writer->setSheetIndex(0); // Usamos la primera hoja
+
+        // Define la ruta de destino del CSV (reemplazamos la extensión por .csv)
+        $csvFilePath = preg_replace('/\.(xls|xlsx)$/i', '.csv', $filepath);
+
+        try {
+            // Guarda el archivo CSV
+            $writer->save($csvFilePath);
+        } catch (\Exception $e) {
+            throw new \Exception('Error al guardar el archivo CSV: ' . $e->getMessage());
+        }
+
+        return $csvFilePath;
     }
 }

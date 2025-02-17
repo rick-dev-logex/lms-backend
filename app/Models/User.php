@@ -56,7 +56,9 @@ class User extends Authenticatable implements JWTSubject
     public function projects()
     {
         return $this->belongsToMany(Project::class, 'user_project')
-            ->withTimestamps();
+            ->using(UserProject::class)
+            ->withTimestamps()
+            ->connection('mysql'); // Asegura que use la conexión de LMS
     }
 
     /**

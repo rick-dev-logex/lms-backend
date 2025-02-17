@@ -260,51 +260,21 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Obtener el contenido raw
+            // Obtener el contenido y decodificarlo
             $rawContent = $request->getContent();
+            $decodedData = json_decode($rawContent, true);
+            $projectIds = $decodedData['project_ids'] ?? null;
 
-            // Si el contenido viene como string JSON, decodificarlo una vez
-            if (is_string($rawContent)) {
-                $decodedOnce = json_decode($rawContent, true);
-                // Si aún es string, decodificar una segunda vez
-                if (is_string($decodedOnce)) {
-                    $decodedTwice = json_decode($decodedOnce, true);
-                    $projectIds = $decodedTwice['project_ids'] ?? null;
-                } else {
-                    $projectIds = $decodedOnce['project_ids'] ?? null;
-                }
-            }
-
-            // Si aún no tenemos project_ids, intentar obtenerlo del input
-            if (empty($projectIds)) {
-                $projectIds = $request->input('project_ids');
-            }
-
-            // Validar que tenemos project_ids
             if (empty($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'No project_ids field in request',
-                    'debug' => [
-                        'received_data' => $request->all(),
-                        'raw_content' => $rawContent,
-                        'decoded_once' => $decodedOnce ?? null,
-                        'decoded_twice' => $decodedTwice ?? null
-                    ]
+                    'error' => 'No project_ids field in request'
                 ], 400);
             }
 
-            // Asegurarse de que es un array
-            if (!is_array($projectIds)) {
-                return response()->json([
-                    'message' => 'Error assigning projects',
-                    'error' => 'project_ids must be an array',
-                    'received' => $projectIds
-                ], 400);
-            }
-
-            // Validar que todos los proyectos existen
-            $existingProjects = DB::table('sistema_onix.onix_proyectos')
+            // Validar que los proyectos existen en sistema_onix
+            $existingProjects = DB::connection('sistema_onix')
+                ->table('onix_proyectos')
                 ->whereIn('id', $projectIds)
                 ->where('deleted', 0)
                 ->where('activo', 1)
@@ -314,16 +284,17 @@ class UserController extends Controller
             if (count($existingProjects) !== count($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'Some projects do not exist or are inactive',
-                    'received' => $projectIds,
-                    'found' => $existingProjects
+                    'error' => 'Some projects do not exist or are inactive'
                 ], 400);
             }
 
-            // Realizar la sincronización
-            DB::transaction(function () use ($projectIds, $user) {
+            // Realizar la sincronización en la base de datos LMS
+            DB::connection('mysql')->transaction(function () use ($projectIds, $user) {
                 $user->projects()->sync($projectIds);
             });
+
+            // Refrescar el usuario para obtener los proyectos actualizados
+            $user->refresh();
 
             return response()->json([
                 'message' => 'Projects assigned successfully',
@@ -333,9 +304,7 @@ class UserController extends Controller
         } catch (\Exception $e) {
             Log::error('Error in assignProjects:', [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all(),
-                'raw_content' => $rawContent ?? null
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -343,14 +312,6 @@ class UserController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-    }
-    /**
-     * Los proyectos asignados al usuario
-     */
-    public function projects()
-    {
-        return $this->belongsToMany(Project::class, 'user_project')
-            ->withTimestamps();
     }
 
     /**

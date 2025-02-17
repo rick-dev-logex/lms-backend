@@ -260,14 +260,14 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Obtener los project_ids del request
-            $projectIds = $request->input('project_ids');
+            // Obtener los projectIds del request
+            $projectIds = $request->input('projectIds');
 
-            // Validar que project_ids es un array
+            // Validar que projectIds es un array
             if (!is_array($projectIds)) {
                 return response()->json([
                     'message' => 'Error assigning projects',
-                    'error' => 'project_ids must be an array'
+                    'error' => 'projectIds must be an array'
                 ], 400);
             }
 

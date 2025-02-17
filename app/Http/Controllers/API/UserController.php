@@ -260,8 +260,16 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            $projectIds = $request->input('project_ids');
+            $projectIds = json_decode($request->getContent(), true);
 
+            if (!is_array($projectIds)) {
+                return response()->json([
+                    'message' => 'Error assigning projects',
+                    'error' => 'Invalid data format'
+                ], 400);
+            }
+
+            // Validar que los proyectos existen en sistema_onix
             $existingProjects = DB::connection('sistema_onix')
                 ->table('onix_proyectos')
                 ->whereIn('id', $projectIds)
@@ -287,6 +295,11 @@ class UserController extends Controller
                 'project_codes' => $user->project_codes
             ]);
         } catch (\Exception $e) {
+            Log::error('Error assigning projects:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'message' => 'Error assigning projects',
                 'error' => $e->getMessage()

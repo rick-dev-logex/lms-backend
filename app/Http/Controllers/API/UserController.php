@@ -260,13 +260,9 @@ class UserController extends Controller
     public function assignProjects(Request $request, User $user): JsonResponse
     {
         try {
-            // Debug: Ver qué está recibiendo Laravel
-            \Log::info('Request data:', $request->all());
 
             // Obtener los project_ids del request
             $projectIds = $request->input('projectIds', []);
-            // $projectIds = json_decode($request->getContent(), true)['projectIds'] ?? [];
-
 
             // Verificar si es un array
             if (!is_array($projectIds)) {
@@ -297,6 +293,7 @@ class UserController extends Controller
             DB::connection('lms_backend')->transaction(function () use ($projectIds, $user) {
                 $user->projects()->sync($projectIds);
             });
+
 
 
             return response()->json([

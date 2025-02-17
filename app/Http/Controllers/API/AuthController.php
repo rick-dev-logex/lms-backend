@@ -72,6 +72,7 @@ class AuthController extends Controller
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
+            'remember' => 'boolean'
         ]);
 
         try {
@@ -85,7 +86,9 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Crear el payload
+            // Duración del token basada en remember
+            $tokenDuration = $request->remember ? 60 * 60 * 10 : 60 * 30; // 10 horas o 30 minutos
+
             $payload = [
                 'user_id'     => $user->id,
                 'email'       => $user->email,
@@ -93,24 +96,20 @@ class AuthController extends Controller
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
                 'iat'         => time(),
-                'exp'         => time() + self::TOKEN_EXPIRATION
+                'exp'         => time() + $tokenDuration
             ];
 
-            // Generar el token usando la clave de JWT (definida en config/jwt.php)
             $jwt = JWT::encode($payload, config('jwt.secret'), 'HS256');
 
-            // Establecer el token en una cookie
             $cookie = Cookie::make(
-                'jwt-token',    // nombre de la cookie
-                $jwt,           // valor (el token)
-                self::TOKEN_EXPIRATION,
-                '/',            // ruta
-                '.lms.logex.com.ec', // dominio: nota el punto al inicio para abarcar todos los subdominios. Alternatica: env('SESSION_DOMAIN),
-                true,           // secure: solo se envía por HTTPS
-                false           // httpOnly: false si quieres que JavaScript pueda leerla (aunque por seguridad se recomienda httpOnly)
+                'jwt-token',
+                $jwt,
+                $tokenDuration / 60, // Convertir segundos a minutos
+                '/',
+                '.lms.logex.com.ec',
+                true,
+                false
             )->withSameSite('None');
-
-            // $cookie = Cookie::make('jwt-token', $jwt, 60 * 10, null, null, true, false);
 
             return response()->json([
                 'message' => 'Login successful',

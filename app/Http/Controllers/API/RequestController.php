@@ -10,7 +10,6 @@ use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class RequestController extends Controller
@@ -25,19 +24,18 @@ class RequestController extends Controller
     public function index(HttpRequest $request)
     {
         try {
-            // Obtener el usuario autenticado (JWT debería establecerlo correctamente)
+            // Obtener el usuario autenticado
             $user = auth()->user();
             $assignedProjectIds = [];
 
-            // Si el usuario tiene asignación de proyectos, extraer los IDs
             if ($user && $user->assignedProjects) {
                 $assignedProjectIds = $user->assignedProjects->projects;
             }
 
-            // Iniciar la consulta base sobre el modelo Request
+            // Iniciar la consulta base
             $query = Request::query();
 
-            // Si el usuario tiene proyectos asignados, filtrar por esos proyectos
+            // Filtrar por proyectos asignados
             if (!empty($assignedProjectIds)) {
                 $query->whereIn('project', $assignedProjectIds);
             }
@@ -69,7 +67,7 @@ class RequestController extends Controller
                 $query->orderBy($sortField, $sortOrder);
             }
 
-            // Cargar la relación 'account' que está en la misma base de datos
+            // Cargar la relación 'account'
             $query->with(['account:id,name']);
 
             // Paginación
@@ -209,44 +207,12 @@ class RequestController extends Controller
 
     public function show(HttpRequest $request, $id)
     {
-        if ($request->input('action') === 'download') {
-            return $this->getFile($id);
-        }
-
-        $request->has('status') ? $requests = Request::where('status', $request->status)->get() : $requests = Request::all();
+        $request->has('status') ?
+            $requests = Request::where('status', $request->status)->get() :
+            $requests = Request::all();
 
         return response()->json($requests->load(['account', 'project', 'responsible', 'transport']));
     }
-
-    public function getFile($id)
-    {
-        $request = Request::find($id);
-
-        if (!$request) {
-            return response()->json(['message' => 'Request not found'], 404);
-        }
-
-        if (!$request->attachment_path) {
-            return response()->json(['message' => 'No attachment found for this request'], 404);
-        }
-
-        $filePath = $request->attachment_path;
-
-        if (!Storage::exists($filePath)) {
-            return response()->json(['message' => 'File not found in storage'], 404);
-        }
-
-        $mimeType = Storage::mimeType($filePath);
-        $fileName = basename($filePath);
-
-        return response()->streamDownload(function () use ($filePath) {
-            echo Storage::get($filePath);
-        }, $fileName, [
-            'Content-Type' => $mimeType,
-            'Content-Disposition' => 'attachment; filename="' . $fileName . '"'
-        ]);
-    }
-
 
     public function store(HttpRequest $request)
     {
@@ -323,22 +289,10 @@ class RequestController extends Controller
             $responsible = $requestRecord->responsible;
             // Disparar el evento de broadcasting
             broadcast(new RequestUpdated($requestRecord))->toOthers();
-            $responsible->notify(new RequestNotification($requestRecord, $validated['status']));
-        }
 
-        if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
-            $responsible = $requestRecord->responsible;
-
-            if ($validated['status'] === 'paid') {
-                $responsible->notify(new RequestNotification($requestRecord, 'paid'));
-            } elseif ($validated['status'] === 'rejected') {
-                $responsible->notify(new RequestNotification($requestRecord, 'rejected'));
-            } elseif ($validated['status'] === 'in_reposition') {
-                $responsible->notify(new RequestNotification($requestRecord, 'in_reposition'));
-            } elseif ($validated['status'] === 'review') {
-                $responsible->notify(new RequestNotification($requestRecord, 'review'));
-            } elseif ($validated['status'] === 'pending') {
-                $responsible->notify(new RequestNotification($requestRecord, 'pending'));
+            // Enviar notificaciones según el estado
+            if ($responsible) {
+                $responsible->notify(new RequestNotification($requestRecord, $validated['status']));
             }
         }
 
@@ -351,7 +305,6 @@ class RequestController extends Controller
         return response()->json(['message' => 'Request deleted successfully.']);
     }
 
-    // Importar descuentos desde Excel
     public function uploadDiscounts(HttpRequest $request)
     {
         try {
@@ -368,16 +321,12 @@ class RequestController extends Controller
 
             foreach ($discounts as $index => $discount) {
                 try {
-                    // Normalizar el tipo de personal (convertir a minúsculas y quitar tildes)
                     $personnelType = $this->normalizePersonnelType($discount['Tipo']);
                     if (!in_array($personnelType, ['nomina', 'transportista'])) {
                         throw new \Exception("Tipo de personal inválido: {$discount['Tipo']}. Debe ser 'Nómina/nomina' o 'Transportista/transportista'");
                     }
 
-                    // Validar y obtener el ID del proyecto
                     $projectId = $this->getProjectId($discount['Proyecto']);
-
-                    // Validar y obtener ID del responsable según el tipo
                     $responsibleId = null;
                     $transportId = null;
 
@@ -390,7 +339,6 @@ class RequestController extends Controller
                         $transportId = $this->getTransportId($discount['Placa']);
                     }
 
-                    // Mapear campos del Excel a la base de datos
                     $mappedData = [
                         'type' => 'discount',
                         'personnel_type' => $personnelType,
@@ -405,7 +353,6 @@ class RequestController extends Controller
                         'note' => $discount['Observación'],
                     ];
 
-                    // Validar datos mapeados
                     $validator = Validator::make($mappedData, [
                         'type' => 'required|in:expense,discount',
                         'personnel_type' => 'required|in:nomina,transportista',
@@ -417,7 +364,6 @@ class RequestController extends Controller
                         'note' => 'required|string'
                     ]);
 
-                    // Añadir reglas condicionales según el tipo de personal
                     if ($personnelType === 'nomina') {
                         $validator->addRules([
                             'responsible_id' => 'required|exists:sistema_onix.onix_personal,id'
@@ -433,27 +379,21 @@ class RequestController extends Controller
                         throw new \Exception("Error en la fila " . ($index + 2) . ": " . implode(", ", $errorMessages));
                     }
 
-                    // Generar identificador único
                     $prefix = 'D-';
                     $lastRecord = Request::where('type', 'discount')
                         ->orderBy('id', 'desc')
                         ->first();
                     $nextId = $lastRecord ?
-                        ((int)str_replace(
-                            $prefix,
-                            '',
-                            $lastRecord->unique_id
-                        ) + 1) : 1;
+                        ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
                     $mappedData['unique_id'] = $prefix . $nextId;
 
                     // Crear el registro
                     Request::create($mappedData);
                     $processedCount++;
                 } catch (\Exception $e) {
-                    // Guardamos el error con información de contexto
                     $errors[] = [
-                        'row' => $index + 2, // +2 porque Excel empieza en 1 y tiene cabecera
-                        'data' => $discount, // Guardamos los datos de la fila para contexto
+                        'row' => $index + 2,
+                        'data' => $discount,
                         'error' => $e->getMessage()
                     ];
                 }

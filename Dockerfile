@@ -22,10 +22,11 @@ WORKDIR /var/www/html
 # Copiar archivos del backend
 COPY . .
 
-# Crear y configurar directorios de Laravel
+# Crear directorios necesarios para Laravel y Google Cloud
 RUN mkdir -p storage/framework/{sessions,views,cache} \
     && mkdir -p storage/framework/views \
     && mkdir -p bootstrap/cache \
+    && mkdir -p storage/app/google \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache \
     && touch storage/framework/views/.gitkeep
@@ -37,8 +38,9 @@ RUN chmod -R 775 storage/framework/views \
 # Verificar que el archivo está presente
 RUN ls -la app/Http/Middleware && cat app/Http/Middleware/VerifyJWTToken.php || echo "No se encontró el archivo"
 
-# Instalar dependencias de Laravel y forzar autoload
-RUN composer install --no-dev --optimize-autoloader \
+# Instalar dependencias de Laravel y Google Cloud
+RUN composer require google/cloud-storage --no-dev \
+    && composer install --no-dev --optimize-autoloader \
     && composer dump-autoload -o
 
 # Ajustar Apache para Cloud Run

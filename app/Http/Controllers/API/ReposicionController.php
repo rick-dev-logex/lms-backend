@@ -8,9 +8,21 @@ use App\Models\Request;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Google\Cloud\Storage\StorageClient;
 
 class ReposicionController extends Controller
 {
+    private $storage;
+    private $bucketName;
+
+    public function __construct()
+    {
+        $this->storage = new StorageClient([
+            'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
+        ]);
+        $this->bucketName = env('GOOGLE_CLOUD_STORAGE_BUCKET');
+    }
+
     public function index(HttpRequest $request)
     {
         try {
@@ -131,10 +143,7 @@ class ReposicionController extends Controller
     public function show($id)
     {
         $reposicion = Reposicion::findOrFail($id);
-
-        // Cargar las solicitudes con sus relaciones
         $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
-
         return response()->json($reposicion);
     }
 
@@ -142,10 +151,12 @@ class ReposicionController extends Controller
     {
         try {
             DB::beginTransaction();
+
             // Validar la entrada
             $validated = $request->validate([
                 'request_ids' => 'required|array',
                 'request_ids.*' => 'exists:requests,unique_id',
+                'attachment' => 'required|file',
             ]);
 
             // Obtener las solicitudes usando el array directamente
@@ -161,6 +172,27 @@ class ReposicionController extends Controller
                 throw new \Exception('All requests must belong to the same project');
             }
 
+            // Procesar y subir el archivo a Google Cloud Storage
+            if ($request->hasFile('attachment')) {
+                $file = $request->file('attachment');
+                $fileName = time() . '_' . $file->getClientOriginalName();
+
+                // Obtener el bucket
+                $bucket = $this->storage->bucket($this->bucketName);
+
+                // Subir el archivo
+                $object = $bucket->upload(
+                    fopen($file->getRealPath(), 'r'),
+                    [
+                        'name' => $fileName,
+                        'predefinedAcl' => 'publicRead'
+                    ]
+                );
+
+                // Obtener la URL del archivo
+                $fileUrl = $object->signedUrl(new \DateTime('+ 10 years'));
+            }
+
             // Crear la reposición
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => Carbon::now(),
@@ -168,7 +200,8 @@ class ReposicionController extends Controller
                 'status' => 'pending',
                 'project' => $project,
                 'detail' => $validated['request_ids'],
-                'attachment' => 'required|file'
+                'attachment_url' => $fileUrl ?? null,
+                'attachment_name' => $fileName ?? null
             ]);
 
             // Actualizar el estado de las solicitudes relacionadas
@@ -214,7 +247,7 @@ class ReposicionController extends Controller
                     'paid' => 'paid',
                     'rejected' => 'rejected',
                     'pending' => 'pending',
-                    'review' => 'review', // Cuando va a revisión, las solicitudes quedan en review
+                    'review' => 'review',
                     default => 'pending'
                 };
 
@@ -222,7 +255,7 @@ class ReposicionController extends Controller
                 Request::whereIn('unique_id', $reposicion->detail)
                     ->update([
                         'status' => $requestStatus,
-                        'note' => $validated['note'] ?? null // Pasar la observación a las solicitudes
+                        'note' => $validated['note'] ?? null
                     ]);
 
                 // Verificación adicional para aprobación
@@ -235,7 +268,7 @@ class ReposicionController extends Controller
             }
 
             $reposicion->update($validated);
-            $reposicion = $reposicion->fresh(); // Recargar la instancia
+            $reposicion = $reposicion->fresh();
 
             DB::commit();
 
@@ -252,12 +285,40 @@ class ReposicionController extends Controller
         }
     }
 
+    public function getFile($id)
+    {
+        try {
+            $reposicion = Reposicion::findOrFail($id);
+
+            if (!$reposicion->attachment_url) {
+                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
+            }
+
+            // Redirigir a la URL firmada
+            return redirect($reposicion->attachment_url);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error retrieving file',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function destroy($id)
     {
         try {
             DB::beginTransaction();
 
             $reposicion = Reposicion::findOrFail($id);
+
+            // Eliminar el archivo de Google Cloud Storage si existe
+            if ($reposicion->attachment_name) {
+                $bucket = $this->storage->bucket($this->bucketName);
+                $object = $bucket->object($reposicion->attachment_name);
+                if ($object->exists()) {
+                    $object->delete();
+                }
+            }
 
             // Usar la relación requests para actualizar las solicitudes
             Request::whereIn('unique_id', $reposicion->detail)

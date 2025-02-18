@@ -24,7 +24,8 @@ class Reposicion extends Model
         'month',
         'when',
         'note',
-        'attachment_path'
+        'attachment_url',
+        'attachment_name'
     ];
 
     protected $casts = [
@@ -103,6 +104,24 @@ class Reposicion extends Model
         static::saving(function ($reposicion) {
             if ($reposicion->isDirty('detail')) {
                 $reposicion->total_reposicion = $reposicion->calculateTotal();
+            }
+        });
+
+        // Antes de eliminar, eliminar el archivo de Google Cloud Storage si existe
+        static::deleting(function ($reposicion) {
+            if ($reposicion->attachment_name) {
+                try {
+                    $storage = new \Google\Cloud\Storage\StorageClient([
+                        'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
+                    ]);
+                    $bucket = $storage->bucket(env('GOOGLE_CLOUD_BUCKET'));
+                    $object = $bucket->object($reposicion->attachment_name);
+                    if ($object->exists()) {
+                        $object->delete();
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Error deleting file from GCS: ' . $e->getMessage());
+                }
             }
         });
     }

@@ -11,8 +11,9 @@ steps:
     id: "build"
     waitFor: ["-"]
 
-  # Deploy to Cloud Run (mantiene las variables existentes)
+  # Deploy to Cloud Run
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
     args:
       - "run"
       - "deploy"

@@ -32,18 +32,22 @@ steps:
           --set-secrets JWT_SECRET=JWT_SECRET:latest \
           --set-secrets PUSHER_APP_SECRET=PUSHER_APP_SECRET:latest \
           --set-secrets SENDGRID_API_KEY=SENDGRID_API_KEY:latest \
-          --set-secrets GOOGLE_CLOUD_CREDENTIALS=GOOGLE_CLOUD_CREDENTIALS:latest \
-          --set-secrets GOOGLE_CLOUD_BUCKET=GOOGLE_CLOUD_BUCKET:latest \
-          --set-env-vars APP_NAME=LMS,APP_ENV=production,APP_DEBUG=true,APP_KEY=base64:p7tR5ZsljVHi003Ob+gFZsFVJVVws7JxsD5FEwCLioQ=,APP_URL=https://api.lms.logex.com.ec,FRONTEND_URL=https://lms.logex.com.ec,FRONTEND_PRODUCTION_URL=https://lms.logex.com.ec,DB_CONNECTION=mysql,DB_HOST=sgt.logex.com.ec,DB_PORT=3306,DB_DATABASE=lms_backend,DB_USERNAME=restrella,DB_PASSWORD=LogeX-?2028*,ONIX_DB_HOST=sgt.logex.com.ec,ONIX_DB_PORT=3306,ONIX_DB_DATABASE=sistema_onix,ONIX_DB_USERNAME=restrella,ONIX_DB_PASSWORD=LogeX-?2028*,TMS_DB_HOST=sgt.logex.com.ec,TMS_DB_PORT=3306,TMS_DB_DATABASE=tms,TMS_DB_USERNAME=restrella,TMS_DB_PASSWORD=LogeX-?2028*,SANCTUM_STATEFUL_DOMAINS=lms.logex.com.ec,SESSION_DOMAIN=.lms.logex.com.ec,CORS_ALLOWED_ORIGINS=https://lms.logex.com.ec,SESSION_SECURE_COOKIE=true,SESSION_HTTP_ONLY=true,BROADCAST_DRIVER=reverb,CACHE_DRIVER=database,QUEUE_CONNECTION=database,MAIL_MAILER=smtp,MAIL_HOST=smtp.sendgrid.net,MAIL_PORT=587,MAIL_USERNAME=apikey,MAIL_ENCRYPTION=tls,MAIL_FROM_NAME="LMS de LogeX",MAIL_FROM_ADDRESS=notificaciones-lms@logex.ec,PUSHER_APP_ID=1934836,PUSHER_APP_KEY=09ffcad9a49a480d032e,PUSHER_APP_CLUSTER=us2,GOOGLE_CLOUD_PROJECT_ID=logex-alfresco-180118,GOOGLE_CLOUD_KEY_FILE=/var/www/html/storage/app/google-cloud-key.json
+          --set-secrets "GOOGLE_CLOUD_BUCKET=GOOGLE_CLOUD_BUCKET:latest" \
+          --set-env-vars "GOOGLE_CLOUD_KEY_FILE=/var/www/html/storage/app/google/google-cloud-key.json,APP_NAME=LMS,APP_ENV=production,APP_DEBUG=true,APP_KEY=base64:p7tR5ZsljVHi003Ob+gFZsFVJVVws7JxsD5FEwCLioQ=,APP_URL=https://api.lms.logex.com.ec,FRONTEND_URL=https://lms.logex.com.ec,FRONTEND_PRODUCTION_URL=https://lms.logex.com.ec,DB_CONNECTION=mysql,DB_HOST=sgt.logex.com.ec,DB_PORT=3306,DB_DATABASE=lms_backend,DB_USERNAME=restrella,DB_PASSWORD=LogeX-?2028*,ONIX_DB_HOST=sgt.logex.com.ec,ONIX_DB_PORT=3306,ONIX_DB_DATABASE=sistema_onix,ONIX_DB_USERNAME=restrella,ONIX_DB_PASSWORD=LogeX-?2028*,TMS_DB_HOST=sgt.logex.com.ec,TMS_DB_PORT=3306,TMS_DB_DATABASE=tms,TMS_DB_USERNAME=restrella,TMS_DB_PASSWORD=LogeX-?2028*,SANCTUM_STATEFUL_DOMAINS=lms.logex.com.ec,SESSION_DOMAIN=.lms.logex.com.ec,CORS_ALLOWED_ORIGINS=https://lms.logex.com.ec,SESSION_SECURE_COOKIE=true,SESSION_HTTP_ONLY=true,BROADCAST_DRIVER=reverb,CACHE_DRIVER=database,QUEUE_CONNECTION=database,MAIL_MAILER=smtp,MAIL_HOST=smtp.sendgrid.net,MAIL_PORT=587,MAIL_USERNAME=apikey,MAIL_ENCRYPTION=tls,MAIL_FROM_NAME='LMS de LogeX',MAIL_FROM_ADDRESS=notificaciones-lms@logex.ec,PUSHER_APP_ID=1934836,PUSHER_APP_KEY=09ffcad9a49a480d032e,PUSHER_APP_CLUSTER=us2,GOOGLE_CLOUD_PROJECT_ID=logex-alfresco-180118"
 
 images:
   - "gcr.io/logex-alfresco-180118/lms-backend:latest"
+
 options:
   logging: CLOUD_LOGGING_ONLY
 
 availableSecrets:
   secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/GOOGLE_CLOUD_CREDENTIALS/versions/latest
+    - versionName: projects/logex-alfresco-180118/secrets/GOOGLE_CLOUD_CREDENTIALS/versions/latest
       env: "GOOGLE_CLOUD_CREDENTIALS"
-    - versionName: projects/$PROJECT_ID/secrets/GOOGLE_CLOUD_BUCKET/versions/latest
-      env: "GOOGLE_CLOUD_BUCKET"
+    - versionName: projects/logex-alfresco-180118/secrets/JWT_SECRET/versions/latest
+      env: "JWT_SECRET"
+    - versionName: projects/logex-alfresco-180118/secrets/PUSHER_APP_SECRET/versions/latest
+      env: "PUSHER_APP_SECRET"
+    - versionName: projects/logex-alfresco-180118/secrets/SENDGRID_API_KEY/versions/latest
+      env: "SENDGRID_API_KEY"

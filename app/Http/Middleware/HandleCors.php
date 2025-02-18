@@ -10,34 +10,32 @@ class HandleCors
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $allowedOrigins = [
-            'https://lms.logex.com.ec',
-            'https://api.lms.logex.com.ec',
-            'https://lms-backend-898493889976.us-east1.run.app',
-            'http://localhost:3000',
-        ];
-        // Si es una petición OPTIONS, respondemos inmediatamente
-        $request->isMethod('OPTIONS') ? $response = response('', 200) : $response = $next($request);
-
-        // Asegurar que estamos trabajando con un objeto Response
-        if (!$response) {
-            $response = response('', 204);
+        // Para peticiones OPTIONS, respondemos inmediatamente
+        if ($request->isMethod('OPTIONS')) {
+            $response = new \Illuminate\Http\Response('', 200);
+        } else {
+            $response = $next($request);
         }
 
-        // Limpiar cualquier header CORS existente para evitar duplicados
-        $response->headers->remove('Access-Control-Allow-Origin');
-        $response->headers->remove('Access-Control-Allow-Methods');
-        $response->headers->remove('Access-Control-Allow-Headers');
-        $response->headers->remove('Access-Control-Allow-Credentials');
-        $response->headers->remove('Access-Control-Expose-Headers');
+        // Remover TODOS los headers CORS existentes
+        foreach ($response->headers->all() as $key => $value) {
+            if (stripos($key, 'access-control-') === 0) {
+                $response->headers->remove($key);
+            }
+        }
+
+        // Establecer el origen permitido
+        $allowedOrigin = 'https://lms.logex.com.ec';
 
         // Establecer los headers CORS
-        $response->headers->set('Access-Control-Allow-Origin', 'https://lms.logex.com.ec');
-        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept');
-        $response->headers->set('Access-Control-Allow-Credentials', 'true');
-        $response->headers->set('Access-Control-Max-Age', '86400');
-        $response->headers->set('Vary', 'Origin');
+        $response->header('Access-Control-Allow-Origin', $allowedOrigin);
+        $response->header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        $response->header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        $response->header('Access-Control-Allow-Credentials', 'true');
+        $response->header('Access-Control-Max-Age', '86400');
+
+        // Agregar Vary header para cacheo correcto
+        $response->header('Vary', 'Origin');
 
         return $response;
     }

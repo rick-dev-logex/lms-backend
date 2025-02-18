@@ -23,7 +23,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // API middleware group
         $middleware->api([
             'throttle:60,1',
-            'cors',
         ]);
 
         // Aliases
@@ -34,7 +33,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
-            'cors' => \App\Http\Middleware\HandleCors::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

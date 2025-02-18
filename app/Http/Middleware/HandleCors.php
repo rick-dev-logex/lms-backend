@@ -14,20 +14,19 @@ class HandleCors
             'https://lms.logex.com.ec',
             'https://api.lms.logex.com.ec',
             'https://lms-backend-898493889976.us-east1.run.app',
-            'http://localhost:3000', // para desarrollo
+            'http://localhost:3000',
         ];
 
         $origin = $request->header('Origin');
 
         $headers = [
-            // 'Access-Control-Allow-Origin' => in_array($origin, $allowedOrigins) ? $origin : $allowedOrigins[0],
-            'Access-Control-Allow-Origin' => $origin ?: '*',
-            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PATCH, PUT, DELETE',
+            'Access-Control-Allow-Origin' => in_array($origin, $allowedOrigins) ? $origin : '',
+            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PUT, PATCH, DELETE',
             'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept',
             'Access-Control-Allow-Credentials' => 'true',
             'Access-Control-Expose-Headers' => 'Location',
             'Access-Control-Max-Age' => '86400',
-            'Vary' => 'Origin', // Importante para CDNs y caching
+            'Vary' => 'Origin',
         ];
 
         if ($request->isMethod('OPTIONS')) {
@@ -40,13 +39,8 @@ class HandleCors
             $response->headers->set($key, $value);
         }
 
-        // Asegurarse que las cookies se envíen correctamente
         if ($response->headers->has('Set-Cookie')) {
             $response->headers->set('Access-Control-Allow-Credentials', 'true');
-        }
-
-        if ($response->isRedirect()) {
-            $response->setStatusCode(200);
         }
 
         return $response;

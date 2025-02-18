@@ -16,32 +16,28 @@ class HandleCors
             'https://lms-backend-898493889976.us-east1.run.app',
             'http://localhost:3000',
         ];
+        // Si es una petición OPTIONS, respondemos inmediatamente
+        $request->isMethod('OPTIONS') ? $response = response('', 200) : $response = $next($request);
 
-        $origin = $request->header('Origin');
-
-        $headers = [
-            'Access-Control-Allow-Origin' => in_array($origin, $allowedOrigins) ? $origin : '',
-            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PUT, PATCH, DELETE',
-            'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept',
-            'Access-Control-Allow-Credentials' => 'true',
-            'Access-Control-Expose-Headers' => 'Location',
-            'Access-Control-Max-Age' => '86400',
-            'Vary' => 'Origin',
-        ];
-
-        if ($request->isMethod('OPTIONS')) {
-            return response()->json('OK', 200, $headers);
+        // Asegurar que estamos trabajando con un objeto Response
+        if (!$response) {
+            $response = response('', 204);
         }
 
-        $response = $next($request);
+        // Limpiar cualquier header CORS existente para evitar duplicados
+        $response->headers->remove('Access-Control-Allow-Origin');
+        $response->headers->remove('Access-Control-Allow-Methods');
+        $response->headers->remove('Access-Control-Allow-Headers');
+        $response->headers->remove('Access-Control-Allow-Credentials');
+        $response->headers->remove('Access-Control-Expose-Headers');
 
-        foreach ($headers as $key => $value) {
-            $response->headers->set($key, $value);
-        }
-
-        if ($response->headers->has('Set-Cookie')) {
-            $response->headers->set('Access-Control-Allow-Credentials', 'true');
-        }
+        // Establecer los headers CORS
+        $response->headers->set('Access-Control-Allow-Origin', 'https://lms.logex.com.ec');
+        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept');
+        $response->headers->set('Access-Control-Allow-Credentials', 'true');
+        $response->headers->set('Access-Control-Max-Age', '86400');
+        $response->headers->set('Vary', 'Origin');
 
         return $response;
     }

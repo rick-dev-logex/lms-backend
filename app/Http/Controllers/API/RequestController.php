@@ -12,7 +12,6 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\ValidationException;
 
 class RequestController extends Controller
 {
@@ -286,8 +285,7 @@ class RequestController extends Controller
                 'account_id' => $validated['account_id'],
                 'amount' => $validated['amount'],
                 'note' => $validated['note'],
-                'unique_id' => $unique_id,
-                'attachment_path' => $request->file('attachment')->storeAs('attachments', $request->file('attachment')->getClientOriginalName())
+                'unique_id' => $unique_id
             ];
 
             if (isset($validated['responsible_id'])) {

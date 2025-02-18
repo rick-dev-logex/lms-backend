@@ -22,7 +22,7 @@ class HandleCors
         $headers = [
             // 'Access-Control-Allow-Origin' => in_array($origin, $allowedOrigins) ? $origin : $allowedOrigins[0],
             'Access-Control-Allow-Origin' => $origin ?: '*',
-            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PUT, DELETE',
+            'Access-Control-Allow-Methods' => 'POST, GET, OPTIONS, PATCH, PUT, DELETE',
             'Access-Control-Allow-Headers' => 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept',
             'Access-Control-Allow-Credentials' => 'true',
             'Access-Control-Expose-Headers' => 'Location',

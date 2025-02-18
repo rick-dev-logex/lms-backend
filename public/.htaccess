@@ -9,10 +9,6 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Handle OPTIONS method
-    RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule ^(.*)$ $1 [R=200,L]
-
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
@@ -22,18 +18,4 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
-</IfModule>
-
-<IfModule mod_headers.c>
-    Header always set Access-Control-Allow-Origin "https://lms.logex.com.ec"
-    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin"
-    Header always set Access-Control-Allow-Credentials "true"
-    
-    # Remove these headers for OPTIONS requests to avoid duplicates
-    SetEnvIf Request_Method "OPTIONS" REMOVE_HEADERS=true
-    Header always unset Access-Control-Allow-Origin env=REMOVE_HEADERS
-    Header always unset Access-Control-Allow-Methods env=REMOVE_HEADERS
-    Header always unset Access-Control-Allow-Headers env=REMOVE_HEADERS
-    Header always unset Access-Control-Allow-Credentials env=REMOVE_HEADERS
 </IfModule>

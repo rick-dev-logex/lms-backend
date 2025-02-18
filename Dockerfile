@@ -33,12 +33,22 @@ RUN apt-get update && apt-get install -y \
     zip \
     gd \
     && a2enmod rewrite \
+    && a2enmod headers \
     && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
     && mkdir -p /var/www/html/storage/app/google \
     && mkdir -p /var/www/html/bootstrap/cache
+
+# Configurar Apache para CORS
+RUN echo '<IfModule mod_headers.c>\n\
+    Header always set Access-Control-Allow-Origin "https://lms.logex.com.ec"\n\
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"\n\
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin"\n\
+    Header always set Access-Control-Allow-Credentials "true"\n\
+    </IfModule>' > /etc/apache2/conf-available/cors.conf \
+    && a2enconf cors
 
 # Configure Apache
 RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf \

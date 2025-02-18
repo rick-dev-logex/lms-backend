@@ -24,7 +24,6 @@ class Request extends Model
         'amount',
         'note',
         'unique_id',
-        'attachment_path',
         'responsible_id',
         'transport_id',
         'status'

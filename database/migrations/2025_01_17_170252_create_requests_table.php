@@ -21,7 +21,6 @@ return new class extends Migration
             $table->string('project');
             $table->string('responsible_id')->nullable();
             $table->string('transport_id')->nullable();
-            $table->string('attachment_path')->nullable();
             $table->text('note');
             $table->timestamps();
             $table->softDeletes();

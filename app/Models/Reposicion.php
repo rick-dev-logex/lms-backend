@@ -23,7 +23,8 @@ class Reposicion extends Model
         'detail',
         'month',
         'when',
-        'note'
+        'note',
+        'attachment_path'
     ];
 
     protected $casts = [

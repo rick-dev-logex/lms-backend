@@ -1,19 +1,37 @@
 # Use composer stage for dependencies
-FROM composer:2 AS composer
+FROM composer:2.2 AS composer
 
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN composer install --optimize-autoloader --no-dev --no-scripts
+
+# Instalar dependencias ignorando requisitos de plataforma temporalmente
+RUN composer install \
+    --optimize-autoloader \
+    --no-dev \
+    --no-scripts \
+    --ignore-platform-req=ext-gd \
+    --ignore-platform-req=php
 
 # Final image
 FROM php:8.2-apache
 
 # Install all dependencies in a single layer
 RUN apt-get update && apt-get install -y \
-    zip unzip git curl libpng-dev libjpeg-dev libfreetype6-dev \
-    libonig-dev libxml2-dev libzip-dev \
+    zip \
+    unzip \
+    git \
+    curl \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libonig-dev \
+    libxml2-dev \
+    libzip-dev \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install pdo_mysql zip gd \
+    && docker-php-ext-install -j$(nproc) \
+    pdo_mysql \
+    zip \
+    gd \
     && a2enmod rewrite \
     && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
     && apt-get clean \

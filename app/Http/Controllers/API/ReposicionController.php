@@ -73,7 +73,7 @@ class ReposicionController extends Controller
                 ->values()
                 ->toArray();
 
-            // Cargar todas las solicitudes relacionadas de una vez
+            // Cargar las solicitudes con sus relaciones básicas
             $requests = Request::whereIn('unique_id', $allRequestIds)
                 ->with('account:id,name')
                 ->get()
@@ -83,7 +83,7 @@ class ReposicionController extends Controller
             $responsibleIds = $requests->pluck('responsible_id')->filter()->unique();
             $transportIds = $requests->pluck('transport_id')->filter()->unique();
 
-            // Cargar datos de la base de datos externa
+            // Cargar datos de responsables
             $responsibles = $responsibleIds->isNotEmpty()
                 ? DB::connection('sistema_onix')
                 ->table('onix_personal')
@@ -93,6 +93,7 @@ class ReposicionController extends Controller
                 ->keyBy('id')
                 : collect();
 
+            // Cargar datos de transportes
             $transports = $transportIds->isNotEmpty()
                 ? DB::connection('sistema_onix')
                 ->table('onix_vehiculos')
@@ -102,17 +103,26 @@ class ReposicionController extends Controller
                 ->keyBy('id')
                 : collect();
 
-            // Mapear los datos
+            // Mapear los datos incluyendo toda la información relacionada
             $data = collect($paginator->items())->map(function ($reposicion) use ($requests, $responsibles, $transports) {
+                // Mapear las solicitudes con sus relaciones
                 $reposicionRequests = collect($reposicion->detail)->map(function ($requestId) use ($requests, $responsibles, $transports) {
                     $request = $requests->get($requestId);
                     if ($request) {
-                        // Agregar datos de responsable y transporte si existen
+                        // Agregar información del responsable si existe
                         if ($request->responsible_id && $responsibles->has($request->responsible_id)) {
-                            $request->responsible = $responsibles->get($request->responsible_id);
+                            $request->responsible = [
+                                'id' => $request->responsible_id,
+                                'nombre_completo' => $responsibles->get($request->responsible_id)->nombre_completo
+                            ];
                         }
+
+                        // Agregar información del transporte si existe
                         if ($request->transport_id && $transports->has($request->transport_id)) {
-                            $request->transport = $transports->get($request->transport_id);
+                            $request->transport = [
+                                'id' => $request->transport_id,
+                                'name' => $transports->get($request->transport_id)->name
+                            ];
                         }
                     }
                     return $request;

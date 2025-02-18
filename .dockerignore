@@ -1,4 +1,14 @@
-vendor/
-node_modules/
-.git/
+/vendor
+/node_modules
+/.git
+/.idea
+/.vscode
 .env
+.env.*
+*.log
+storage/framework/cache/**
+storage/framework/sessions/**
+storage/framework/views/**
+storage/logs/**
+bootstrap/cache/**
+tests

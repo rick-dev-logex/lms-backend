@@ -35,15 +35,11 @@ RUN apt-get update && apt-get install -y \
     && a2enmod rewrite \
     && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# Crear todos los directorios necesarios
-RUN mkdir -p /var/www/html/storage/framework/sessions \
-    && mkdir -p /var/www/html/storage/framework/views \
-    && mkdir -p /var/www/html/storage/framework/cache \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
     && mkdir -p /var/www/html/storage/app/google \
     && mkdir -p /var/www/html/bootstrap/cache \
-    && mkdir -p /var/www/html/storage/logs
+    && mkdir -p /var/www/html/storage/framework/views/cache
 
 # Configure Apache
 RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf \
@@ -55,22 +51,10 @@ COPY --from=composer /app/vendor /var/www/html/vendor
 # Copy application files
 COPY . /var/www/html/
 
-# Set permissions with specific attention to cache directories
+# Set permissions in a single layer
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type f -exec chmod 644 {} \; \
     && find /var/www/html -type d -exec chmod 755 {} \; \
-    && chmod -R 775 /var/www/html/storage \
-    && chmod -R 775 /var/www/html/bootstrap/cache \
-    && chown -R www-data:www-data /var/www/html/storage/framework/views \
-    && chmod -R 775 /var/www/html/storage/framework/views \
-    && touch /var/www/html/storage/logs/laravel.log \
-    && chown www-data:www-data /var/www/html/storage/logs/laravel.log \
-    && chmod 664 /var/www/html/storage/logs/laravel.log
-
-# Verify directories exist and have correct permissions
-RUN ls -la /var/www/html/storage/framework/views \
-    && ls -la /var/www/html/storage/framework/cache \
-    && ls -la /var/www/html/storage/framework/sessions \
-    && ls -la /var/www/html/bootstrap/cache
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
 CMD ["apache2-foreground"]

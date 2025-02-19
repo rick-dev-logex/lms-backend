@@ -42,8 +42,11 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
     && mkdir -p /var/www/html/storage/app/google \
     && mkdir -p /var/www/html/bootstrap/cache \
-    && mkdir -p /var/www/html/storage/framework/views/cache \
-    && chown -R www-data:www-data /var/www/html
+    && mkdir -p /var/www/html/storage/framework/views/cache
+
+# Copy source files
+COPY . /var/www/html/
+COPY storage/app/google/google-cloud-key.json /var/www/html/storage/app/google/
 
 # Configure Apache
 RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf \
@@ -55,12 +58,12 @@ COPY --from=composer /app/vendor /var/www/html/vendor
 # Copy application files
 COPY . /var/www/html/
 
-# Set up permissions
+# Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type f -exec chmod 644 {} \; \
     && find /var/www/html -type d -exec chmod 755 {} \; \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage/app/google
+    && chmod 644 /var/www/html/storage/app/google/google-cloud-key.json
 
 # Ensure storage directory is writable
 RUN chown -R www-data:www-data /var/www/html/storage

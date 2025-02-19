@@ -160,6 +160,19 @@ class ReposicionController extends Controller
 
     public function store(HttpRequest $request)
     {
+        dd([
+            'request_ids' => $request->input('request_ids'),
+            'attachment' => $request->file('attachment')
+        ]);
+
+        if (!is_array($request->input('request_ids'))) {
+            return response()->json(['message' => 'request_ids must be an array'], 422);
+        }
+
+        if (!$request->hasFile('attachment')) {
+            return response()->json(['message' => 'No attachment found in the request'], 422);
+        }
+
         try {
             DB::beginTransaction();
 
@@ -169,8 +182,6 @@ class ReposicionController extends Controller
                 'request_ids.*' => 'exists:requests,unique_id',
                 'attachment' => 'required|file'
             ]);
-
-            \Log::info('Validated data:', $validated);
 
             // Obtener las solicitudes usando el array directamente
             $requests = Request::whereIn('unique_id', $validated['request_ids'])->get();
@@ -237,14 +248,11 @@ class ReposicionController extends Controller
             DB::rollBack();
             return response()->json([
                 'message' => 'Validation error',
-                'errors' => $e->errors()
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
             ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
-            \Log::error('Error in ReposicionController@store: ' . $e->getMessage(), [
-                'request_data' => $request->all(),
-                'trace' => $e->getTraceAsString()
-            ]);
             return response()->json([
                 'message' => 'Error creating reposición',
                 'error' => $e->getMessage()

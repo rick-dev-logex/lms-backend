@@ -9,7 +9,6 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Google\Cloud\Storage\StorageClient;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ReposicionController extends Controller
@@ -161,22 +160,6 @@ class ReposicionController extends Controller
 
     public function store(HttpRequest $request)
     {
-        dd([
-            'request_ids' => $request->input('request_ids'),
-            'attachment' => $request->file('attachment')
-        ]);
-
-        Log::info('Request data:', $request->all()); // ← Esto imprimirá en los logs
-        return response()->json($request->all());
-
-        if (!is_array($request->input('request_ids'))) {
-            return response()->json(['message' => 'request_ids must be an array'], 422);
-        }
-
-        if (!$request->hasFile('attachment')) {
-            return response()->json(['message' => 'No attachment found in the request'], 422);
-        }
-
         try {
             DB::beginTransaction();
 

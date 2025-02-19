@@ -14,7 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Global middleware - se ejecuta primero 
         $middleware->use([
-            \App\Http\Middleware\HandleCors::class, // Moverlo al inicio
+            \App\Http\Middleware\HandleCors::class,
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,
@@ -22,7 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // API middleware group
         $middleware->api([
-            'throttle:60,1',
+            'throttle:60,1'
         ]);
 
         // Aliases
@@ -32,7 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'verify.jwt' => \App\Http\Middleware\VerifyJWTToken::class,
             'role' => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
-            'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+            'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

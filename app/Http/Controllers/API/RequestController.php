@@ -57,7 +57,11 @@ class RequestController extends Controller
             }
             if ($request->filled('status')) {
                 if ($request->input('action') === 'count') {
-                    return response()->json($request->whereMonth('created_at', now()->month)->where('status', $request->status)->count());
+                    return response()->json(
+                        Request::whereMonth('created_at', now()->month)
+                            ->where('status', $request->status)
+                            ->count()
+                    );
                 }
                 $query->where('status', $request->status);
             }
@@ -138,71 +142,6 @@ class RequestController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al procesar la solicitud',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    private function handleCountRequest(HttpRequest $request)
-    {
-        $status = $request->status;
-        $query = Request::query();
-
-        if ($request->boolean('currentMonth')) {
-            return $this->getCurrentMonthCounts($query, $status);
-        }
-
-        if ($request->has('year')) {
-            return $this->getYearlyCounts($query, $status, $request->year);
-        }
-
-        return response()->json($query->where('status', $status)->count());
-    }
-
-    private function getCurrentMonthCounts($query, $status)
-    {
-        try {
-            $currentMonth = now()->month;
-            $currentYear = now()->year;
-            $currentDay = now()->day;
-
-            $counts = DB::table('requests')
-                ->select(DB::raw('DAY(created_at) as day, COUNT(*) as count'))
-                ->where('status', $status)
-                ->whereMonth('created_at', $currentMonth)
-                ->whereYear('created_at', $currentYear)
-                ->groupBy('day')
-                ->get()
-                ->pluck('count', 'day');
-
-            return response()->json(
-                collect(range(1, $currentDay))->map(fn($day) => $counts[$day] ?? 0)
-            );
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener conteos mensuales',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    private function getYearlyCounts($query, $status, $year)
-    {
-        try {
-            $counts = DB::table('requests')
-                ->select(DB::raw('MONTH(created_at) as month, COUNT(*) as count'))
-                ->where('status', $status)
-                ->whereYear('created_at', $year)
-                ->groupBy('month')
-                ->get()
-                ->pluck('count', 'month');
-
-            return response()->json(
-                collect(range(1, 12))->map(fn($month) => $counts[$month] ?? 0)
-            );
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error al obtener conteos anuales',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -9,6 +9,7 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Google\Cloud\Storage\StorageClient;
+use Illuminate\Validation\ValidationException;
 
 class ReposicionController extends Controller
 {
@@ -166,8 +167,10 @@ class ReposicionController extends Controller
             $validated = $request->validate([
                 'request_ids' => 'required|array',
                 'request_ids.*' => 'exists:requests,unique_id',
-                'attachment' => 'required|file',
+                'attachment' => 'required|file'
             ]);
+
+            \Log::info('Validated data:', $validated);
 
             // Obtener las solicitudes usando el array directamente
             $requests = Request::whereIn('unique_id', $validated['request_ids'])->get();
@@ -187,8 +190,11 @@ class ReposicionController extends Controller
                 $file = $request->file('attachment');
                 $fileName = time() . '_' . $file->getClientOriginalName();
 
-                // Obtener el bucket
-                $bucket = $this->storage->bucket($this->bucketName);
+                $storage = new StorageClient([
+                    'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
+                ]);
+
+                $bucket = $storage->bucket(env('GOOGLE_CLOUD_BUCKET'));
 
                 // Subir el archivo
                 $object = $bucket->upload(
@@ -227,8 +233,18 @@ class ReposicionController extends Controller
                 'message' => 'Reposición created successfully',
                 'data' => $reposicion
             ], 201);
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
+            \Log::error('Error in ReposicionController@store: ' . $e->getMessage(), [
+                'request_data' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'message' => 'Error creating reposición',
                 'error' => $e->getMessage()

@@ -24,31 +24,8 @@ class ReposicionController extends Controller
         $this->bucketName = env('GOOGLE_CLOUD_STORAGE_BUCKET');
     }
 
-    public function getFile($id)
+    public function index(HttpRequest $request)
     {
-        try {
-            $reposicion = Reposicion::findOrFail($id);
-
-            if (!$reposicion->attachment_url) {
-                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
-            }
-
-            // Redirigir a la URL firmada
-            return redirect($reposicion->attachment_url);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving file',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function index(HttpRequest $request, $id)
-    {
-        if ($request->input('action') === "getFile") {
-            return $this->getFile($id);
-        }
-
         try {
             $query = Reposicion::query();
 
@@ -174,12 +151,35 @@ class ReposicionController extends Controller
         }
     }
 
-    public function show($id)
+    public function show($id, HttpRequest $request)
     {
         $reposicion = Reposicion::findOrFail($id);
         $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+
+        if ($request->input('action') === "getFile") $this->getFile($id);
+
         return response()->json($reposicion);
     }
+
+    public function getFile($id)
+    {
+        try {
+            $reposicion = Reposicion::findOrFail($id);
+
+            if (!$reposicion->attachment_url) {
+                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
+            }
+
+            // Redirigir a la URL firmada almacenada en la BD
+            return response()->json(['file_url' => $reposicion->attachment_url]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error retrieving file',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     public function store(HttpRequest $request)
     {

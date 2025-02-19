@@ -77,7 +77,7 @@ class AuthController extends Controller
 
         try {
             $user = User::where('email', $request->email)
-                ->with(['role', 'permissions'])
+                ->with(['role', 'permissions', 'assignedProjects'])
                 ->first();
 
             if (!$user || !Hash::check($request->password, $user->password)) {
@@ -147,7 +147,7 @@ class AuthController extends Controller
                 new Key(config('jwt.secret'), 'HS256') // Usa la misma clave que en login
             );
 
-            $user = User::with(['role', 'permissions'])->find($decoded->user_id);
+            $user = User::with(['role', 'permissions', 'assignedProjects'])->find($decoded->user_id);
 
             if (!$user) {
                 return response()->json(['error' => 'Usuario no encontrado'], 404);

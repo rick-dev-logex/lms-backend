@@ -16,22 +16,19 @@ use App\Http\Controllers\TestMailController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['throttle:6,1', 'cors'])->group(function () {
+Route::middleware(['throttle:6,1'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
 });
 
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
-Route::middleware(['auth:sanctum', 'cors'])->get('/test', function (Request $request) {
-    return $request->user();
-});
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::options('/login', function () {
     return response()->json('OK', 200);
 });
 // Rutas protegidas por autenticación
-Route::middleware(['verify.jwt', 'cors'])->group(function () {
+Route::middleware(['verify.jwt'])->group(function () {
     // Rutas generales para usuarios autenticados
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);

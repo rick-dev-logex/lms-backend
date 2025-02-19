@@ -20,7 +20,7 @@ class UserController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $query = User::with(['role', 'permissions', 'projects']);
+            $query = User::with(['role', 'permissions', 'assignedProjects']);
 
             if ($request->input('action') === 'count') {
                 return response()->json($query->count());

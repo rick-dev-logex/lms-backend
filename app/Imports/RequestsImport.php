@@ -89,17 +89,17 @@ ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
 IGNORE 1 LINES
 SET
-    unique_id = @col,
-    type = @col,
-    status = @col,
-    request_date = @col3,
-    invoice_number = @col3,
-    account_id = @col3,
-    amount = @col3,
-    project_id = @col3,
-    responsible_id = @col3,
-    transport_id = @col3,
-    attachment_path = @col3,
+    unique_id = @col2,
+    type = @col3,
+    status = @col4,
+    request_date = @col5,
+    invoice_number = @col6,
+    account_id = @col7,
+    amount = @col8,
+    project_id = @col9,
+    responsible_id = @col10,
+    transport_id = @col1,
+    attachment_path = @col2,
     note = @col3,
     created_at = NOW(),
     updated_at = NOW()

@@ -13,7 +13,6 @@ use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TestMailController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1'])->group(function () {

@@ -56,6 +56,9 @@ class RequestController extends Controller
                 $query->where('type', $request->type);
             }
             if ($request->filled('status')) {
+                if ($request->input('action') === 'count') {
+                    return response()->json($request->whereMonth('created_at', now()->month)->where('status', $request->status)->count());
+                }
                 $query->where('status', $request->status);
             }
 

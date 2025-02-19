@@ -36,11 +36,14 @@ RUN apt-get update && apt-get install -y \
     && a2enmod headers \
     && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create necessary directories
+RUN mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
     && mkdir -p /var/www/html/storage/app/google \
     && mkdir -p /var/www/html/bootstrap/cache \
-    && mkdir -p /var/www/html/storage/framework/views/cache
+    && mkdir -p /var/www/html/storage/framework/views/cache \
+    && chown -R www-data:www-data /var/www/html
 
 # Configure Apache
 RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf \
@@ -49,27 +52,17 @@ RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/a
 # Copy vendor from composer stage
 COPY --from=composer /app/vendor /var/www/html/vendor
 
-# Prepare storage directory and set initial permissions
-RUN chown -R www-data:www-data /var/www/html/storage \
-    && chmod -R 775 /var/www/html/storage
-
 # Copy application files
 COPY . /var/www/html/
 
-# Create and set permissions for Google Cloud key
-RUN mkdir -p /var/www/html/storage/app/google \
-    && if [ -f "/var/www/html/storage/app/google-cloud-key.json" ]; then \
-    chmod 644 /var/www/html/storage/app/google/google-cloud-key.json; \
-    elif [ -f "/workspace/storage/app/google/google-cloud-key.json" ]; then \
-    cp /workspace/storage/app/google/google-cloud-key.json /var/www/html/storage/app/google/google-cloud-key.json; \
-    chmod 644 /var/www/html/storage/app/google/google-cloud-key.json; \
-    fi
-
-# Set final permissions
+# Set up permissions
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type f -exec chmod 644 {} \; \
     && find /var/www/html -type d -exec chmod 755 {} \; \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage/app/google
+
+# Ensure storage directory is writable
+RUN chown -R www-data:www-data /var/www/html/storage
 
 CMD ["apache2-foreground"]

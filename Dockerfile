@@ -51,6 +51,12 @@ COPY --from=composer /app/vendor /var/www/html/vendor
 # Copy application files
 COPY . /var/www/html/
 
+# Ensure the key is in the right place
+RUN if [ -f "/var/www/html/storage/app/google-cloud-key.json" ]; then \
+    mkdir -p /var/www/html/storage/app/google && \
+    mv /var/www/html/storage/app/google-cloud-key.json /var/www/html/storage/app/google/google-cloud-key.json; \
+    fi
+
 # Set permissions in a single layer
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type f -exec chmod 644 {} \; \

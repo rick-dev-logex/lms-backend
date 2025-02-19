@@ -9,6 +9,7 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Google\Cloud\Storage\StorageClient;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ReposicionController extends Controller
@@ -164,6 +165,8 @@ class ReposicionController extends Controller
             'request_ids' => $request->input('request_ids'),
             'attachment' => $request->file('attachment')
         ]);
+
+        Log::info('Request data:', $request->all()); // ← Esto imprimirá en los logs
 
         if (!is_array($request->input('request_ids'))) {
             return response()->json(['message' => 'request_ids must be an array'], 422);

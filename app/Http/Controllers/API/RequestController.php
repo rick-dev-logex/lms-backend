@@ -58,7 +58,7 @@ class RequestController extends Controller
             if ($request->filled('status')) {
                 if ($request->input('action') === 'count') {
                     return response()->json(
-                        Request::whereMonth('created_at', now()->month)
+                        Request::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)
                             ->where('status', $request->status)
                             ->count()
                     );

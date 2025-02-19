@@ -151,36 +151,6 @@ class ReposicionController extends Controller
         }
     }
 
-    public function show($id, HttpRequest $request)
-    {
-        $reposicion = Reposicion::findOrFail($id);
-        $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
-
-        if ($request->input('action') === "getFile") $this->getFile($id);
-
-        return response()->json($reposicion);
-    }
-
-    public function getFile($id)
-    {
-        try {
-            $reposicion = Reposicion::findOrFail($id);
-
-            if (!$reposicion->attachment_url) {
-                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
-            }
-
-            // Redirigir a la URL firmada almacenada en la BD
-            return response()->json(['file_url' => $reposicion->attachment_url]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving file',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-
     public function store(HttpRequest $request)
     {
         try {
@@ -326,6 +296,36 @@ class ReposicionController extends Controller
                 'message' => 'Error updating reposición',
                 'error' => $e->getMessage()
             ], 422);
+        }
+    }
+
+
+    public function show($id, HttpRequest $request)
+    {
+        $reposicion = Reposicion::findOrFail($id);
+        $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+
+        if ($request->input('action') === "getFile") $this->getFile($id);
+
+        return response()->json($reposicion);
+    }
+
+    public function getFile($id)
+    {
+        try {
+            $reposicion = Reposicion::findOrFail($id);
+
+            if (!$reposicion->attachment_url) {
+                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
+            }
+
+            // Redirigir a la URL firmada almacenada en la BD
+            return response()->json(['file_url' => $reposicion->attachment_url]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error retrieving file',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 

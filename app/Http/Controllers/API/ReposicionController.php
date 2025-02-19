@@ -24,8 +24,31 @@ class ReposicionController extends Controller
         $this->bucketName = env('GOOGLE_CLOUD_STORAGE_BUCKET');
     }
 
-    public function index(HttpRequest $request)
+    public function getFile($id)
     {
+        try {
+            $reposicion = Reposicion::findOrFail($id);
+
+            if (!$reposicion->attachment_url) {
+                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
+            }
+
+            // Redirigir a la URL firmada
+            return redirect($reposicion->attachment_url);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error retrieving file',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function index(HttpRequest $request, $id)
+    {
+        if ($request->input('action') === "getFile") {
+            $this->getFile($id);
+        }
+
         try {
             $query = Reposicion::query();
 
@@ -303,25 +326,6 @@ class ReposicionController extends Controller
                 'message' => 'Error updating reposición',
                 'error' => $e->getMessage()
             ], 422);
-        }
-    }
-
-    public function getFile($id)
-    {
-        try {
-            $reposicion = Reposicion::findOrFail($id);
-
-            if (!$reposicion->attachment_url) {
-                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
-            }
-
-            // Redirigir a la URL firmada
-            return redirect($reposicion->attachment_url);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error retrieving file',
-                'error' => $e->getMessage()
-            ], 500);
         }
     }
 

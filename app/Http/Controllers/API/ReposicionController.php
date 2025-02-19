@@ -198,8 +198,7 @@ class ReposicionController extends Controller
                 $object = $bucket->upload(
                     fopen($file->getRealPath(), 'r'),
                     [
-                        'name' => $fileName,
-                        'predefinedAcl' => 'publicRead'
+                        'name' => $fileName
                     ]
                 );
 

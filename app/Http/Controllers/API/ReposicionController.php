@@ -46,7 +46,7 @@ class ReposicionController extends Controller
     public function index(HttpRequest $request, $id)
     {
         if ($request->input('action') === "getFile") {
-            $this->getFile($id);
+            return $this->getFile($id);
         }
 
         try {

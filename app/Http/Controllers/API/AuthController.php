@@ -23,8 +23,6 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        // \Log::info('Datos recibidos en register:', $request->all());
-
         if ($request->isMethod('OPTIONS')) {
             return response()->json('OK', 200);
         }

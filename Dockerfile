@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     zip \
     gd \
     && a2enmod rewrite \
+    && a2enmod headers \
     && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
@@ -48,19 +49,27 @@ RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/a
 # Copy vendor from composer stage
 COPY --from=composer /app/vendor /var/www/html/vendor
 
+# Prepare storage directory and set initial permissions
+RUN chown -R www-data:www-data /var/www/html/storage \
+    && chmod -R 775 /var/www/html/storage
+
 # Copy application files
 COPY . /var/www/html/
 
-# Ensure the key is in the right place
-RUN if [ -f "/var/www/html/storage/app/google-cloud-key.json" ]; then \
-    mkdir -p /var/www/html/storage/app/google && \
-    mv /var/www/html/storage/app/google-cloud-key.json /var/www/html/storage/app/google/google-cloud-key.json; \
+# Create and set permissions for Google Cloud key
+RUN mkdir -p /var/www/html/storage/app/google \
+    && if [ -f "/var/www/html/storage/app/google-cloud-key.json" ]; then \
+    chmod 644 /var/www/html/storage/app/google/google-cloud-key.json; \
+    elif [ -f "/workspace/storage/app/google/google-cloud-key.json" ]; then \
+    cp /workspace/storage/app/google/google-cloud-key.json /var/www/html/storage/app/google/google-cloud-key.json; \
+    chmod 644 /var/www/html/storage/app/google/google-cloud-key.json; \
     fi
 
-# Set permissions in a single layer
+# Set final permissions
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type f -exec chmod 644 {} \; \
     && find /var/www/html -type d -exec chmod 755 {} \; \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage/app/google
 
 CMD ["apache2-foreground"]

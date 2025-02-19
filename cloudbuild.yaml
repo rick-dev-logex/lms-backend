@@ -1,15 +1,4 @@
 steps:
-  # Crear directorio y guardar credenciales
-  - name: "gcr.io/cloud-builders/gcloud"
-    entrypoint: "bash"
-    args:
-      - "-c"
-      - |
-        mkdir -p /workspace/storage/app/google
-        echo '$$GOOGLE_CLOUD_CREDENTIALS' > /workspace/storage/app/google/google-cloud-key.json
-        chmod 644 /workspace/storage/app/google/google-cloud-key.json
-    secretEnv: ["GOOGLE_CLOUD_CREDENTIALS"]
-
   # Construir la imagen del backend
   - name: "gcr.io/cloud-builders/docker"
     args:
@@ -38,17 +27,6 @@ steps:
 
 images:
   - "gcr.io/logex-alfresco-180118/lms-backend:latest"
-
-availableSecrets:
-  secretManager:
-    - versionName: projects/$PROJECT_ID/secrets/JWT_SECRET/versions/latest
-      env: "JWT_SECRET"
-    - versionName: projects/$PROJECT_ID/secrets/PUSHER_APP_SECRET/versions/latest
-      env: "PUSHER_APP_SECRET"
-    - versionName: projects/$PROJECT_ID/secrets/SENDGRID_API_KEY/versions/latest
-      env: "SENDGRID_API_KEY"
-    - versionName: projects/$PROJECT_ID/secrets/GOOGLE_CLOUD_CREDENTIALS/versions/latest
-      env: "GOOGLE_CLOUD_CREDENTIALS"
 
 options:
   logging: CLOUD_LOGGING_ONLY

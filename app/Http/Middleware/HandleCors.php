@@ -26,7 +26,7 @@ class HandleCors
         $response->headers->remove('Access-Control-Expose-Headers');
 
         // Establecer los headers CORS
-        $response->headers->set('Access-Control-Allow-Origin', 'https://lms.logex.com.ec');
+        $response->headers->set('Access-Control-Allow-Origin', 'https://lms.logex.com.ec', 'http://192.168.0.109', 'http://192.168.0.109:3000', 'http://localhost:3000');
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept');
         $response->headers->set('Access-Control-Allow-Credentials', 'true');

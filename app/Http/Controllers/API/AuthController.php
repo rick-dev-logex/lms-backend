@@ -68,7 +68,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required',
             'remember' => 'boolean'
         ]);
@@ -84,10 +84,8 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Duración del token basada en remember
+            // Duración del token basada en "remember"
             $tokenDuration = $request->remember ? 60 * 60 * 10 : 60 * 30; // 10 horas o 30 minutos
-
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
 
             $payload = [
                 'user_id'     => $user->id,
@@ -95,7 +93,6 @@ class AuthController extends Controller
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'assignedProjects' => $assignedProjects,
                 'iat'         => time(),
                 'exp'         => time() + $tokenDuration
             ];
@@ -112,9 +109,14 @@ class AuthController extends Controller
                 false
             )->withSameSite('None');
 
+            // Inyectar assignedProjects dentro del objeto user
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
+            $userData = $user->toArray();
+            $userData['assignedProjects'] = $assignedProjects;
+
             return response()->json([
                 'message' => 'Login successful',
-                'user'    => $user,
+                'user'    => $userData,
             ])->withCookie($cookie);
         } catch (ValidationException $e) {
             throw $e;
@@ -126,6 +128,7 @@ class AuthController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Cerrar sesión
@@ -153,15 +156,12 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Usuario no encontrado'], 404);
             }
 
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
-
             $newPayload = [
                 'user_id'     => $user->id,
                 'email'       => $user->email,
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'assignedProjects' => $assignedProjects,
                 'iat'         => time(),
                 'exp'         => time() + self::TOKEN_EXPIRATION
             ];
@@ -178,15 +178,21 @@ class AuthController extends Controller
                 false
             )->withSameSite('None');
 
+            // Inyectar assignedProjects dentro del objeto user
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
+            $userData = $user->toArray();
+            $userData['assignedProjects'] = $assignedProjects;
+
             return response()->json([
                 'message' => 'Token refreshed successfully',
-                'user'    => $user,
+                'user'    => $userData,
             ])->withCookie($cookie);
         } catch (\Exception $e) {
             Log::error('Error refreshing token: ' . $e->getMessage());
             return response()->json(['error' => 'Error al renovar el token'], 401);
         }
     }
+
 
     /**
      * Cambiar contraseña

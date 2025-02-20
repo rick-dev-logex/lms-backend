@@ -112,7 +112,7 @@ class AuthController extends Controller
             // Inyectar assignedProjects dentro del objeto user
             $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
             $userData = $user->toArray();
-            $userData['assignedProjects'] = $assignedProjects;
+            $userData['assignedProjects'] = $assignedProjects->projects;
 
             return response()->json([
                 'message' => 'Login successful',
@@ -181,7 +181,7 @@ class AuthController extends Controller
             // Inyectar assignedProjects dentro del objeto user
             $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
             $userData = $user->toArray();
-            $userData['assignedProjects'] = $assignedProjects;
+            $userData['assignedProjects'] = $assignedProjects->projects;
 
             return response()->json([
                 'message' => 'Token refreshed successfully',

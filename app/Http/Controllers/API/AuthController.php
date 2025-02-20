@@ -87,13 +87,15 @@ class AuthController extends Controller
             // Duración del token basada en remember
             $tokenDuration = $request->remember ? 60 * 60 * 10 : 60 * 30; // 10 horas o 30 minutos
 
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
+
             $payload = [
                 'user_id'     => $user->id,
                 'email'       => $user->email,
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'assignedProjects' => $user->assignedProjects?->projects ?? [],
+                'assignedProjects' => $assignedProjects,
                 'iat'         => time(),
                 'exp'         => time() + $tokenDuration
             ];
@@ -151,13 +153,15 @@ class AuthController extends Controller
                 return response()->json(['error' => 'Usuario no encontrado'], 404);
             }
 
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
+
             $newPayload = [
                 'user_id'     => $user->id,
                 'email'       => $user->email,
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'assignedProjects' => $user->assignedProjects?->projects ?? [],
+                'assignedProjects' => $assignedProjects,
                 'iat'         => time(),
                 'exp'         => time() + self::TOKEN_EXPIRATION
             ];

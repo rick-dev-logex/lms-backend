@@ -93,7 +93,7 @@ class AuthController extends Controller
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'assignedProjects' => $user->assignedProjects()->pluck('projects'),
+                'assignedProjects' => $user->assignedProjects?->projects ?? [],
                 'iat'         => time(),
                 'exp'         => time() + $tokenDuration
             ];
@@ -157,7 +157,7 @@ class AuthController extends Controller
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
-                'assignedProjects' => $user->assignedProjects()->pluck('projects'),
+                'assignedProjects' => $user->assignedProjects?->projects ?? [],
                 'iat'         => time(),
                 'exp'         => time() + self::TOKEN_EXPIRATION
             ];

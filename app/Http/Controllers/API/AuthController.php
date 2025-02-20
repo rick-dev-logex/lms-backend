@@ -108,7 +108,7 @@ class AuthController extends Controller
             )->withSameSite('None');
 
             // Inyectar assignedProjects dentro del objeto user
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects : [];
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
             $userData = $user->toArray();
             $userData['assignedProjects'] = $assignedProjects;
 
@@ -177,7 +177,7 @@ class AuthController extends Controller
             )->withSameSite('None');
 
             // Inyectar assignedProjects dentro del objeto user
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects : [];
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
             $userData = $user->toArray();
             $userData['assignedProjects'] = $assignedProjects;
 

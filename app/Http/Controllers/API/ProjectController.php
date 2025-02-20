@@ -13,11 +13,15 @@ class ProjectController extends Controller
     {
         $query = Project::where('deleted', '0')->where('activo', '1');
 
+        if ($request->filled('projects')) {
+            $projectIds = explode(',', $request->input('projects'));
+            $query->whereIn('id', $projectIds);
+        }
+
         if ($request->filled('proyecto')) {
             $query->where('proyecto', $request->input('proyecto'));
         }
 
-        // Filtrar por usuario si se proporciona user_id
         if ($request->filled('user_id')) {
             $query->whereHas('users', function ($q) use ($request) {
                 $q->where('users.id', $request->input('user_id'));

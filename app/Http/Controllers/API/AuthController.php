@@ -10,10 +10,8 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Response;
 
 class AuthController extends Controller
 {
@@ -110,9 +108,9 @@ class AuthController extends Controller
             )->withSameSite('None');
 
             // Inyectar assignedProjects dentro del objeto user
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects : [];
             $userData = $user->toArray();
-            $userData['assignedProjects'] = $assignedProjects->projects;
+            $userData['assignedProjects'] = $assignedProjects;
 
             return response()->json([
                 'message' => 'Login successful',
@@ -179,9 +177,9 @@ class AuthController extends Controller
             )->withSameSite('None');
 
             // Inyectar assignedProjects dentro del objeto user
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
+            $assignedProjects = $user->assignedProjects ? $user->assignedProjects : [];
             $userData = $user->toArray();
-            $userData['assignedProjects'] = $assignedProjects->projects;
+            $userData['assignedProjects'] = $assignedProjects;
 
             return response()->json([
                 'message' => 'Token refreshed successfully',

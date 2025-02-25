@@ -42,6 +42,8 @@ availableSecrets:
   secretManager:
     - versionName: projects/logex-alfresco-180118/secrets/GOOGLE_CLOUD_CREDENTIALS/versions/latest
       env: "GOOGLE_CLOUD_CREDENTIALS"
+    - versionName: projects/logex-alfresco-180118/secrets/API-Access-Token/versions/latest
+      env: "API_ACCESS_TOKEN"
 
 options:
   logging: CLOUD_LOGGING_ONLY

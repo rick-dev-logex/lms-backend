@@ -97,15 +97,17 @@ class AuthController extends Controller
 
             $jwt = JWT::encode($payload, config('jwt.secret'), 'HS256');
 
+            $isProduction = app()->environment('production');
+
             $cookie = Cookie::make(
                 'jwt-token',
                 $jwt,
                 $tokenDuration / 60, // Convertir segundos a minutos
                 '/',
-                '.lms.logex.com.ec',
-                true,
-                false
-            )->withSameSite('None');
+                $isProduction ? '.lms.logex.com.ec' : null, // Dominio en producción, null en local
+                $isProduction,  // Secure solo en producción (HTTPS)
+                false           // HttpOnly (false para que JS lo lea)
+            )->withSameSite($isProduction ? 'None' : 'Lax');
 
             // Inyectar assignedProjects dentro del objeto user
             $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];

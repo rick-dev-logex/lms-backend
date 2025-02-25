@@ -28,6 +28,6 @@ local.lms.com.conf
 
 # TODO:QUITAR ESTOS DEL IGNORE. ESTAN COLOCADOS SOLO PARA PRUEBAS EN LOCALHOST
 .env
-config\app.php
-config\database.php
-config\session.php
+/app/config/app.php
+/app/config/database.php
+/app/config/session.php

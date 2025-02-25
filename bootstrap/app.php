@@ -14,8 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         // Global middleware - se ejecuta primero 
         $middleware->use([
-            \App\Http\Middleware\ValidateApiToken::class,
             \App\Http\Middleware\HandleCors::class,
+            \App\Http\Middleware\ValidateApiToken::class,
             \App\Http\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
             \Illuminate\Session\Middleware\StartSession::class,

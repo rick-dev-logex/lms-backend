@@ -11,6 +11,13 @@ class ValidateApiToken
 {
     public function handle(Request $request, Closure $next)
     {
+        if ($request->is('api/login')) {
+            return $next($request);
+        }
+
+        if (Auth::check()) {
+            return $next($request);
+        }
         // Verificar si el encabezado Authorization tiene el formato Bearer <token>
         $token = $request->bearerToken();
 

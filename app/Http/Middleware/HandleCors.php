@@ -11,22 +11,23 @@ class HandleCors
     public function handle(Request $request, Closure $next): Response
     {
         // Si es una petición OPTIONS, respondemos inmediatamente
-        $request->isMethod('OPTIONS') ? $response = response('', 200) : $response = $next($request);
+        $response = $request->isMethod('OPTIONS') ? response('', 200) : $next($request);
 
-        // Asegurar que estamos trabajando con un objeto Response
-        if (!$response) {
-            $response = response('', 204);
+        // Obtener el origen de la solicitud
+        $origin = $request->headers->get('Origin');
+
+        // Lista de orígenes permitidos desde la configuración
+        $allowedOrigins = config('cors.allowed_origins');
+
+        // Verificar si el origen está permitido
+        if (in_array($origin, $allowedOrigins)) {
+            $response->headers->set('Access-Control-Allow-Origin', $origin);
+        } else {
+            // Opcional: Si no está permitido, puedes devolver un error o dejarlo sin encabezado
+            return response('Origin not allowed', 403);
         }
 
-        // Limpiar cualquier header CORS existente para evitar duplicados
-        $response->headers->remove('Access-Control-Allow-Origin');
-        $response->headers->remove('Access-Control-Allow-Methods');
-        $response->headers->remove('Access-Control-Allow-Headers');
-        $response->headers->remove('Access-Control-Allow-Credentials');
-        $response->headers->remove('Access-Control-Expose-Headers');
-
-        // Establecer los headers CORS
-        $response->headers->set('Access-Control-Allow-Origin', 'https://lms.logex.com.ec', 'http://192.168.0.109', 'http://192.168.0.109:3000', 'http://localhost:3000');
+        // Establecer los demás encabezados CORS
         $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
         $response->headers->set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Auth-Token, Origin, Accept');
         $response->headers->set('Access-Control-Allow-Credentials', 'true');

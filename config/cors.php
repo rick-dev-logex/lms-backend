@@ -1,9 +1,13 @@
 <?php
 
 return [
-    'paths' => ['api/*', 'login', 'logout'],
+    'paths' => ['api/*'],
     'allowed_methods' => ['*'],
-    'allowed_origins' => ['https://lms.logex.com.ec', 'http://192.168.0.109', 'http://192.168.0.109:3000', 'http://localhost:3000'],
+    'allowed_origins' => [
+        'https://lms.logex.com.ec',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000'
+    ],
     'allowed_origins_patterns' => [],
     'allowed_headers' => ['*'],
     'exposed_headers' => [],

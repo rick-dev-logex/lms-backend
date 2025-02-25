@@ -104,9 +104,10 @@ class AuthController extends Controller
                 $jwt,
                 $tokenDuration / 60, // Convertir segundos a minutos
                 '/',
-                $isProduction ? '.lms.logex.com.ec' : null, // Dominio en producción, null en local
-                $isProduction,  // Secure solo en producción (HTTPS)
-                false           // HttpOnly (false para que JS lo lea)
+                $isProduction ? '.lms.logex.com.ec' : null,
+                $isProduction,
+                false,  // HttpOnly (false para que JS lo lea)
+                false,
             )->withSameSite($isProduction ? 'None' : 'Lax');
 
             // Inyectar assignedProjects dentro del objeto user

@@ -33,8 +33,8 @@ class Project extends Model
      */
     public function users()
     {
-        return $this->belongsToMany(User::class, 'user_project', 'project_id', 'user_id')
-            ->using(UserProject::class);
+        return $this->belongsToMany(User::class, 'user_assigned_projects', 'project_id', 'user_id')
+            ->using(UserAssignedProjects::class);
     }
 
     /**

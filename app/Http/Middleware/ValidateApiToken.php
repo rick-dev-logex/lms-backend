@@ -11,6 +11,10 @@ class ValidateApiToken
 {
     public function handle(Request $request, Closure $next)
     {
+        if ($request->isMethod('OPTIONS')) {
+            return $next($request);
+        }
+
         if ($request->is('api/login')) {
             return $next($request);
         }

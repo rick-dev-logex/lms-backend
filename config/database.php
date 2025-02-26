@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'default' => env('DB_CONNECTION', env('APP_ENV') === 'local' ? 'mysql' : 'lms_backend'),
+    'default' => env('DB_CONNECTION', 'lms_backend'),
     'connections' => [
         'mysql' => [
             'driver' => 'mysql',

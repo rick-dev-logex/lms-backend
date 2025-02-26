@@ -7,7 +7,7 @@ return [
     'connections' => [
         'mysql' => [
             'driver' => 'mysql',
-            'host' => env('DB_LOCAL_HOST', 'local'),
+            'host' => env('DB_LOCAL_HOST', '127.0.0.1'),
             'port' => env('DB_LOCAL_PORT', '3306'),
             'database' => env('DB_LOCAL_DATABASE', 'lms_staging'),
             'username' => env('DB_LOCAL_USERNAME', 'root'),

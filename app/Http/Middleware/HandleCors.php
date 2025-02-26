@@ -16,14 +16,13 @@ class HandleCors
         // Obtener el origen de la solicitud
         $origin = $request->headers->get('Origin');
 
-        // Lista de orígenes permitidos desde la configuración
+        // Lista de orígenes permitidos (definida en config/cors.php)
         $allowedOrigins = config('cors.allowed_origins');
 
         // Verificar si el origen está permitido
         if (in_array($origin, $allowedOrigins)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);
         } else {
-            // Opcional: Si no está permitido, puedes devolver un error o dejarlo sin encabezado
             return response('Origin not allowed', 403);
         }
 

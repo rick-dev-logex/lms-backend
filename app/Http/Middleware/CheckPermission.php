@@ -18,10 +18,10 @@ class CheckPermission
         $userPermissions = $jwtPayload['permissions'] ?? [];
 
         // Agregar logs para depuración
-        Log::info('CheckPermission middleware', [
-            'required_permissions' => $requiredPermissions,
-            'user_permissions'     => $userPermissions,
-        ]);
+        // Log::info('CheckPermission middleware', [
+        //     'required_permissions' => $requiredPermissions,
+        //     'user_permissions'     => $userPermissions,
+        // ]);
 
         // Si se requiere al menos uno de los permisos, por ejemplo:
         $hasPermission = false;

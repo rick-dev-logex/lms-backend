@@ -12,11 +12,7 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->setConnection(env('APP_ENV') === 'production' ? 'lms_backend' : 'mysql');
-    }
+    // protected $connection = 'lms_backend';
 
     protected $fillable = [
         'type',

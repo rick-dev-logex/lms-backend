@@ -7,12 +7,13 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class Reposicion extends Model
 {
     use HasApiTokens, Notifiable;
 
-    protected $connection = 'lms_backend';
+    // protected $connection = 'lms_backend';
     protected $table = 'reposiciones';
 
     protected $fillable = [
@@ -120,7 +121,7 @@ class Reposicion extends Model
                         $object->delete();
                     }
                 } catch (\Exception $e) {
-                    \Log::error('Error deleting file from GCS: ' . $e->getMessage());
+                    Log::error('Error deleting file from GCS: ' . $e->getMessage());
                 }
             }
         });

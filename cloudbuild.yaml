@@ -25,6 +25,8 @@ steps:
       - "gcr.io/logex-alfresco-180118/lms-backend:latest"
       - "--region"
       - "us-east1"
+      - "--clear-env-vars"
+      - "--clear-secrets"
       - "--platform"
       - "managed"
       - "--allow-unauthenticated"

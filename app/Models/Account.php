@@ -11,8 +11,8 @@ class Account extends Model
     use HasFactory;
     use HasApiTokens;
 
-    // protected $connection = 'lms_backend';
-    // protected $table = 'accounts';
+    protected $connection = 'lms_backend';
+    protected $table = 'accounts';
     protected $fillable = ['name', 'account_number', 'account_type'];
 
     // Relación con personal de Onix a través del proyecto

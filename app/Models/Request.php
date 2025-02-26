@@ -12,7 +12,7 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable;
 
-    // protected $connection = 'lms_backend';
+    protected $connection = 'lms_backend';
 
     protected $fillable = [
         'type',

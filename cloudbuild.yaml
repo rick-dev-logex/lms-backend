@@ -13,7 +13,29 @@ steps:
   - name: "gcr.io/cloud-builders/docker"
     args:
       ["build", "-t", "gcr.io/logex-alfresco-180118/lms-backend:latest", "."]
+  # Limpiar configuración existente (paso separado)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "services"
+      - "update"
+      - "lms-backend"
+      - "--region"
+      - "us-east1"
+      - "--clear-env-vars"
 
+  # Limpiar secretos (paso separado)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "services"
+      - "update"
+      - "lms-backend"
+      - "--region"
+      - "us-east1"
+      - "--clear-secrets"
   # Desplegar en Cloud Run
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: gcloud
@@ -25,8 +47,6 @@ steps:
       - "gcr.io/logex-alfresco-180118/lms-backend:latest"
       - "--region"
       - "us-east1"
-      - "--clear-env-vars"
-      - "--clear-secrets"
       - "--platform"
       - "managed"
       - "--allow-unauthenticated"

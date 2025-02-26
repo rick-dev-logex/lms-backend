@@ -92,8 +92,9 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::middleware(['permission:view_reports,generate_reports'])->group(function () {
         Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
         Route::apiResource('/requests', RequestController::class);
-        Route::apiResource('/reposiciones', ReposicionController::class);
         Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+        Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
+        Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
     });
 
     // Rutas que requieren rol específico Y permiso específico

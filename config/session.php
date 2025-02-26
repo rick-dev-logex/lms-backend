@@ -17,10 +17,11 @@ return [
         Str::slug(env('APP_NAME', 'lms_backend'), '_') . '_session'
     ),
     'path' => env('SESSION_PATH', '/'),
-    // 'domain' => env('SESSION_DOMAIN', "lms-backend-898493889976.us-east1.run.app"),
-    'domain' => env('SESSION_DOMAIN', '.lms.logex.com.ec'),
-    'secure' => env('SESSION_SECURE_COOKIE', true),
+    // 'domain' => env('SESSION_DOMAIN', '.lms.logex.com.ec'),
+    'domain' => env('SESSION_DOMAIN', null),
+    // 'secure' => env('SESSION_SECURE_COOKIE', true),
     'http_only' => env('SESSION_HTTP_ONLY', false),
-    'same_site' => 'none',
+    'same_site' => env('SESSION_SAME_SITE', 'none'),
+    'secure' => env('SESSION_SECURE_COOKIE', false),
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
 ];

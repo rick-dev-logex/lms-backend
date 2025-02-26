@@ -9,6 +9,7 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use Google\Cloud\Storage\StorageClient;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ReposicionController extends Controller
@@ -179,7 +180,7 @@ class ReposicionController extends Controller
             // Procesar y subir el archivo a Google Cloud Storage
             if ($request->hasFile('attachment')) {
                 $file = $request->file('attachment');
-                $fileName = time() . '_' . $file->getClientOriginalName();
+                $fileName = $file->getClientOriginalName();
 
                 $storage = new StorageClient([
                     'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
@@ -305,26 +306,33 @@ class ReposicionController extends Controller
         $reposicion = Reposicion::findOrFail($id);
         $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
 
-        if ($request->input('action') === "getFile") $this->getFile($id);
-
         return response()->json($reposicion);
     }
 
-    public function getFile($id)
+    public function file($id)
     {
         try {
             $reposicion = Reposicion::findOrFail($id);
 
-            if (!$reposicion->attachment_url) {
-                return response()->json(['message' => 'No attachment found for this reposicion'], 404);
+            if (!$reposicion->attachment_url || !$reposicion->attachment_name) {
+                return response()->json(['message' => 'No se encontró archivo adjunto para esta reposición'], 404);
             }
 
-            // Redirigir a la URL firmada almacenada en la BD
-            return response()->json(['file_url' => $reposicion->attachment_url]);
+            // Devolver directamente la URL almacenada sin consultar GCS
+            $metadata = [
+                'file_url'     => $reposicion->attachment_url,
+                'file_name'    => $reposicion->attachment_name,
+            ];
+
+            return response()->json($metadata);
         } catch (\Exception $e) {
+            Log::error('Failed to get file URL', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+            ]);
             return response()->json([
-                'message' => 'Error retrieving file',
-                'error' => $e->getMessage()
+                'message' => 'Error al recuperar la URL del archivo',
+                'error'   => $e->getMessage()
             ], 500);
         }
     }

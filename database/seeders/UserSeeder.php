@@ -5,131 +5,80 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\Role;
-use App\Models\Permission;
 use Illuminate\Support\Facades\Hash;
 
 class UserSeeder extends Seeder
 {
     public function run(): void
     {
-        $adminRole = Role::where('name', 'admin')->first();
-        $auditorRole = Role::where('name', 'auditor')->first();
-        $custodioRole = Role::where('name', 'custodio')->first();
-        $devRole = Role::where('name', 'developer')->first();
-        $userRole = Role::where('name', 'user')->first();
-        $allPermissions = Permission::all();
+        $defaultPassword = 'L0g3X2025*';
 
+        // Obtener IDs de roles
+        $registradorRoleId = Role::where('name', 'registrador')->value('id');
+        $revisorRoleId = Role::where('name', 'revisor')->value('id');
+        $revisorAprobadorRoleId = Role::where('name', 'revisor_aprobador')->value('id');
+        $visualizadorRoleId = Role::where('name', 'visualizador')->value('id');
+        $adminRoleId = Role::where('name', 'admin')->value('id');
+        $developerRoleId = Role::where('name', 'developer')->value('id');
 
-        $basicPermissions = Permission::whereIn('name', [
-            'view_discounts',
-            'view_expenses',
-            'view_requests',
-            'view_reports',
-            'view_budget',
-            'manage_support'
-        ])->get();
+        // Lista de usuarios con sus roles por ID
+        $users = [
+            ['name' => 'Andres Leon', 'email' => 'andres.leon@logex.ec', 'role_id' => $revisorRoleId],
+            ['name' => 'Claudia Pereira', 'email' => 'claudia.pereira@logex.ec', 'role_id' => $revisorAprobadorRoleId],
+            ['name' => 'JK', 'email' => 'jk@logex.ec', 'role_id' => $adminRoleId],
+            ['name' => 'Lorena Herrera', 'email' => 'lorena.herrera@logex.ec', 'role_id' => $revisorAprobadorRoleId],
+            ['name' => 'Luigi Mejia', 'email' => 'luigi.mejia@logex.ec', 'role_id' => $revisorRoleId],
+            ['name' => 'Luis Espinosa', 'email' => 'luis.espinosa@logex.ec', 'role_id' => $revisorAprobadorRoleId],
+            ['name' => 'Mercedes Ayala', 'email' => 'mercedes.ayala@logex.ec', 'role_id' => $visualizadorRoleId],
+            ['name' => 'Nicolas Iza', 'email' => 'nicolas.iza@logex.ec', 'role_id' => $adminRoleId],
+            ['name' => 'Omar Rubio', 'email' => 'omar.rubio@logex.ec', 'role_id' => $visualizadorRoleId],
+            ['name' => 'Guillermo Cisneros', 'email' => 'guillermo.cisneros@logex.ec', 'role_id' => $revisorAprobadorRoleId],
+            ['name' => 'Oscar Oyarvide', 'email' => 'oscar.oyarvide@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Pamela Olmedo', 'email' => 'pamela.olmedo@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'RMD', 'email' => 'rmd@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Hector Rivas', 'email' => 'hector.rivas@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Cristian Fernandez', 'email' => 'cristian.fernandez@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Fernando Duchi', 'email' => 'fernando.duchi@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Ronald Maza', 'email' => 'ronald.maza@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Daysi Suasnavas', 'email' => 'daysi.suasnavas@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'David Casa', 'email' => 'david.casa@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Santiago Endara', 'email' => 'santiago.endara@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Diego Vargas', 'email' => 'diego.vargas@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Juan German', 'email' => 'juan.german@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Kevin Barzola', 'email' => 'kevin.barzola@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Marcos Yungan', 'email' => 'marcos.yungan@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Carlos Rodriguez', 'email' => 'carlos.rodriguez@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Maximo Arreaga', 'email' => 'maximo.arreaga@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Rainer Contreras', 'email' => 'rainer.contreras@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Eduardo Jurado', 'email' => 'eduardo.jurado@logex.ec', 'role_id' => $registradorRoleId],
+            ['name' => 'Ricardo Estrella', 'email' => 'ricardo.estrella@logex.ec', 'role_id' => $developerRoleId],
+            ['name' => 'Damian Frutos', 'email' => 'damian.frutos@logex.ec', 'role_id' => $developerRoleId],
+            ['name' => 'Jonathan', 'email' => 'jonathan@logex.ec', 'role_id' => $developerRoleId],
+        ];
 
-        $custodioPermissions = Permission::whereIn('name', [
-            'view_discounts',
-            'view_expenses',
-            'view_requests',
-            'view_reports',
-            'manage_support',
-            'manage_discounts',
-            'manage_expenses',
-            'manage_requests',
-        ])->get();
+        // Crear usuarios y asignar roles
+        foreach ($users as $userData) {
+            $user = User::firstOrCreate(
+                ['email' => $userData['email']],
+                [
+                    'name' => $userData['name'],
+                    'password' => Hash::make($defaultPassword),
+                    'role_id' => $userData['role_id'],
+                ]
+            );
 
-        $auditorPermissions = Permission::whereIn('name', [
-            'view_discounts',
-            'view_expenses',
-            'view_requests',
-            'view_reports',
-            'manage_support',
-            'manage_discounts',
-            'manage_expenses',
-            'manage_requests',
-        ])->get();
+            // Si el usuario ya existía, asegurarse de actualizar el role_id
+            if ($user->role_id != $userData['role_id']) {
+                $user->role_id = $userData['role_id'];
+                $user->save();
+            }
 
-        $omarPermissions = Permission::whereIn('name', [
-            'manage_provisions',
-            'view_provisions',
-            'view_discounts',
-            'view_expenses',
-        ]);
-
-        $developer = User::firstOrCreate(
-            ['email' => 'ricardo.estrella@logex.ec'],
-            [
-                'name' => 'Ricardo Estrella',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $devRole->id,
-            ]
-        );
-
-        $jk = User::firstOrCreate(
-            ['email' => 'jk@logex.ec'],
-            [
-                'name' => 'John Kenyon',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $devRole->id,
-            ]
-        );
-
-        $cp = User::firstOrCreate(
-            ['email' => 'claudia.pereira@logex.ec'],
-            [
-                'name' => 'Claudia Pereira',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $custodioRole->id,
-            ]
-        );
-
-        $or = User::firstOrCreate(
-            ['email' => 'omar.rubio@logex.ec'],
-            [
-                'name' => 'Omar Rubio',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $adminRole->id, //Provisiones, descuentos y gastos
-            ]
-        );
-
-        $df = User::firstOrCreate(
-            ['email' => 'damian.frutos@logex.ec'],
-            [
-                'name' => 'Damián Frutos',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $developer->id,
-            ]
-        );
-
-        $jv = User::firstOrCreate(
-            ['email' => 'jonathan.visconti@logex.ec'],
-            [
-                'name' => 'Jonathan Visconti',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $developer->id,
-            ]
-        );
-
-        $ni = User::firstOrCreate(
-            ['email' => 'nicolas.iza@logex.ec'],
-            [
-                'name' => 'Nicolás Iza',
-                'password' => Hash::make('L0g3X2025*'),
-                'role_id' => $developer->id,
-            ]
-        );
-
-        // Asignar permisos
-        $developer->permissions()->sync($allPermissions->pluck('id'));
-        $custodioRole->permissions()->sync($custodioPermissions->pluck('id'));
-        $or->permissions()->sync($omarPermissions->pluck('id'));
-
-        $df->permissions()->sync($allPermissions->pluck('id'));
-        $jv->permissions()->sync($allPermissions->pluck('id'));
-        $jk->permissions()->sync($allPermissions->pluck('id'));
-        $cp->permissions()->sync($allPermissions->pluck('id'));
-        $ni->permissions()->sync($allPermissions->pluck('id'));
+            // Sincronizar permisos del usuario basados en su rol
+            $role = Role::find($userData['role_id']);
+            if ($role) {
+                $permissionIds = $role->permissions->pluck('id')->toArray();
+                $user->permissions()->sync($permissionIds);
+            }
+        }
     }
 }

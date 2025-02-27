@@ -53,7 +53,7 @@ Route::middleware(['verify.jwt'])->group(function () {
             Route::post('/', [UserController::class, 'store']);
             Route::get('/{user}', [UserController::class, 'show']);
             Route::put('/{user}', [UserController::class, 'update']);
-            Route::patch('/{user}', [UserController::class, 'update']);
+            Route::patch('/{user}', [UserController::class, 'patch']);
             Route::delete('/{user}', [UserController::class, 'destroy']);
 
             //Permisos

@@ -124,8 +124,12 @@ class UserController extends Controller
 
                 // Preparar datos de actualización
                 $userData = [
-                    'name' => $validated['name'],
-                    'email' => $validated['email'],
+                    'name' => 'nullable|string',
+                    'email' => 'nullable|string',
+                    'dob' => 'string|max:20',
+                    'phone' => 'string|max:12',
+                    'password' => 'nullable|string|min:8',
+
                 ];
 
                 // Actualizar role_id si se proporciona
@@ -160,6 +164,55 @@ class UserController extends Controller
             Log::error('Error updating user: ' . $e->getMessage());
             return response()->json([
                 'message' => 'Error updating user',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function patch(Request $request, User $user): JsonResponse
+    {
+        try {
+            return DB::transaction(function () use ($request, $user) {
+                $validated = $request->validate([
+                    'dob' => 'nullable|date',
+                    'phone' => 'nullable|string|max:12',
+                    'password' => 'nullable|string|min:8',
+                ]);
+
+                // Preparar datos de actualización
+                $userData = [];
+
+                // Añadir campos solo si están presentes en la solicitud
+                if (isset($validated['dob'])) {
+                    $userData['dob'] = $validated['dob'];
+                }
+
+                if (isset($validated['phone'])) {
+                    $userData['phone'] = $validated['phone'];
+                }
+
+                // Actualizar password si se proporciona
+                if (!empty($validated['password'])) {
+                    $userData['password'] = Hash::make($validated['password']);
+                }
+
+                // Actualizar usuario solo si hay datos para actualizar
+                if (!empty($userData)) {
+                    $user->update($userData);
+                }
+
+                // Cargar relaciones y devolver respuesta
+                $user->load(['role']);
+
+                return response()->json([
+                    'message' => 'User profile updated successfully',
+                    'user' => $user
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Error updating user profile: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Error updating user profile',
                 'error' => $e->getMessage()
             ], 500);
         }

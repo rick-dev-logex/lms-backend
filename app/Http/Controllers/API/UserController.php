@@ -124,12 +124,8 @@ class UserController extends Controller
 
                 // Preparar datos de actualización
                 $userData = [
-                    'name' => 'nullable|string',
-                    'email' => 'nullable|string',
-                    'dob' => 'string|max:20',
-                    'phone' => 'string|max:12',
-                    'password' => 'nullable|string|min:8',
-
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
                 ];
 
                 // Actualizar role_id si se proporciona

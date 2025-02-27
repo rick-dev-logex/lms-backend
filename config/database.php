@@ -3,6 +3,19 @@
 return [
     'default' => env('DB_CONNECTION', 'lms_backend'),
     'connections' => [
+        'lms_local' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => env('DB_DATABASE', 'lms_staging'),
+            'username' => env('DB_USERNAME', 'root'),
+            'password' => env('DB_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
         'lms_backend' => [
             'driver' => 'mysql',
             'host' => env('DB_HOST', 'sgt.logex.com.ec'),

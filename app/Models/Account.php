@@ -13,7 +13,13 @@ class Account extends Model
 
     protected $connection = 'lms_backend';
     protected $table = 'accounts';
-    protected $fillable = ['name', 'account_number', 'account_type'];
+    protected $fillable = [
+        'name',
+        'account_number',
+        'account_type',
+        'account_status',
+        'account_affects'
+    ];
 
     // Relación con personal de Onix a través del proyecto
     public function projectPersonnel()

@@ -23,7 +23,7 @@ class UserController extends Controller
             $query = User::with(['role', 'permissions', 'assignedProjects']);
 
             if ($request->input('action') === 'count') {
-                return response()->json($query->count());
+                return response()->json(User::count());
             }
 
             // Filtros

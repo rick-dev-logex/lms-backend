@@ -5,10 +5,10 @@
   'app' => 
   array (
     'name' => 'LMS',
-    'env' => 'local',
+    'env' => 'production',
     'debug' => true,
     'url' => 'https://api.lms.logex.com.ec',
-    'frontend_url' => 'http://localhost:3000',
+    'frontend_url' => 'https://lms.logex.com.ec',
     'asset_url' => NULL,
     'timezone' => 'America/Guayaquil',
     'locale' => 'es',
@@ -283,7 +283,7 @@
     array (
       0 => 'https://lms.logex.com.ec',
       1 => 'http://localhost:3000',
-      2 => 'http://127.0.0.1:3000',
+      2 => 'http://localhost:3001',
     ),
     'allowed_origins_patterns' => 
     array (
@@ -300,7 +300,7 @@
   ),
   'database' => 
   array (
-    'default' => 'lms_backend',
+    'default' => 'mysql',
     'connections' => 
     array (
       'sqlite' => 
@@ -317,16 +317,22 @@
       'mysql' => 
       array (
         'driver' => 'mysql',
-        'host' => 'localhost',
+        'url' => NULL,
+        'host' => 'sgt.logex.com.ec',
         'port' => '3306',
-        'database' => 'lms_staging',
-        'username' => 'root',
-        'password' => '',
+        'database' => 'lms_backend',
+        'username' => 'restrella',
+        'password' => 'LogeX-?2028*',
+        'unix_socket' => '',
         'charset' => 'utf8mb4',
         'collation' => 'utf8mb4_unicode_ci',
         'prefix' => '',
+        'prefix_indexes' => true,
         'strict' => true,
         'engine' => NULL,
+        'options' => 
+        array (
+        ),
       ),
       'mariadb' => 
       array (
@@ -375,6 +381,20 @@
         'charset' => 'utf8',
         'prefix' => '',
         'prefix_indexes' => true,
+      ),
+      'lms_local' => 
+      array (
+        'driver' => 'mysql',
+        'host' => 'sgt.logex.com.ec',
+        'port' => '3306',
+        'database' => 'lms_backend',
+        'username' => 'restrella',
+        'password' => 'LogeX-?2028*',
+        'charset' => 'utf8mb4',
+        'collation' => 'utf8mb4_unicode_ci',
+        'prefix' => '',
+        'strict' => true,
+        'engine' => NULL,
       ),
       'lms_backend' => 
       array (
@@ -761,13 +781,13 @@
     ),
     'batching' => 
     array (
-      'database' => 'lms_backend',
+      'database' => 'mysql',
       'table' => 'job_batches',
     ),
     'failed' => 
     array (
       'driver' => 'database-uuids',
-      'database' => 'lms_backend',
+      'database' => 'mysql',
       'table' => 'failed_jobs',
     ),
   ),

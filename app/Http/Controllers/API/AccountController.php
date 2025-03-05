@@ -12,14 +12,15 @@ class AccountController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Account::orderBy('name', 'asc');
+        $query = Account::where('status', 'active')->orderBy('name', 'asc');
 
         if ($request->has('account_type')) {
-            return response()->json($query->where('account_type', $request->account_type));
+            $query->where('account_type', $request->account_type);
         }
 
         return response()->json(["data" => $query->get()]);
     }
+
 
     public function store(Request $request)
     {

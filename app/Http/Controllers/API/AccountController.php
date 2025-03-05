@@ -18,6 +18,10 @@ class AccountController extends Controller
             $query->where('account_type', $request->account_type)->where('account_status', 'active');
         }
 
+        if ($request->has('account_affects')) {
+            $query->where('account_affects', $request->account_affects)->where('account_status', 'active');
+        }
+
         return response()->json(["data" => $query->get()]);
     }
 

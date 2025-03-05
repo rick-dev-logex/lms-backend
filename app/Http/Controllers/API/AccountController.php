@@ -29,7 +29,7 @@ class AccountController extends Controller
             'account_number'  => 'required|string|max:50|unique:accounts,account_number',
             'account_type'    => ['required', Rule::in(['nomina', 'transportista'])],
             'account_status'  => ['required', Rule::in(['active', 'inactive'])],
-            'account_affects' => 'required|json',
+            'account_affects' => 'required|string',
         ]);
 
         if ($validator->fails()) {
@@ -57,7 +57,7 @@ class AccountController extends Controller
             'account_number'  => "sometimes|string|max:50|unique:accounts,account_number,{$id}",
             'account_type'    => ['sometimes', Rule::in(['nomina', 'transportista'])],
             'account_status'  => ['sometimes', Rule::in(['active', 'inactive'])],
-            'account_affects' => 'sometimes|json',
+            'account_affects' => 'sometimes|string',
         ]);
 
         if ($validator->fails()) {

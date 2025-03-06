@@ -19,6 +19,14 @@ Route::middleware(['throttle:6,1'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
 });
 
+Route::get('/debug', function () {
+    return response()->json([
+        'scheme' => request()->getScheme(),
+        'secure' => request()->secure(),
+        'headers' => request()->headers->all()
+    ]);
+});
+
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 

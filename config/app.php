@@ -3,7 +3,7 @@
 return [
     'name' => env('APP_NAME', 'LMS'),
     'env' => env('APP_ENV', 'production'),
-    'debug' => (bool) env('APP_DEBUG', false),
+    'debug' => (bool) env('APP_DEBUG', true),
     'url' => env('APP_URL', 'https://api.lms.logex.com.ec'),
     'frontend_url' => env('FRONTEND_URL', 'https://lms.logex.com.ec'),
     'timezone' => env('APP_TIMEZONE', 'America/Guayaquil'),

@@ -11,6 +11,11 @@ class HandleCors
 {
     public function handle(Request $request, Closure $next): Response
     {
+        Log::info('HandleCors ejecutado', [
+            'method' => $request->method(),
+            'path' => $request->path(),
+            'origin' => $request->headers->get('Origin'),
+        ]);
         // Si es una petición OPTIONS, respondemos inmediatamente
         $response = $request->isMethod('OPTIONS') ? response('', 200) : $next($request);
 

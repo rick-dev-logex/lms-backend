@@ -23,11 +23,11 @@ class HandleCors
         $origin = $request->headers->get('Origin');
 
         // Lista de orígenes permitidos (definida en config/cors.php)
-        $allowedOrigins = config('cors.allowed_origins');
+        $allowedOrigins = array_map('trim', config('cors.allowed_origins'));
         Log::info('Origen solicitado: ' . $origin);
         Log::info('Orígenes permitidos: ' . implode(', ', $allowedOrigins));
         // Verificar si el origen está permitido
-        if (in_array($origin, $allowedOrigins)) {
+        if ($origin && in_array($origin, $allowedOrigins)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);
         } else {
             return response('Origin not allowed', 403);

@@ -31,9 +31,9 @@ Route::get('/debug', function () {
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::options('/login', function () {
-    return response()->json('OK', 200);
-});
+// Route::options('/login', function () {
+//     return response()->json('OK', 200);
+// });
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->group(function () {
     // Rutas generales para usuarios autenticados

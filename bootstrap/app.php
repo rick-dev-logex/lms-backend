@@ -15,12 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // Global middleware - se ejecuta primero 
         $middleware->use([
             \App\Http\Middleware\HandleCors::class,
-            \App\Http\Middleware\ForceHttps::class,
-            \App\Http\Middleware\TrustProxies::class,
-            \App\Http\Middleware\ValidateApiToken::class,
-            \App\Http\Middleware\EncryptCookies::class,
-            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-            \Illuminate\Session\Middleware\StartSession::class,
+            // \App\Http\Middleware\ForceHttps::class,
+            // \App\Http\Middleware\TrustProxies::class,
+            // \App\Http\Middleware\ValidateApiToken::class,
+            // \App\Http\Middleware\EncryptCookies::class,
+            // \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            // \Illuminate\Session\Middleware\StartSession::class,
         ]);
 
         // API middleware group

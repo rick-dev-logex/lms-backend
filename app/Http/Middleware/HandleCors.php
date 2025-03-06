@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class HandleCors
@@ -18,7 +19,8 @@ class HandleCors
 
         // Lista de orígenes permitidos (definida en config/cors.php)
         $allowedOrigins = config('cors.allowed_origins');
-
+        Log::info('Origen solicitado: ' . $origin);
+        Log::info('Orígenes permitidos: ' . implode(', ', $allowedOrigins));
         // Verificar si el origen está permitido
         if (in_array($origin, $allowedOrigins)) {
             $response->headers->set('Access-Control-Allow-Origin', $origin);

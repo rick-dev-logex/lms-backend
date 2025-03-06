@@ -111,3 +111,8 @@ Route::middleware(['verify.jwt'])->group(function () {
         // Rutas de configuración del sistema
     });
 });
+
+// Al final de api.php, captura todas las peticiones OPTIONS
+Route::options('{any}', function () {
+    return response('', 200);
+})->where('any', '.*');

@@ -12,18 +12,30 @@ class AccountController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Account::orderBy('name', 'asc');
+        // Filtrar únicamente cuentas activas
+        $query = Account::where('account_status', 'active')->orderBy('name', 'asc');
 
+        // Filtro por tipo de cuenta, si se pasa el parámetro
         if ($request->has('account_type')) {
-            $query->where('account_type', $request->account_type)->where('account_status', 'active');
+            $query->where('account_type', $request->account_type);
         }
 
+        // Filtro para account_affects: si se busca "income" o "discount", se incluyen también las que tienen "both"
         if ($request->has('account_affects')) {
-            $query->where('account_affects', $request->account_affects)->where('account_status', 'active');
+            $affects = $request->account_affects;
+            if ($affects === 'income') {
+                $query->whereIn('account_affects', ['income', 'both']);
+            } elseif ($affects === 'discount') {
+                $query->whereIn('account_affects', ['discount', 'both']);
+            } else {
+                // En caso de que se envíe otro valor (por ejemplo "both"), se filtra de manera exacta
+                $query->where('account_affects', $affects);
+            }
         }
 
         return response()->json(["data" => $query->get()]);
     }
+
 
 
     public function store(Request $request)

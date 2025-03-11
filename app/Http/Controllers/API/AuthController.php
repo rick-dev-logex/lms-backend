@@ -124,10 +124,7 @@ class AuthController extends Controller
             throw $e;
         } catch (\Exception $e) {
             Log::error('Error en login', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Error al iniciar sesión',
-                'error'   => $e->getMessage()
-            ], 500);
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
     }
 

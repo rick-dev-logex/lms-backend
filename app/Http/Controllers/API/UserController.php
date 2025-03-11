@@ -40,8 +40,8 @@ class UserController extends Controller
             }
 
             // Ordenamiento
-            $sortField = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('order', 'desc');
+            $sortField = $request->input('sort_by', 'name');
+            $sortOrder = $request->input('order', 'asc');
             $query->orderBy($sortField, $sortOrder);
 
             // Paginación

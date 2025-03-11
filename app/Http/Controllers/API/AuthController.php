@@ -78,14 +78,13 @@ class AuthController extends Controller
                 ->first();
 
             if (!$user || !Hash::check($request->password, $user->password)) {
-                throw ValidationException::withMessages([
-                    'email' => ['Las credenciales proporcionadas son incorrectas.'],
-                ]);
+                return response()->json([
+                    'message' => 'Las credenciales proporcionadas son incorrectas.',
+                    'errors' => ['email' => ['Las credenciales proporcionadas son incorrectas.']]
+                ], 422);
             }
 
-            // Duración del token basada en "remember"
-            $tokenDuration = $request->remember ? 60 * 60 * 10 : 60 * 30; // 10 horas o 30 minutos
-
+            $tokenDuration = $request->remember ? 60 * 60 * 10 : 60 * 30;
             $payload = [
                 'user_id'     => $user->id,
                 'email'       => $user->email,
@@ -99,29 +98,24 @@ class AuthController extends Controller
             $jwt = JWT::encode($payload, config('jwt.secret'), 'HS256');
 
             $isProduction = app()->environment('production');
-
             $cookie = Cookie::make(
                 'jwt-token',
                 $jwt,
-                $tokenDuration / 60, // Convertir segundos a minutos
+                $tokenDuration / 60,
                 '/',
                 $isProduction ? '.lms.logex.com.ec' : null,
                 $isProduction,
-                false,  // HttpOnly (false para que JS lo lea)
                 false,
+                false
             )->withSameSite($isProduction ? 'None' : 'Lax');
 
-            // Inyectar assignedProjects dentro del objeto user
-            $assignedProjects = $user->assignedProjects ? $user->assignedProjects->projects : [];
             $userData = $user->toArray();
-            $userData['assignedProjects'] = $assignedProjects;
+            $userData['assignedProjects'] = $user->assignedProjects ? $user->assignedProjects->projects : [];
 
             return response()->json([
                 'message' => 'Login successful',
                 'user'    => $userData,
             ])->withCookie($cookie);
-        } catch (ValidationException $e) {
-            throw $e;
         } catch (\Exception $e) {
             Log::error('Error en login', ['error' => $e->getMessage()]);
             return response()->json(['message' => 'Invalid credentials'], 401);

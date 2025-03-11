@@ -25,7 +25,7 @@ class UserSeeder extends Seeder
         $users = [
             ['name' => 'Andres Leon', 'email' => 'andres.leon@logex.ec', 'role_id' => $revisorRoleId],
             ['name' => 'Claudia Pereira', 'email' => 'claudia.pereira@logex.ec', 'role_id' => $revisorAprobadorRoleId],
-            ['name' => 'JK', 'email' => 'jk@logex.ec', 'role_id' => $adminRoleId],
+            ['name' => 'John Kenyon', 'email' => 'jk@logex.ec', 'role_id' => $adminRoleId],
             ['name' => 'Lorena Herrera', 'email' => 'lorena.herrera@logex.ec', 'role_id' => $revisorAprobadorRoleId],
             ['name' => 'Luigi Mejia', 'email' => 'luigi.mejia@logex.ec', 'role_id' => $revisorRoleId],
             ['name' => 'Luis Espinosa', 'email' => 'luis.espinosa@logex.ec', 'role_id' => $revisorAprobadorRoleId],
@@ -54,6 +54,8 @@ class UserSeeder extends Seeder
             ['name' => 'Ricardo Estrella', 'email' => 'ricardo.estrella@logex.ec', 'role_id' => $developerRoleId],
             ['name' => 'Damian Frutos', 'email' => 'damian.frutos@logex.ec', 'role_id' => $developerRoleId],
             ['name' => 'Jonathan', 'email' => 'jonathan@logex.ec', 'role_id' => $developerRoleId],
+            ['name' => 'Jonathan Visconti', 'email' => 'jonathan.visconti@logex.ec', 'role_id' => $developerRoleId],
+            ['name' => 'Nicolás Iza', 'email' => 'nicolas.iza@logex.ec', 'role_id' => $adminRoleId],
         ];
 
         // Crear usuarios y asignar roles

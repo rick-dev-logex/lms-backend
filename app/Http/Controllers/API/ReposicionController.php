@@ -155,6 +155,10 @@ class ReposicionController extends Controller
     public function store(HttpRequest $request)
     {
         try {
+            if (!env('GOOGLE_CLOUD_KEY_BASE64')) {
+                $dotenv = \Dotenv\Dotenv::createImmutable(base_path());
+                $dotenv->load();
+            }
             DB::beginTransaction();
 
             // Validar la entrada
@@ -184,7 +188,7 @@ class ReposicionController extends Controller
 
                 try {
                     $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
-                    Log::info(message: 'GOOGLE_CLOUD_KEY_BASE64 from env: ' . $base64Key); // Registrar el valor
+                    Log::info('Valor de GOOGLE_CLOUD_KEY_BASE64: ' . $base64Key); // Depurar
 
                     if (!$base64Key) {
                         throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');

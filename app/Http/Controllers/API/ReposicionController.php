@@ -186,7 +186,15 @@ class ReposicionController extends Controller
                     'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
                 ]);
 
+                if (!$storage) {
+                    throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está definida la configuracion en .env?');
+                }
+
                 $bucket = $storage->bucket(env('GOOGLE_CLOUD_BUCKET'));
+
+                if (!$bucket) {
+                    throw new \Exception('Error al obtener el bucket de Google Cloud Storage. ¿Está definida la configuracion en .env?');
+                }
 
                 // Subir el archivo
                 $object = $bucket->upload(

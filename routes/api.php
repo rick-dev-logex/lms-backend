@@ -31,6 +31,8 @@ Route::get('/debug', function () {
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->group(function () {
@@ -38,9 +40,8 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
+    Route::patch('/users/{user}', [UserController::class, 'patch']);
 
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
     Route::apiResource('/accounts', AccountController::class);
     Route::apiResource('/transports', TransportController::class);
@@ -51,7 +52,6 @@ Route::middleware(['verify.jwt'])->group(function () {
         Route::get('/{id}/users', [ProjectController::class, 'getProjectUsers']);
         Route::post('/{id}/users', [ProjectController::class, 'assignUsers']);
     });
-    Route::put('/{user}', [UserController::class, 'update']);
 
     // Rutas solo para administradores
     Route::middleware(['role:admin,developer'])->group(function () {
@@ -59,7 +59,7 @@ Route::middleware(['verify.jwt'])->group(function () {
             Route::get('/', [UserController::class, 'index']);
             Route::post('/', [UserController::class, 'store']);
             Route::get('/{user}', [UserController::class, 'show']);
-            Route::patch('/{user}', [UserController::class, 'patch']);
+            Route::put('/{user}', [UserController::class, 'update']);
             Route::delete('/{user}', [UserController::class, 'destroy']);
 
             //Permisos

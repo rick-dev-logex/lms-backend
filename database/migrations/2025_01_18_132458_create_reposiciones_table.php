@@ -20,7 +20,7 @@ return new class extends Migration
             $table->longText('detail')->nullable(); // Cambiado de json a longText
             $table->string('month', 7)->nullable();
             $table->enum('when', ['rol', 'liquidación', 'decimo_tercero', 'decimo_cuarto', 'utilidades'])->nullable();
-            $table->string('attachment_url')->nullable();
+            $table->text('attachment_url')->nullable();
             $table->string('attachment_name')->nullable();
             $table->text('note')->nullable();
             $table->timestamps();

@@ -19,6 +19,10 @@ Route::middleware(['throttle:6,1'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
 });
 
+Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
+Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
+
+
 Route::get('/debug', function () {
     return response()->json([
         'scheme' => request()->getScheme(),
@@ -97,7 +101,7 @@ Route::middleware(['verify.jwt'])->group(function () {
 
     // Rutas que requieren múltiples permisos
     Route::middleware(['permission:view_reports,generate_reports'])->group(function () {
-        Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
+        // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
         Route::apiResource('/requests', RequestController::class);
         Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
         Route::apiResource('/reposiciones', ReposicionController::class)->except('file');

@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\Account;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\FromCollection;
@@ -16,15 +17,21 @@ use Illuminate\Support\Collection;
 
 class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTitle
 {
-    // Colores corporativos
-    private const COLOR_PRIMARY = '941e1e';    // Rojo LogeX - opaco
-    private const COLOR_SECONDARY = '1E2837';  // Azul oscuro del sidebar
-    private const COLOR_LIGHT = 'F8FAFC';     // Fondo claro
-    private const COLOR_HOVER = 'E2E8F0';     // Color hover
+    private const COLOR_PRIMARY = '941e1e';
+    private const COLOR_SECONDARY = '1E2837';
+    private const COLOR_LIGHT = 'F8FAFC';
+    private const COLOR_HOVER = 'E2E8F0';
+
+    private $context;
+
+    public function __construct(string $context = 'discounts')
+    {
+        $this->context = $context;
+    }
 
     public function title(): string
     {
-        return 'Plantilla de Descuentos';
+        return $this->context === 'discounts' ? 'Plantilla de Descuentos' : 'Plantilla de Gastos';
     }
 
     public function headings(): array
@@ -54,7 +61,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'ADMIN',
                 'VEINTIMILLA CRESPO JUAN ERNESTO',
                 '',
-                'Ejemplo de descuento - Puedes eliminar esta fila.'
+                'Ejemplo - Puedes eliminar esta fila.'
             ]
         ]);
     }
@@ -70,8 +77,8 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 $sheet->insertNewRowBefore(1, 2);
                 $sheet->mergeCells('A1:I1');
                 $sheet->mergeCells('A2:I2');
-                $sheet->setCellValue('A1', 'PLANTILLA DE DESCUENTOS');
-                $sheet->setCellValue('A2', '📝 Completa una fila por cada descuento que quieras registrar');
+                $sheet->setCellValue('A1', $this->context === 'discounts' ? 'PLANTILLA DE DESCUENTOS' : 'PLANTILLA DE GASTOS');
+                $sheet->setCellValue('A2', '📝 Completa una fila por cada ' . ($this->context === 'discounts' ? 'descuento' : 'gasto') . ' que quieras registrar');
 
                 // Estilo del título principal
                 $sheet->getStyle('A1')->applyFromArray([
@@ -156,9 +163,9 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                     ->setFormatCode('#,##0.00');
 
                 $sheet->getSheetView()
-                    ->setZoomScale(100)  // zoom al 100%
+                    ->setZoomScale(100)
                     ->setZoomScaleNormal(100)
-                    ->setView('pageLayout'); // asegura que se vea desde el inicio
+                    ->setView('pageLayout');
 
                 $sheet->setSelectedCell('A4');
 
@@ -188,9 +195,21 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         ];
     }
 
+    private function getAccounts(): array
+    {
+        $query = Account::where('account_status', 'active');
+
+        if ($this->context === 'discounts') {
+            $query->whereIn('account_affects', ['discount', 'both']);
+        } elseif ($this->context === 'expenses') {
+            $query->where('account_affects', 'discount');
+        }
+
+        return $query->pluck('name')->toArray();
+    }
+
     private function setupDataValidations($sheet, $lastRow)
     {
-        // Validación de tipo
         $tipoValidation = $sheet->getCell('B4')->getDataValidation();
         $tipoValidation->setType(DataValidation::TYPE_LIST);
         $tipoValidation->setAllowBlank(false);
@@ -201,7 +220,6 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         $tipoValidation->setError('Por favor, selecciona "Nómina" o "Transportista"');
         $sheet->setDataValidation("B4:B$lastRow", $tipoValidation);
 
-        // Validación de fecha
         $dateValidation = $sheet->getCell('A4')->getDataValidation();
         $dateValidation->setType(DataValidation::TYPE_DATE);
         $dateValidation->setAllowBlank(false);
@@ -210,7 +228,6 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         $dateValidation->setError('Ingresa la fecha en formato YYYY-MM-DD');
         $sheet->setDataValidation("A4:A$lastRow", $dateValidation);
 
-        // Validación de valor
         $valorValidation = $sheet->getCell('E4')->getDataValidation();
         $valorValidation->setType(DataValidation::TYPE_DECIMAL);
         $valorValidation->setAllowBlank(false);
@@ -221,7 +238,18 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         $valorValidation->setOperator(DataValidation::OPERATOR_GREATERTHAN);
         $sheet->setDataValidation("E4:E$lastRow", $valorValidation);
 
-        // Validación para la columna Responsable (G)
+        $accounts = $this->getAccounts();
+        $accountList = '"' . implode(',', $accounts) . '"';
+        $accountValidation = $sheet->getCell('D4')->getDataValidation();
+        $accountValidation->setType(DataValidation::TYPE_LIST);
+        $accountValidation->setAllowBlank(false);
+        $accountValidation->setShowDropDown(true);
+        $accountValidation->setFormula1($accountList);
+        $accountValidation->setShowErrorMessage(true);
+        $accountValidation->setErrorTitle('Cuenta no válida');
+        $accountValidation->setError('Por favor, selecciona una cuenta de la lista');
+        $sheet->setDataValidation("D4:D$lastRow", $accountValidation);
+
         $responsableValidation = $sheet->getCell("G4")->getDataValidation();
         $responsableValidation->setType(DataValidation::TYPE_CUSTOM);
         $responsableValidation->setErrorTitle('Campo no aplicable');
@@ -229,7 +257,6 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         $responsableValidation->setFormula1('INDIRECT("B4")="Nómina"');
         $responsableValidation->setShowErrorMessage(true);
 
-        // Validación para la columna Placa (H)
         $placaValidation = $sheet->getCell("H4")->getDataValidation();
         $placaValidation->setType(DataValidation::TYPE_CUSTOM);
         $placaValidation->setErrorTitle('Campo no aplicable');
@@ -261,11 +288,11 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
     {
         $comments = [
             'A3' => [
-                'título' => 'Fecha del descuento',
+                'título' => 'Fecha del ' . ($this->context === 'discounts' ? 'descuento' : 'gasto'),
                 'texto' => "👉 Ingresa la fecha en formato YYYY-MM-DD\nPor ejemplo: 2025-01-31"
             ],
             'B3' => [
-                'título' => 'Tipo de descuento',
+                'título' => 'Tipo de ' . ($this->context === 'discounts' ? 'descuento' : 'gasto'),
                 'texto' => "👥 Elige el tipo:\n- Nómina: para empleados\n- Transportista: para conductores"
             ],
             'C3' => [
@@ -274,7 +301,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
             ],
             'D3' => [
                 'título' => 'Cuenta',
-                'texto' => "💰 Selecciona la cuenta contable correspondiente"
+                'texto' => "💰 Selecciona la cuenta contable correspondiente de la lista desplegable"
             ],
             'E3' => [
                 'título' => 'Valor',
@@ -294,7 +321,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
             ],
             'I3' => [
                 'título' => 'Observación',
-                'texto' => "✍️ Describe brevemente el motivo del descuento"
+                'texto' => "✍️ Describe brevemente el motivo del " . ($this->context === 'discounts' ? 'descuento' : 'gasto')
             ]
         ];
 

@@ -182,28 +182,41 @@ class ReposicionController extends Controller
                 $file = $request->file('attachment');
                 $fileName = $file->getClientOriginalName();
 
-                $storage = new StorageClient([
-                    'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
-                ]);
-
-                if (!$storage) {
+                try {
+                    $keyFilePath = storage_path('app/google-cloud-key.json');
+                    if (!file_exists($keyFilePath)) {
+                        throw new \Exception('El archivo de credenciales de Google Cloud no se encuentra en: ' . $keyFilePath);
+                    }
+                    $storage = new StorageClient(['keyFilePath' => $keyFilePath]);
+                } catch (\Exception $e) {
+                    Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
                     throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está definida la configuracion en .env?');
                 }
 
-                $bucket = $storage->bucket(env('GOOGLE_CLOUD_BUCKET'));
-
-                if (!$bucket) {
-                    throw new \Exception('Error al obtener el bucket de Google Cloud Storage. ¿Está definida la configuracion en .env?');
+                try {
+                    $bucketName = env('GOOGLE_CLOUD_BUCKET');
+                    $bucket = $storage->bucket($bucketName);
+                    if (!$bucket->exists()) {
+                        throw new \Exception("El bucket '$bucketName' no existe o no es accesible");
+                    }
+                } catch (\Exception $e) {
+                    Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
+                    throw new \Exception('Error al conectar con el bucket de Google Cloud Storage. ¿Está definido el nombre del bucket en .env?');
                 }
 
                 // Subir el archivo
-                $object = $bucket->upload(
-                    fopen($file->getRealPath(), 'r'),
-                    [
-                        'name' => $fileName,
-                        'predefinedAcl' => null,
-                    ]
-                );
+
+                try {
+                    $object = $bucket->upload(
+                        fopen($file->getRealPath(), 'r'),
+                        [
+                            'name' => $fileName,
+                            'predefinedAcl' => null,
+                        ]
+                    );
+                } catch (\Exception $e) {
+                    throw new \Exception('Error al subir el archivo a Google Cloud Storage');
+                }
 
                 // Obtener la URL del archivo
                 $fileUrl = $object->signedUrl(new \DateTime('+ 10 years'));

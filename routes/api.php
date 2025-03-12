@@ -22,7 +22,6 @@ Route::middleware(['throttle:6,1'])->group(function () {
 Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
 Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
 
-
 Route::get('/debug', function () {
     return response()->json([
         'scheme' => request()->getScheme(),
@@ -104,8 +103,11 @@ Route::middleware(['verify.jwt'])->group(function () {
         // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
         Route::apiResource('/requests', RequestController::class);
         Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+
         Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
         Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
+
+        Route::post('/requests/import', [RequestController::class, 'import']);
     });
 
     // Rutas que requieren rol específico Y permiso específico

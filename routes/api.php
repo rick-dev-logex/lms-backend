@@ -51,6 +51,7 @@ Route::middleware(['verify.jwt'])->group(function () {
         Route::get('/{id}/users', [ProjectController::class, 'getProjectUsers']);
         Route::post('/{id}/users', [ProjectController::class, 'assignUsers']);
     });
+    Route::put('/{user}', [UserController::class, 'update']);
 
     // Rutas solo para administradores
     Route::middleware(['role:admin,developer'])->group(function () {
@@ -58,7 +59,6 @@ Route::middleware(['verify.jwt'])->group(function () {
             Route::get('/', [UserController::class, 'index']);
             Route::post('/', [UserController::class, 'store']);
             Route::get('/{user}', [UserController::class, 'show']);
-            Route::put('/{user}', [UserController::class, 'update']);
             Route::patch('/{user}', [UserController::class, 'patch']);
             Route::delete('/{user}', [UserController::class, 'destroy']);
 

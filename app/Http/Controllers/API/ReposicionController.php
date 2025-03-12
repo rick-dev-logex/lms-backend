@@ -183,14 +183,24 @@ class ReposicionController extends Controller
                 $fileName = $file->getClientOriginalName();
 
                 try {
-                    $keyFilePath = storage_path('app/google-cloud-key.json');
-                    if (!file_exists($keyFilePath)) {
-                        throw new \Exception('El archivo de credenciales de Google Cloud no se encuentra en: ' . $keyFilePath);
+                    $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
+
+                    if (!$base64Key) {
+                        throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
                     }
-                    $storage = new StorageClient(['keyFilePath' => $keyFilePath]);
+
+                    $credentials = json_decode(base64_decode($base64Key), true);
+
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new \Exception('Error al decodificar las credenciales de Google Cloud.');
+                    }
+
+                    $storage = new StorageClient([
+                        'keyFile' => $credentials
+                    ]);
                 } catch (\Exception $e) {
                     Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
-                    throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está definida la configuracion en .env?');
+                    throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está correctamente definida la configuración en .env?');
                 }
 
                 try {

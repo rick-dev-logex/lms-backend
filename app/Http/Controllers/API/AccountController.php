@@ -20,11 +20,11 @@ class AccountController extends Controller
             $query->where('account_type', $request->account_type);
         }
 
-        // Filtro para account_affects: si se busca "income" o "discount", se incluyen también las que tienen "both"
+        // Filtro para account_affects: si se busca "expense" o "discount", se incluyen también las que tienen "both"
         if ($request->has('account_affects')) {
             $affects = $request->account_affects;
-            if ($affects === 'income') {
-                $query->whereIn('account_affects', ['income', 'both']);
+            if ($affects === 'expense') {
+                $query->whereIn('account_affects', ['expense', 'both']);
             } elseif ($affects === 'discount') {
                 $query->whereIn('account_affects', ['discount', 'both']);
             } else {

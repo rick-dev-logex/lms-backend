@@ -117,7 +117,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 ]);
 
                 // Estilo de cabeceras
-                $sheet->getStyle('A3:I3')->applyFromArray([
+                $sheet->getStyle('A3:J3')->applyFromArray([
                     'font' => [
                         'bold' => true,
                         'color' => ['rgb' => self::COLOR_LIGHT]
@@ -206,7 +206,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         if ($this->context === 'discounts') {
             $query->whereIn('account_affects', ['discount', 'both']);
         } elseif ($this->context === 'expenses') {
-            $query->where('account_affects', 'discount');
+            $query->where('account_affects', ['expense', 'both']);
         }
 
         $accounts = $query->pluck('name')->toArray();

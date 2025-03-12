@@ -184,6 +184,7 @@ class ReposicionController extends Controller
 
                 try {
                     $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
+                    Log::info('GOOGLE_CLOUD_KEY_BASE64 from env: ' . $base64Key); // Registrar el valor
 
                     if (!$base64Key) {
                         throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
@@ -192,7 +193,7 @@ class ReposicionController extends Controller
                     $credentials = json_decode(base64_decode($base64Key), true);
 
                     if (json_last_error() !== JSON_ERROR_NONE) {
-                        throw new \Exception('Error al decodificar las credenciales de Google Cloud.');
+                        throw new \Exception('Error al decodificar las credenciales de Google Cloud: ' . json_last_error_msg());
                     }
 
                     $storage = new StorageClient([

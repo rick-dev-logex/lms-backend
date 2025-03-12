@@ -14,6 +14,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTitle
 {
@@ -45,6 +46,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
             'Proyecto',
             'Responsable',
             'Placa',
+            'Cédula',
             'Observación'
         ];
     }
@@ -61,6 +63,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'ADMIN',
                 'VEINTIMILLA CRESPO JUAN ERNESTO',
                 '',
+                '1712345678',
                 'Ejemplo - Puedes eliminar esta fila.'
             ]
         ]);
@@ -75,8 +78,8 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
 
                 // Título y descripción
                 $sheet->insertNewRowBefore(1, 2);
-                $sheet->mergeCells('A1:I1');
-                $sheet->mergeCells('A2:I2');
+                $sheet->mergeCells('A1:J1');
+                $sheet->mergeCells('A2:J2');
                 $sheet->setCellValue('A1', $this->context === 'discounts' ? 'PLANTILLA DE DESCUENTOS' : 'PLANTILLA DE GASTOS');
                 $sheet->setCellValue('A2', '📝 Completa una fila por cada ' . ($this->context === 'discounts' ? 'descuento' : 'gasto') . ' que quieras registrar');
 
@@ -179,7 +182,8 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                     'F' => 20,  // Proyecto
                     'G' => 30,  // Responsable
                     'H' => 15,  // Placa
-                    'I' => 40   // Observación
+                    'I' => 15,   // Cédula
+                    'J' => 40   // Observación
                 ];
 
                 foreach ($columnWidths as $col => $width) {
@@ -205,7 +209,9 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
             $query->where('account_affects', 'discount');
         }
 
-        return $query->pluck('name')->toArray();
+        $accounts = $query->pluck('name')->toArray();
+        Log::info('Cuentas obtenidas: ' . json_encode($accounts)); // Depurar
+        return $accounts;
     }
 
     private function setupDataValidations($sheet, $lastRow)
@@ -238,17 +244,24 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         $valorValidation->setOperator(DataValidation::OPERATOR_GREATERTHAN);
         $sheet->setDataValidation("E4:E$lastRow", $valorValidation);
 
+        // Hoja auxiliar para cuentas
+        $spreadsheet = $sheet->getDelegate()->getParent();
+        $accountSheet = $spreadsheet->createSheet();
+        $accountSheet->setTitle('Cuentas');
         $accounts = $this->getAccounts();
-        $accountList = '"' . implode(',', $accounts) . '"';
+        foreach ($accounts as $index => $account) {
+            $accountSheet->setCellValue("A" . ($index + 1), $account);
+        }
         $accountValidation = $sheet->getCell('D4')->getDataValidation();
         $accountValidation->setType(DataValidation::TYPE_LIST);
         $accountValidation->setAllowBlank(false);
         $accountValidation->setShowDropDown(true);
-        $accountValidation->setFormula1($accountList);
+        $accountValidation->setFormula1('Cuentas!$A$1:$A$' . count($accounts));
         $accountValidation->setShowErrorMessage(true);
         $accountValidation->setErrorTitle('Cuenta no válida');
         $accountValidation->setError('Por favor, selecciona una cuenta de la lista');
         $sheet->setDataValidation("D4:D$lastRow", $accountValidation);
+        $accountSheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
 
         $responsableValidation = $sheet->getCell("G4")->getDataValidation();
         $responsableValidation->setType(DataValidation::TYPE_CUSTOM);
@@ -320,6 +333,10 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'texto' => "🚛 Solo si el tipo es Transportista\nDeja en blanco si es Nómina"
             ],
             'I3' => [
+                'título' => 'Cédula',
+                'texto' => "🪪 Número de identificación del responsable (aplica solo si se selecciona nómina, campo obligatorio para la validación)"
+            ],
+            'J3' => [
                 'título' => 'Observación',
                 'texto' => "✍️ Describe brevemente el motivo del " . ($this->context === 'discounts' ? 'descuento' : 'gasto')
             ]

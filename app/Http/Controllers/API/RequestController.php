@@ -4,13 +4,16 @@ namespace App\Http\Controllers\API;
 
 use App\Events\RequestUpdated;
 use App\Http\Controllers\Controller;
+use App\Imports\RequestsImport;
 use App\Models\Account;
 use App\Models\Request;
 use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Maatwebsite\Excel\Excel;
 
 class RequestController extends Controller
 {
@@ -19,6 +22,30 @@ class RequestController extends Controller
     public function __construct(PersonnelService $personnelService)
     {
         $this->personnelService = $personnelService;
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+            'context' => 'required|in:discounts,expenses',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $file = $request->file('file');
+            $context = $request->input('context');
+
+            Excel::import(new RequestsImport($context), $file);
+
+            DB::commit();
+            return response()->json(['message' => 'Importación exitosa'], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error en la importación: ' . $e->getMessage());
+            return response()->json(['message' => 'Error al importar', 'error' => $e->getMessage()], 400);
+        }
     }
 
     public function index(HttpRequest $request)

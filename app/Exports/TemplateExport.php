@@ -210,7 +210,6 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         }
 
         $accounts = $query->pluck('name')->toArray();
-        Log::info('Cuentas obtenidas: ' . json_encode($accounts)); // Depurar
         return $accounts;
     }
 

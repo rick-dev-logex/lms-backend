@@ -13,7 +13,8 @@ class AccountController extends Controller
     public function index(Request $request)
     {
         // Filtrar únicamente cuentas activas
-        $query = Account::where('account_status', 'active')->orderBy('name', 'asc');
+
+        $query = Account::orderBy('name', 'asc');
 
         // Filtro por tipo de cuenta, si se pasa el parámetro
         if ($request->has('account_type')) {

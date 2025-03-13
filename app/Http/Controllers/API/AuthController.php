@@ -91,6 +91,8 @@ class AuthController extends Controller
                 'name'        => $user->name,
                 'role'        => $user->role?->name,
                 'permissions' => $user->permissions->pluck('name'),
+                'dob'        => $user->dob,
+                'phone'        => $user->phone,
                 'iat'         => time(),
                 'exp'         => time() + $tokenDuration
             ];

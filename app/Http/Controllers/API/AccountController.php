@@ -37,8 +37,6 @@ class AccountController extends Controller
         return response()->json(["data" => $query->get()]);
     }
 
-
-
     public function store(Request $request)
     {
         // Validación estricta

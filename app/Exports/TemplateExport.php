@@ -14,14 +14,12 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Log;
 
 class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTitle
 {
     private const COLOR_PRIMARY = '941e1e';
     private const COLOR_SECONDARY = '1E2837';
     private const COLOR_LIGHT = 'F8FAFC';
-    private const COLOR_HOVER = 'E2E8F0';
 
     private $context;
 
@@ -60,7 +58,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'F001',
                 'Alimentación',
                 '100.00',
-                'ADMIN',
+                'ADMN',
                 'VEINTIMILLA CRESPO JUAN ERNESTO',
                 '',
                 '1712345678',

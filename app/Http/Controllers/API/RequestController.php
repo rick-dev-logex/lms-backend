@@ -24,7 +24,7 @@ class RequestController extends Controller
         $this->personnelService = $personnelService;
     }
 
-    public function import(Request $request)
+    public function import(HttpRequest $request, Excel $excel)
     {
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv',
@@ -36,15 +36,25 @@ class RequestController extends Controller
 
             $file = $request->file('file');
             $context = $request->input('context');
+            $userId = auth()->id();
 
-            Excel::import(new RequestsImport($context), $file);
+            Log::info('Archivo recibido: ' . $file->getClientOriginalName());
+            Log::info('Contexto: ' . $context);
+
+            $import = new RequestsImport($context, $userId);
+            $excel->import($import, $file);
+
+            if (!empty($import->errors)) {
+                throw new \Exception(json_encode($import->errors));
+            }
 
             DB::commit();
             return response()->json(['message' => 'Importación exitosa'], 200);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en la importación: ' . $e->getMessage());
-            return response()->json(['message' => 'Error al importar', 'error' => $e->getMessage()], 400);
+            $errors = json_decode($e->getMessage(), true) ?? [$e->getMessage()];
+            return response()->json(['errors' => $errors], 400);
         }
     }
 

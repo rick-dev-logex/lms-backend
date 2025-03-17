@@ -22,10 +22,12 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
     private const COLOR_LIGHT = 'F8FAFC';
 
     private $context;
+    private $projectNames;
 
-    public function __construct(string $context = 'discounts')
+    public function __construct(string $context = 'discounts', array $projectNames = ['Sin proyectos asignados'])
     {
         $this->context = $context;
+        $this->projectNames = $projectNames;
     }
 
     public function title(): string
@@ -58,10 +60,10 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'F001',
                 'Alimentación',
                 '100.00',
-                'ADMN',
-                'VEINTIMILLA CRESPO JUAN ERNESTO',
+                $this->projectNames[0], // Usar el primer proyecto como ejemplo
+                'ALARCON LEMA GUSTAVO ROLANDO',
                 '',
-                '1712345678',
+                '1719443465',
                 'Ejemplo - Puedes eliminar esta fila.'
             ]
         ]);
@@ -207,8 +209,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
             $query->where('account_affects', ['expense', 'both']);
         }
 
-        $accounts = $query->pluck('name')->toArray();
-        return $accounts;
+        return $query->pluck('name')->toArray();
     }
 
     private function setupDataValidations($sheet, $lastRow)
@@ -249,16 +250,35 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         foreach ($accounts as $index => $account) {
             $accountSheet->setCellValue("A" . ($index + 1), $account);
         }
+        $accountCount = count($accounts) ?: 1;
         $accountValidation = $sheet->getCell('D4')->getDataValidation();
         $accountValidation->setType(DataValidation::TYPE_LIST);
         $accountValidation->setAllowBlank(false);
         $accountValidation->setShowDropDown(true);
-        $accountValidation->setFormula1('Cuentas!$A$1:$A$' . count($accounts));
+        $accountValidation->setFormula1("Cuentas!\$A\$1:\$A\$$accountCount");
         $accountValidation->setShowErrorMessage(true);
         $accountValidation->setErrorTitle('Cuenta no válida');
         $accountValidation->setError('Por favor, selecciona una cuenta de la lista');
         $sheet->setDataValidation("D4:D$lastRow", $accountValidation);
         $accountSheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
+
+        // Hoja auxiliar para proyectos
+        $projectSheet = $spreadsheet->createSheet();
+        $projectSheet->setTitle('Proyectos');
+        foreach ($this->projectNames as $index => $project) {
+            $projectSheet->setCellValue("A" . ($index + 1), $project);
+        }
+        $projectCount = count($this->projectNames) ?: 1;
+        $projectValidation = $sheet->getCell('F4')->getDataValidation();
+        $projectValidation->setType(DataValidation::TYPE_LIST);
+        $projectValidation->setAllowBlank(false);
+        $projectValidation->setShowDropDown(true);
+        $projectValidation->setFormula1("Proyectos!\$A\$1:\$A\$$projectCount");
+        $projectValidation->setShowErrorMessage(true);
+        $projectValidation->setErrorTitle('Proyecto no válido');
+        $projectValidation->setError('Por favor, selecciona un proyecto de la lista');
+        $sheet->setDataValidation("F4:F$lastRow", $projectValidation);
+        $projectSheet->setSheetState(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet::SHEETSTATE_HIDDEN);
 
         $responsableValidation = $sheet->getCell("G4")->getDataValidation();
         $responsableValidation->setType(DataValidation::TYPE_CUSTOM);
@@ -319,7 +339,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
             ],
             'F3' => [
                 'título' => 'Proyecto',
-                'texto' => "🏢 Selecciona el proyecto al que pertenece"
+                'texto' => "🏢 Selecciona el proyecto al que pertenece de la lista desplegable"
             ],
             'G3' => [
                 'título' => 'Responsable',

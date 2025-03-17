@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Imports\RequestsImport;
 use App\Models\Account;
 use App\Models\Request;
+use App\Models\User;
 use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
 use Illuminate\Http\Request as HttpRequest;
@@ -36,10 +37,12 @@ class RequestController extends Controller
 
             $file = $request->file('file');
             $context = $request->input('context');
-            $userId = auth()->id();
+            $jwt = $request->input("jwt_payload");
+            $userId = $jwt['user_id'];
 
             Log::info('Archivo recibido: ' . $file->getClientOriginalName());
             Log::info('Contexto: ' . $context);
+            Log::info('USER ID: ' . $userId);
 
             $import = new RequestsImport($context, $userId);
             $excel->import($import, $file);
@@ -60,9 +63,10 @@ class RequestController extends Controller
 
     public function index(HttpRequest $request)
     {
+        $jwt = $request->input("jwt_payload");
+
         try {
-            // Obtener el usuario autenticado
-            $user = auth()->user();
+            $user = User::find($jwt['user_id']);
             $assignedProjectIds = [];
 
             if ($user && $user->assignedProjects) {

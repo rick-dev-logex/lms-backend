@@ -3,17 +3,62 @@
 namespace App\Http\Controllers;
 
 use App\Exports\TemplateExport;
+use App\Models\User;
+use App\Models\Project;
 use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 
 class TemplateController extends Controller
 {
-    public function downloadDiscountsTemplate()
+    public function downloadDiscountsTemplate(Request $request)
     {
-        return Excel::download(new TemplateExport('discounts'), 'plantilla_descuentos.xlsx');
+        Log::info("Request recibido en downloadDiscountsTemplate: " . json_encode($request->all()));
+        $projectNames = $this->getProjectNamesFromJwt($request);
+        return Excel::download(new TemplateExport('discounts', $projectNames), 'plantilla_descuentos.xlsx');
     }
 
-    public function downloadExpensesTemplate()
+    public function downloadExpensesTemplate(Request $request)
     {
-        return Excel::download(new TemplateExport('expenses'), 'plantilla_gastos.xlsx');
+        Log::info("Request recibido en downloadExpensesTemplate: " . json_encode($request->all()));
+        $projectNames = $this->getProjectNamesFromJwt($request);
+        return Excel::download(new TemplateExport('expenses', $projectNames), 'plantilla_gastos.xlsx');
+    }
+
+    private function getProjectNamesFromJwt(Request $request): array
+    {
+        $jwtToken = $request->cookie('jwt-token');
+        if (!$jwtToken) {
+            Log::warning("No 'jwt-token' cookie found. Cookies: " . json_encode($request->cookies->all()));
+            return ['Sin proyectos asignados'];
+        }
+
+        try {
+            // Reemplaza 'tu-clave-secreta' con la clave real usada para firmar el JWT
+            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
+            $jwt = (array) $decoded;
+        } catch (\Exception $e) {
+            Log::error("Error decoding JWT from 'jwt-token' cookie: " . $e->getMessage());
+            return ['Sin proyectos asignados'];
+        }
+
+        if (!isset($jwt['user_id'])) {
+            Log::warning("No user_id found in decoded JWT: " . json_encode($jwt));
+            return ['Sin proyectos asignados'];
+        }
+
+        $user = User::with('assignedProjects')->find($jwt['user_id']);
+        Log::info("Fetched User: " . json_encode($user));
+
+        if ($user && $user->assignedProjects && !empty($user->assignedProjects->projects)) {
+            $projectNames = Project::whereIn('id', $user->assignedProjects->projects)
+                ->pluck('name')
+                ->toArray();
+            return !empty($projectNames) ? $projectNames : ['Sin proyectos asignados'];
+        }
+
+        return ['Sin proyectos asignados'];
     }
 }

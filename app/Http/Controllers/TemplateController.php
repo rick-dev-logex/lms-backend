@@ -16,14 +16,32 @@ class TemplateController extends Controller
     public function downloadDiscountsTemplate(Request $request)
     {
         Log::info("Request recibido en downloadDiscountsTemplate: " . json_encode($request->all()));
+
         $projectNames = $this->getProjectNamesFromJwt($request);
+
+        // Verificar si hay proyectos asignados
+        if ($projectNames === ['Sin proyectos asignados']) {
+            return response()->json([
+                'message' => 'No tienes proyectos asignados aún. Por favor, pide que te asignen al menos un proyecto para poder continuar.'
+            ], 403); // 403 Forbidden para indicar que no se permite la acción
+        }
+
         return Excel::download(new TemplateExport('discounts', $projectNames), 'plantilla_descuentos.xlsx');
     }
 
     public function downloadExpensesTemplate(Request $request)
     {
         Log::info("Request recibido en downloadExpensesTemplate: " . json_encode($request->all()));
+
         $projectNames = $this->getProjectNamesFromJwt($request);
+
+        // Verificar si hay proyectos asignados
+        if ($projectNames === ['Sin proyectos asignados']) {
+            return response()->json([
+                'message' => 'No tienes proyectos asignados aún. Por favor, pide que te asignen al menos un proyecto para poder continuar.'
+            ], 403);
+        }
+
         return Excel::download(new TemplateExport('expenses', $projectNames), 'plantilla_gastos.xlsx');
     }
 
@@ -36,7 +54,6 @@ class TemplateController extends Controller
         }
 
         try {
-            // Reemplaza 'tu-clave-secreta' con la clave real usada para firmar el JWT
             $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
             $jwt = (array) $decoded;
         } catch (\Exception $e) {

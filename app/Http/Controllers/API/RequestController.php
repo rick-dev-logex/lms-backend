@@ -10,6 +10,8 @@ use App\Models\Request;
 use App\Models\User;
 use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,8 +39,19 @@ class RequestController extends Controller
 
             $file = $request->file('file');
             $context = $request->input('context');
-            $jwt = $request->input("jwt_payload");
-            $userId = $jwt['user_id'];
+
+            $jwtToken = $request->cookie('jwt-token');
+            if (!$jwtToken) {
+                throw new \Exception("No se encontró el token de autenticación en la cookie.");
+            }
+
+            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
+            $jwt = (array) $decoded;
+            $userId = $jwt['user_id'] ?? null;
+
+            if (!$userId) {
+                throw new \Exception("No se encontró el ID de usuario en el token JWT.");
+            }
 
             Log::info('Archivo recibido: ' . $file->getClientOriginalName());
             Log::info('Contexto: ' . $context);
@@ -56,8 +69,11 @@ class RequestController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error en la importación: ' . $e->getMessage());
-            $errors = json_decode($e->getMessage(), true) ?? [$e->getMessage()];
-            return response()->json(['errors' => $errors], 400);
+            $errors = json_decode($e->getMessage(), true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($errors)) {
+                return response()->json(['errors' => $errors], 400);
+            }
+            return response()->json(['errors' => [$e->getMessage()]], 500);
         }
     }
 

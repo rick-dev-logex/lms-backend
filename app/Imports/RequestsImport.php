@@ -21,11 +21,11 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     private $personals;
     private $vehicles;
     private $nextSequence;
-    public $errors = []; // Hacer público para que el controlador lo acceda
+    public $errors = [];
     private $rowNumber = 0;
     private $processedRows = 0;
     private $userProjects;
-    private $shouldStop = false; // Bandera para detener el procesamiento
+    private $shouldStop = false;
 
     public function __construct(string $context = 'discounts', $userId = null)
     {
@@ -60,12 +60,15 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
             if ($userId) {
                 $userProjects = UserAssignedProjects::where('user_id', $userId)->first();
-                $this->userProjects = $userProjects ? json_decode($userProjects->projects, true) : [];
+                $this->userProjects = $userProjects ? $userProjects->projects : [];
             } else {
                 $this->userProjects = [];
             }
 
             Log::info("Iniciando importación con contexto: {$context}, próximo ID: {$this->nextSequence}");
+            Log::info("Proyectos disponibles: " . json_encode($this->projects));
+            Log::info("Proyectos asignados al usuario: " . json_encode($this->userProjects));
+            Log::info("Personals cargados: " . json_encode($this->personals));
         } catch (\Exception $e) {
             Log::error("Error al inicializar importación: " . $e->getMessage());
             throw new \Exception("No se pudo inicializar la importación. Contacte al administrador.");
@@ -146,7 +149,11 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         }
 
         $projectName = strtolower(trim($mappedRow['proyecto']));
-        if (!in_array($projectName, array_map('strtolower', $this->userProjects))) {
+        $userProjectNames = array_map('strtolower', array_map(function ($project) {
+            return array_search($project, $this->projects) ?: $project;
+        }, $this->userProjects));
+        Log::info("Proyectos asignados convertidos a nombres: " . json_encode($userProjectNames));
+        if (!in_array($projectName, $userProjectNames)) {
             $errors[] = "Fila {$this->rowNumber}: Proyecto '{$mappedRow['proyecto']}' no está asignado al usuario";
         }
         $projectId = $this->projects[$mappedRow['proyecto']] ?? null;
@@ -166,9 +173,9 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             if (empty($cedula)) {
                 $errors[] = "Fila {$this->rowNumber}: Cédula requerida para tipo 'nomina'";
             } else {
-                $responsibleId = $this->personals[$mappedRow['responsable']] ?? null;
+                $responsibleId = $this->personals[$cedula] ?? null;
                 if (!$responsibleId) {
-                    $errors[] = "Fila {$this->rowNumber}: Responsable '{$mappedRow['responsable']}' no encontrado con cédula '{$cedula}'";
+                    $errors[] = "Fila {$this->rowNumber}: Responsable con cédula '{$cedula}' no encontrado";
                 }
             }
         }
@@ -187,7 +194,10 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         }
 
         $prefix = $this->context === 'discounts' ? 'D-' : 'G-';
-        $uniqueId = sprintf('%s%05d', $prefix, $this->nextSequence);
+        $uniqueId = $this->nextSequence <= 9999
+            ? sprintf('%s%05d', $prefix, $this->nextSequence)
+            : sprintf('%s%d', $prefix, $this->nextSequence);
+
         $potentialRequestData = [
             'unique_id' => $uniqueId,
             'type' => $this->context === 'discounts' ? 'discount' : 'expense',
@@ -205,7 +215,6 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             'updated_at' => now(),
         ];
 
-        // Mover el log aquí para que siempre se muestre, incluso con errores
         Log::info("Datos potenciales para fila {$this->rowNumber} antes de validaciones: " . json_encode($potentialRequestData));
 
         if (!empty($errors)) {

@@ -61,9 +61,9 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'Alimentación',
                 '100.00',
                 $this->projectNames[0], // Usar el primer proyecto como ejemplo
-                'ALARCON LEMA GUSTAVO ROLANDO',
+                'ALARCON LARREA CARLOS JULIO',
                 '',
-                '1719443465',
+                '1734567890',
                 'Ejemplo - Puedes eliminar esta fila.'
             ]
         ]);

@@ -161,15 +161,29 @@ class ReposicionController extends Controller
             }
             DB::beginTransaction();
 
-            // Validar la entrada
-            $validated = $request->validate([
-                'request_ids' => 'required|array',
-                'request_ids.*' => 'exists:requests,unique_id',
-                'attachment' => 'required|file'
-            ]);
+            // Obtener request_ids
+            $requestIds = $request->input('request_ids');
+            $existingRequests = Request::whereIn('unique_id', $requestIds)->get();
 
-            // Obtener las solicitudes usando el array directamente
-            $requests = Request::whereIn('unique_id', $validated['request_ids'])->get();
+            // Validación manual
+            if (!$requestIds || !is_array($requestIds)) {
+                throw ValidationException::withMessages([
+                    'request_ids' => ['The request_ids field is required and must be an array.'],
+                ]);
+            }
+            if ($existingRequests->count() !== count($requestIds)) {
+                throw ValidationException::withMessages([
+                    'request_ids' => ['One or more request_ids do not exist in the requests table.'],
+                ]);
+            }
+            if (!$request->hasFile('attachment')) {
+                throw ValidationException::withMessages([
+                    'attachment' => ['The attachment field is required.'],
+                ]);
+            }
+
+            // Obtener las solicitudes
+            $requests = $existingRequests;
 
             if ($requests->isEmpty()) {
                 throw new \Exception('No requests found with the provided IDs');
@@ -188,7 +202,6 @@ class ReposicionController extends Controller
 
                 try {
                     $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
-                    Log::info('Valor de GOOGLE_CLOUD_KEY_BASE64: ' . $base64Key); // Depurar
 
                     if (!$base64Key) {
                         throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
@@ -220,7 +233,6 @@ class ReposicionController extends Controller
                 }
 
                 // Subir el archivo
-
                 try {
                     $object = $bucket->upload(
                         fopen($file->getRealPath(), 'r'),
@@ -243,13 +255,13 @@ class ReposicionController extends Controller
                 'total_reposicion' => $requests->sum('amount'),
                 'status' => 'pending',
                 'project' => $project,
-                'detail' => $validated['request_ids'],
+                'detail' => $requestIds,
                 'attachment_url' => $fileUrl ?? null,
                 'attachment_name' => $fileName ?? null
             ]);
 
             // Actualizar el estado de las solicitudes relacionadas
-            Request::whereIn('unique_id', $validated['request_ids'])
+            Request::whereIn('unique_id', $requestIds)
                 ->update(['status' => 'in_reposition']);
 
             DB::commit();

@@ -15,7 +15,6 @@ class TemplateController extends Controller
 {
     public function downloadDiscountsTemplate(Request $request)
     {
-        Log::info("Request recibido en downloadDiscountsTemplate: " . json_encode($request->all()));
 
         $projectNames = $this->getProjectNamesFromJwt($request);
 
@@ -67,7 +66,6 @@ class TemplateController extends Controller
         }
 
         $user = User::with('assignedProjects')->find($jwt['user_id']);
-        Log::info("Fetched User: " . json_encode($user));
 
         if ($user && $user->assignedProjects && !empty($user->assignedProjects->projects)) {
             $projectNames = Project::whereIn('id', $user->assignedProjects->projects)

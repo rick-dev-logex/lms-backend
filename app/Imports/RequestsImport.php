@@ -66,9 +66,6 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             }
 
             Log::info("Iniciando importación con contexto: {$context}, próximo ID: {$this->nextSequence}");
-            Log::info("Proyectos disponibles: " . json_encode($this->projects));
-            Log::info("Proyectos asignados al usuario: " . json_encode($this->userProjects));
-            Log::info("Personals cargados: " . json_encode($this->personals));
         } catch (\Exception $e) {
             Log::error("Error al inicializar importación: " . $e->getMessage());
             throw new \Exception("No se pudo inicializar la importación. Contacte al administrador.");
@@ -148,17 +145,15 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $errors[] = "Fila {$this->rowNumber}: Falta el proyecto";
         }
 
-        $projectName = strtolower(trim($mappedRow['proyecto']));
-        $userProjectNames = array_map('strtolower', array_map(function ($project) {
-            return array_search($project, $this->projects) ?: $project;
-        }, $this->userProjects));
-        Log::info("Proyectos asignados convertidos a nombres: " . json_encode($userProjectNames));
-        if (!in_array($projectName, $userProjectNames)) {
-            $errors[] = "Fila {$this->rowNumber}: Proyecto '{$mappedRow['proyecto']}' no está asignado al usuario";
-        }
-        $projectId = $this->projects[$mappedRow['proyecto']] ?? null;
+        $projectName = trim($mappedRow['proyecto']); // Nombre original del Excel
+        $projectId = $this->projects[$projectName] ?? null;
         if (!$projectId) {
-            $errors[] = "Fila {$this->rowNumber}: Proyecto '{$mappedRow['proyecto']}' no encontrado en la base de datos";
+            $errors[] = "Fila {$this->rowNumber}: Proyecto '{$projectName}' no encontrado en la base de datos";
+        } else {
+            $userProjectIds = $this->userProjects;
+            if (!in_array($projectId, $userProjectIds)) {
+                $errors[] = "Fila {$this->rowNumber}: Proyecto '{$projectName}' no está asignado al usuario";
+            }
         }
 
         $accountName = trim($mappedRow['cuenta']);
@@ -207,7 +202,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             'invoice_number' => $mappedRow['no_factura'] ?? null,
             'account_id' => $accountId,
             'amount' => floatval($mappedRow['valor']),
-            'project' => $projectName,
+            'project' => $projectId, // Guardar el UUID en lugar del nombre
             'responsible_id' => $responsibleId,
             'transport_id' => $transportId ?? null,
             'note' => $mappedRow['observacion'] ?? null,

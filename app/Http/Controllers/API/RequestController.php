@@ -6,6 +6,7 @@ use App\Events\RequestUpdated;
 use App\Http\Controllers\Controller;
 use App\Imports\RequestsImport;
 use App\Models\Account;
+use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
 use App\Notifications\RequestNotification;
@@ -46,8 +47,7 @@ class RequestController extends Controller
             }
 
             $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
-            $jwt = (array) $decoded;
-            $userId = $jwt['user_id'] ?? null;
+            $userId = $decoded->user_id ?? null;
 
             if (!$userId) {
                 throw new \Exception("No se encontró el ID de usuario en el token JWT.");
@@ -79,25 +79,29 @@ class RequestController extends Controller
 
     public function index(HttpRequest $request)
     {
-        $jwt = $request->input("jwt_payload");
-
         try {
-            $user = User::find($jwt['user_id']);
-            $assignedProjectIds = [];
-
-            if ($user && $user->assignedProjects) {
-                $assignedProjectIds = $user->assignedProjects->projects;
+            $jwtToken = $request->cookie('jwt-token');
+            if (!$jwtToken) {
+                throw new \Exception("No se encontró el token de autenticación en la cookie.");
             }
 
-            // Iniciar la consulta base
-            $query = Request::query();
+            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
+            $userId = $decoded->user_id ?? null;
+            if (!$userId) {
+                throw new \Exception("No se encontró el ID de usuario en el token JWT.");
+            }
+            $user = User::find($userId);
 
-            // Filtrar por proyectos asignados
+            $assignedProjectIds = [];
+            if ($user && $user->assignedProjects) {
+                $assignedProjectIds = array_map('strtolower', $user->assignedProjects->projects);
+            }
+
+            $query = Request::query();
             if (!empty($assignedProjectIds)) {
                 $query->whereIn('project', $assignedProjectIds);
             }
 
-            // Aplicar búsqueda global
             if ($request->filled('search')) {
                 $searchTerm = $request->search;
                 $query->where(function ($q) use ($searchTerm) {
@@ -108,14 +112,14 @@ class RequestController extends Controller
                 });
             }
 
-            // Aplicar filtros adicionales
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
             }
             if ($request->filled('status')) {
                 if ($request->input('action') === 'count') {
                     return response()->json(
-                        Request::whereMonth('created_at', now()->month)->whereYear('created_at', now()->year)
+                        Request::whereMonth('created_at', now()->month)
+                            ->whereYear('created_at', now()->year)
                             ->where('status', $request->status)
                             ->count()
                     );
@@ -123,7 +127,6 @@ class RequestController extends Controller
                 $query->where('status', $request->status);
             }
 
-            // Ordenamiento
             $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
             $allowedSortFields = ['unique_id', 'created_at', 'updated_at', 'amount', 'project', 'status'];
@@ -131,15 +134,12 @@ class RequestController extends Controller
                 $query->orderBy($sortField, $sortOrder);
             }
 
-            // Cargar la relación 'account'
             $query->with(['account:id,name']);
 
-            // Paginación
             $perPage = $request->input('per_page', 10);
             $page = $request->input('page', 1);
             $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
-            // Obtener IDs únicos para 'responsible' y 'transport'
             $responsibleIds = collect($paginator->items())
                 ->pluck('responsible_id')
                 ->filter()
@@ -152,7 +152,6 @@ class RequestController extends Controller
                 ->unique()
                 ->values();
 
-            // Obtener datos externos desde sistema_onix
             $responsibles = [];
             $transports = [];
 
@@ -175,7 +174,6 @@ class RequestController extends Controller
                     ->toArray();
             }
 
-            // Mapear los datos relacionados a cada solicitud
             $data = collect($paginator->items())->map(function ($item) use ($responsibles, $transports) {
                 if ($item->responsible_id && isset($responsibles[$item->responsible_id])) {
                     $item->responsible = $responsibles[$item->responsible_id];
@@ -206,11 +204,37 @@ class RequestController extends Controller
 
     public function show(HttpRequest $request, $id)
     {
-        $request->has('status') ?
-            $requests = Request::where('status', $request->status)->get() :
-            $requests = Request::all();
+        try {
+            $requestRecord = Request::with(['account:id,name'])->findOrFail($id);
+            $responsible = null;
+            $transport = null;
 
-        return response()->json($requests->load(['account', 'project', 'responsible', 'transport']));
+            if ($requestRecord->responsible_id) {
+                $responsible = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('id', $requestRecord->responsible_id)
+                    ->select('id', 'nombre_completo')
+                    ->first();
+            }
+
+            if ($requestRecord->transport_id) {
+                $transport = DB::connection('sistema_onix')
+                    ->table('onix_vehiculos')
+                    ->where('id', $requestRecord->transport_id)
+                    ->select('id', 'name')
+                    ->first();
+            }
+
+            $requestRecord->responsible = $responsible;
+            $requestRecord->transport = $transport;
+
+            return response()->json($requestRecord);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al obtener la solicitud',
+                'error' => $e->getMessage()
+            ], 404);
+        }
     }
 
     public function store(HttpRequest $request)
@@ -223,7 +247,7 @@ class RequestController extends Controller
                 'invoice_number' => 'required|string',
                 'account_id' => 'required|exists:accounts,id',
                 'amount' => 'required|numeric|min:0',
-                'project' => 'required|string',
+                'project' => 'required|string', // Nombre del proyecto desde el frontend
                 'note' => 'required|string'
             ];
 
@@ -235,22 +259,31 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
-            // Generar el identificador único incremental con prefijo
+            // Buscar el UUID del proyecto
+            $projectName = trim($validated['project']);
+            $project = Project::where('name', $projectName)->first();
+            if (!$project) {
+                throw new \Exception("Proyecto no encontrado: {$projectName}");
+            }
+            $projectId = $project->id;
+
+            // Generar el identificador único
             $prefix = $validated['type'] === 'expense' ? 'G-' : 'D-';
             $lastRecord = Request::where('type', $validated['type'])->orderBy('id', 'desc')->first();
             $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
-            $unique_id = $prefix . $nextId;
+            $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
 
             $requestData = [
                 'type' => $validated['type'],
                 'personnel_type' => $validated['personnel_type'],
-                'project' => strtoupper($validated['project']),
+                'project' => $projectId, // Guardar el UUID
                 'request_date' => $validated['request_date'],
                 'invoice_number' => $validated['invoice_number'],
                 'account_id' => $validated['account_id'],
                 'amount' => $validated['amount'],
                 'note' => $validated['note'],
-                'unique_id' => $unique_id
+                'unique_id' => $uniqueId,
+                'status' => 'pending'
             ];
 
             if (isset($validated['responsible_id'])) {
@@ -276,32 +309,56 @@ class RequestController extends Controller
 
     public function update(HttpRequest $request, Request $requestRecord)
     {
-        $validated = $request->validate([
-            'status' => 'sometimes|in:pending,paid,rejected,review,in_reposition',
-            'note' => 'sometimes|string',
-        ]);
+        try {
+            $baseRules = [
+                'status' => 'sometimes|in:pending,paid,rejected,review,in_reposition',
+                'note' => 'sometimes|string',
+                'project' => 'sometimes|string', // Nombre del proyecto desde el frontend
+            ];
 
-        $oldStatus = $requestRecord->status;
-        $requestRecord->update($validated);
-
-        if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
-            $responsible = $requestRecord->responsible;
-            // Disparar el evento de broadcasting
-            broadcast(new RequestUpdated($requestRecord))->toOthers();
-
-            // Enviar notificaciones según el estado
-            if ($responsible) {
-                $responsible->notify(new RequestNotification($requestRecord, $validated['status']));
+            if ($request->input('personnel_type') === 'nomina') {
+                $baseRules['responsible_id'] = 'sometimes|exists:sistema_onix.onix_personal,id';
+            } else {
+                $baseRules['transport_id'] = 'sometimes|exists:sistema_onix.onix_vehiculos,id';
             }
-        }
 
-        return response()->json($requestRecord);
+            $validated = $request->validate($baseRules);
+
+            // Si se envía un proyecto, convertirlo a UUID
+            if (isset($validated['project'])) {
+                $projectName = trim($validated['project']);
+                $project = Project::where('name', $projectName)->first();
+                if (!$project) {
+                    throw new \Exception("Proyecto no encontrado: {$projectName}");
+                }
+                $validated['project'] = $project->id;
+            }
+
+            $oldStatus = $requestRecord->status;
+            $requestRecord->update($validated);
+
+            if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
+                $responsible = $requestRecord->responsible;
+                broadcast(new RequestUpdated($requestRecord))->toOthers();
+
+                if ($responsible) {
+                    $responsible->notify(new RequestNotification($requestRecord, $validated['status']));
+                }
+            }
+
+            return response()->json($requestRecord);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Error al actualizar la solicitud',
+                'error' => $e->getMessage()
+            ], 422);
+        }
     }
 
     public function destroy(Request $requestRecord)
     {
         $requestRecord->delete();
-        return response()->json(['message' => 'Request deleted successfully.']);
+        return response()->json(['message' => 'Request deleted successfully']);
     }
 
     public function uploadDiscounts(HttpRequest $request)
@@ -325,7 +382,13 @@ class RequestController extends Controller
                         throw new \Exception("Tipo de personal inválido: {$discount['Tipo']}. Debe ser 'Nómina/nomina' o 'Transportista/transportista'");
                     }
 
-                    $projectId = $this->getProjectId($discount['Proyecto']);
+                    $projectName = trim($discount['Proyecto']);
+                    $project = Project::where('name', $projectName)->first();
+                    if (!$project) {
+                        throw new \Exception("Proyecto no encontrado: {$projectName}");
+                    }
+                    $projectId = $project->id;
+
                     $responsibleId = null;
                     $transportId = null;
 
@@ -346,7 +409,7 @@ class RequestController extends Controller
                         'invoice_number' => $discount['No. Factura'],
                         'account_id' => $this->getAccountId($discount['Cuenta']),
                         'amount' => floatval($discount['Valor']),
-                        'project' => $projectId,
+                        'project' => $projectId, // Guardar el UUID
                         'responsible_id' => $responsibleId,
                         'transport_id' => $transportId,
                         'note' => $discount['Observación'],
@@ -384,9 +447,8 @@ class RequestController extends Controller
                         ->first();
                     $nextId = $lastRecord ?
                         ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
-                    $mappedData['unique_id'] = $prefix . $nextId;
+                    $mappedData['unique_id'] = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
 
-                    // Crear el registro
                     Request::create($mappedData);
                     $processedCount++;
                 } catch (\Exception $e) {
@@ -422,11 +484,9 @@ class RequestController extends Controller
 
     private function normalizePersonnelType($type)
     {
-        // Convertir a minúsculas y quitar tildes
         $normalized = strtolower(trim($type));
         $normalized = str_replace('ó', 'o', $normalized);
 
-        // Mapear variaciones comunes
         $mappings = [
             'nomina' => 'nomina',
             'nómina' => 'nomina',
@@ -444,19 +504,6 @@ class RequestController extends Controller
             throw new \Exception("Cuenta no encontrada: {$accountName}");
         }
         return $account->id;
-    }
-
-    private function getProjectId($projectName)
-    {
-        $project = DB::connection('sistema_onix')
-            ->table('onix_proyectos')
-            ->where('name', $projectName)
-            ->first();
-
-        if (!$project) {
-            throw new \Exception("Proyecto no encontrado: {$projectName}");
-        }
-        return $project->id;
     }
 
     private function getResponsibleId($responsibleName)

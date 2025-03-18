@@ -260,6 +260,8 @@ class ReposicionController extends Controller
                 'attachment_name' => $fileName ?? null
             ]);
 
+            $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+
             // Actualizar el estado de las solicitudes relacionadas
             Request::whereIn('unique_id', $requestIds)
                 ->update(['status' => 'in_reposition']);

@@ -51,9 +51,6 @@ class ReposicionController extends Controller
             // Procesar proyectos asignados correctamente
             $assignedProjectIds = [];
             if ($user && isset($user->assignedProjects)) {
-                // Log del valor original para diagnóstico
-                Log::info('Raw assigned projects in reposicion:', ['rawValue' => $user->assignedProjects]);
-
                 // Si es una relación con un objeto, extraer la propiedad 'projects'
                 if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
                     $projectsValue = $user->assignedProjects->projects;
@@ -77,9 +74,6 @@ class ReposicionController extends Controller
             if (!empty($assignedProjectIds)) {
                 // Convertir todos los IDs a string para consistencia
                 $assignedProjectIds = array_map('strval', $assignedProjectIds);
-
-                // Log para verificar que tenemos un array plano
-                Log::info('Processed project IDs in reposicion:', ['ids' => $assignedProjectIds]);
             }
 
             $query = Reposicion::query();
@@ -112,9 +106,6 @@ class ReposicionController extends Controller
             // Obtener todas las reposiciones sin paginación
             $reposiciones = $query->get();
 
-            // Log para diagnóstico
-            Log::info('Fetched reposiciones count:', ['count' => $reposiciones->count()]);
-
             // Para cada reposición, cargar sus solicitudes relacionadas
             $reposiciones->each(function ($reposicion) {
                 $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
@@ -139,13 +130,6 @@ class ReposicionController extends Controller
                 $repoData['project_name'] = $projects[$reposicion->project] ?? 'Unknown';
                 return $repoData;
             })->values()->all();
-
-            // Log para diagnóstico
-            Log::info('Response data format (reposiciones):', [
-                'dataCount' => count($data),
-                'firstItem' => !empty($data) ? json_encode(array_keys($data[0])) : 'No data',
-                'hasData' => isset($data) && is_array($data)
-            ]);
 
             return response()->json($data);
         } catch (\Exception $e) {

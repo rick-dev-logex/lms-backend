@@ -53,10 +53,6 @@ class RequestController extends Controller
                 throw new \Exception("No se encontró el ID de usuario en el token JWT.");
             }
 
-            Log::info('Archivo recibido: ' . $file->getClientOriginalName());
-            Log::info('Contexto: ' . $context);
-            Log::info('USER ID: ' . $userId);
-
             $import = new RequestsImport($context, $userId);
             $excel->import($import, $file);
 
@@ -103,8 +99,6 @@ class RequestController extends Controller
             // Procesar proyectos asignados correctamente
             $assignedProjectIds = [];
             if ($user && isset($user->assignedProjects)) {
-                // Log del valor original para diagnóstico
-                Log::info('Raw assigned projects:', ['rawValue' => $user->assignedProjects]);
 
                 // Si es una relación con un objeto, extraer la propiedad 'projects'
                 if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
@@ -129,9 +123,6 @@ class RequestController extends Controller
             if (!empty($assignedProjectIds)) {
                 // Convertir todos los IDs a string para consistencia
                 $assignedProjectIds = array_map('strval', $assignedProjectIds);
-
-                // Log para verificar que tenemos un array plano
-                Log::info('Processed project IDs:', ['ids' => $assignedProjectIds]);
             }
 
             // Build the query
@@ -188,9 +179,6 @@ class RequestController extends Controller
 
             // Fetch all requests without pagination
             $requests = $query->get();
-
-            // Log para diagnóstico
-            Log::info('Fetched requests count:', ['count' => $requests->count()]);
 
             // Get IDs for related models
             $responsibleIds = $requests->pluck('responsible_id')->filter()->unique()->values();
@@ -253,13 +241,6 @@ class RequestController extends Controller
 
                 return $requestData;
             })->all();
-
-            // Log para diagnóstico
-            Log::info('Response data format:', [
-                'dataCount' => count($data),
-                'firstItem' => !empty($data) ? json_encode(array_keys($data[0])) : 'No data',
-                'hasData' => isset($data) && is_array($data)
-            ]);
 
             return response()->json($data);
         } catch (\Exception $e) {

@@ -314,7 +314,7 @@ class RequestController extends Controller
 
             // Buscar el UUID del proyecto
             $projectName = trim($validated['project']);
-            $project = Project::where('name', $projectName)->first();
+            $project = Project::where('id', $projectName)->first();
             if (!$project) {
                 throw new \Exception("Proyecto no encontrado: {$projectName}");
             }

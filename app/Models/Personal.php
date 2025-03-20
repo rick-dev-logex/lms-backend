@@ -21,6 +21,7 @@ class Personal extends Authenticatable
         'nombres',
         'proyecto',
         'estado_personal',
+        'deleted',
     ];
 
     protected $hidden = [

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Personal;
+use App\Models\Project;
 use Illuminate\Http\Request;
 
 class ResponsibleController extends Controller
@@ -11,16 +12,19 @@ class ResponsibleController extends Controller
     public function index(Request $request)
     {
         if ($request->input('action') === 'count') {
-            return response()->json(Personal::where('estado_personal', 'activo')->count());
+            return response()->json(Personal::whereAll(['estado_personal', 'deleted'], ['activo', 0])->count());
         } else {
-            $query = Personal::where('estado_personal', 'activo')->orderBy('nombre_completo', 'asc');
+            $query = Personal::whereAll(['estado_personal', 'deleted'], ['activo', 0])->orderBy('nombre_completo', 'asc');
             // Seleccionar campos específicos si se solicitan
             if ($request->filled('fields')) {
                 $query->select(explode(',', $request->fields));
             }
 
             if ($request->filled('proyecto')) {
-                $query->where('proyecto', $request->proyecto);
+                // Buscar el nombre del proyecto asociado al UUID
+                $project = Project::where('id', $request->proyecto)->first();
+                $projectName = $project ? $project->name : $request->proyecto;
+                $query->where('proyecto', $projectName);
             }
 
             if ($request->filled('area')) {
@@ -31,7 +35,7 @@ class ResponsibleController extends Controller
                 $query->count();
             }
 
-            return response()->json($query->get());
+            return response()->json($query->get()->toArray());
         }
     }
 

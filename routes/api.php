@@ -95,7 +95,6 @@ Route::middleware(['verify.jwt'])->group(function () {
         });
 
         Route::post('/register', [AuthController::class, 'register']);
-        Route::apiResource('/areas', AreaController::class);
     });
 
     // Rutas que requieren múltiples permisos
@@ -108,6 +107,7 @@ Route::middleware(['verify.jwt'])->group(function () {
         Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
 
         Route::post('/requests/import', [RequestController::class, 'import']);
+        Route::apiResource('/areas', AreaController::class);
     });
 
     // Rutas que requieren rol específico Y permiso específico

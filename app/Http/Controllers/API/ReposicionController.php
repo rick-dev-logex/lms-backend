@@ -5,9 +5,12 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Reposicion;
 use App\Models\Request;
+use App\Models\User;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Google\Cloud\Storage\StorageClient;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -28,129 +31,137 @@ class ReposicionController extends Controller
     public function index(HttpRequest $request)
     {
         try {
-            $query = Reposicion::query();
-
-            // Aplicar filtros
-            if ($request->filled('search')) {
-                $searchTerm = $request->search;
-                $query->where(function ($q) use ($searchTerm) {
-                    $q->where('project', 'like', "%{$searchTerm}%")
-                        ->orWhere('total_reposicion', 'like', "%{$searchTerm}%")
-                        ->orWhere('note', 'like', "%{$searchTerm}%");
-                });
+            // Obtener usuario y proyectos asignados
+            $jwtToken = $request->cookie('jwt-token');
+            if (!$jwtToken) {
+                throw new \Exception("No se encontró el token de autenticación en la cookie.");
             }
 
+            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
+            $userId = $decoded->user_id ?? null;
+            if (!$userId) {
+                throw new \Exception("No se encontró el ID de usuario en el token JWT.");
+            }
+
+            $user = User::find($userId);
+            if (!$user) {
+                throw new \Exception("Usuario no encontrado.");
+            }
+
+            // Procesar proyectos asignados correctamente
+            $assignedProjectIds = [];
+            if ($user && isset($user->assignedProjects)) {
+                // Log del valor original para diagnóstico
+                Log::info('Raw assigned projects in reposicion:', ['rawValue' => $user->assignedProjects]);
+
+                // Si es una relación con un objeto, extraer la propiedad 'projects'
+                if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
+                    $projectsValue = $user->assignedProjects->projects;
+
+                    // Si 'projects' es una cadena JSON, decodificarla
+                    if (is_string($projectsValue)) {
+                        $assignedProjectIds = json_decode($projectsValue, true) ?: [];
+                    }
+                    // Si ya es un array, usarlo directamente
+                    else if (is_array($projectsValue)) {
+                        $assignedProjectIds = $projectsValue;
+                    }
+                }
+                // Si es un array directo o una colección, usarlo
+                else if (is_array($user->assignedProjects)) {
+                    $assignedProjectIds = $user->assignedProjects;
+                }
+            }
+
+            // Asegurar que tenemos un array plano
+            if (!empty($assignedProjectIds)) {
+                // Convertir todos los IDs a string para consistencia
+                $assignedProjectIds = array_map('strval', $assignedProjectIds);
+
+                // Log para verificar que tenemos un array plano
+                Log::info('Processed project IDs in reposicion:', ['ids' => $assignedProjectIds]);
+            }
+
+            $query = Reposicion::query();
+
+            $period = $request->input('period', 'last_3_months');
+
+            // Aplicar filtros de período
+            if ($period === 'last_3_months') {
+                $query->where('created_at', '>=', now()->subMonths(3));
+            }
+
+            // Filtrar por proyectos asignados
+            if (!empty($assignedProjectIds)) {
+                $query->whereIn('project', $assignedProjectIds);
+            }
+
+            // Aplicar otros filtros si están presentes
             if ($request->filled('project')) {
-                $query->byProject($request->project);
+                $query->where('project', $request->project);
             }
 
             if ($request->filled('status')) {
-                $query->byStatus($request->status);
+                $query->where('status', $request->status);
             }
 
             if ($request->filled('month')) {
-                $query->byMonth($request->month);
+                $query->where('month', $request->month);
             }
 
-            // Ordenamiento
-            $sortField = $request->input('sort_by', 'created_at');
-            $sortOrder = $request->input('sort_order', 'desc');
-            $allowedSortFields = ['created_at', 'fecha_reposicion', 'total_reposicion', 'project', 'status'];
+            // Obtener todas las reposiciones sin paginación
+            $reposiciones = $query->get();
 
-            if (in_array($sortField, $allowedSortFields)) {
-                $query->orderBy($sortField, $sortOrder);
-            }
+            // Log para diagnóstico
+            Log::info('Fetched reposiciones count:', ['count' => $reposiciones->count()]);
 
-            // Paginación
-            $perPage = $request->input('per_page', 10);
-            $page = $request->input('page', 1);
-
-            $paginator = $query->paginate($perPage, ['*'], 'page', $page);
-
-            // Obtener todos los unique_ids de las solicitudes
-            $allRequestIds = collect($paginator->items())
-                ->pluck('detail')
-                ->flatten()
-                ->unique()
-                ->values()
-                ->toArray();
-
-            // Cargar las solicitudes con sus relaciones básicas
-            $requests = Request::whereIn('unique_id', $allRequestIds)
-                ->with('account:id,name')
-                ->get()
-                ->keyBy('unique_id');
-
-            // Obtener IDs únicos para responsables y transportes
-            $responsibleIds = $requests->pluck('responsible_id')->filter()->unique();
-            $transportIds = $requests->pluck('transport_id')->filter()->unique();
-
-            // Cargar datos de responsables
-            $responsibles = $responsibleIds->isNotEmpty()
-                ? DB::connection('sistema_onix')
-                ->table('onix_personal')
-                ->whereIn('id', $responsibleIds)
-                ->select('id', 'nombre_completo')
-                ->get()
-                ->keyBy('id')
-                : collect();
-
-            // Cargar datos de transportes
-            $transports = $transportIds->isNotEmpty()
-                ? DB::connection('sistema_onix')
-                ->table('onix_vehiculos')
-                ->whereIn('id', $transportIds)
-                ->select('id', 'name')
-                ->get()
-                ->keyBy('id')
-                : collect();
-
-            // Mapear los datos incluyendo toda la información relacionada
-            $data = collect($paginator->items())->map(function ($reposicion) use ($requests, $responsibles, $transports) {
-                // Mapear las solicitudes con sus relaciones
-                $reposicionRequests = collect($reposicion->detail)->map(function ($requestId) use ($requests, $responsibles, $transports) {
-                    $request = $requests->get($requestId);
-                    if ($request) {
-                        // Agregar información del responsable si existe
-                        if ($request->responsible_id && $responsibles->has($request->responsible_id)) {
-                            $request->responsible = [
-                                'id' => $request->responsible_id,
-                                'nombre_completo' => $responsibles->get($request->responsible_id)->nombre_completo
-                            ];
-                        }
-
-                        // Agregar información del transporte si existe
-                        if ($request->transport_id && $transports->has($request->transport_id)) {
-                            $request->transport = [
-                                'id' => $request->transport_id,
-                                'name' => $transports->get($request->transport_id)->name
-                            ];
-                        }
-                    }
-                    return $request;
-                })->filter();
-
-                $reposicion->requests = $reposicionRequests->values();
-                return $reposicion;
+            // Para cada reposición, cargar sus solicitudes relacionadas
+            $reposiciones->each(function ($reposicion) {
+                $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
             });
 
-            return response()->json([
-                'data' => $data,
-                'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
-                    'total' => $paginator->total(),
-                    'has_more' => $paginator->hasMorePages(),
-                ]
+            // Obtener proyectos para referencias
+            $projects = [];
+            if (!empty($assignedProjectIds)) {
+                $projects = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->whereIn('id', $assignedProjectIds)
+                    ->select('id', 'name')
+                    ->get()
+                    ->mapWithKeys(function ($project) {
+                        return [$project->id => $project->name];
+                    })->all();
+            }
+
+            // Agregar nombres de proyectos a los datos de respuesta
+            $data = $reposiciones->map(function ($reposicion) use ($projects) {
+                $repoData = $reposicion->toArray();
+                $repoData['project_name'] = $projects[$reposicion->project] ?? 'Unknown';
+                return $repoData;
+            })->values()->all();
+
+            // Log para diagnóstico
+            Log::info('Response data format (reposiciones):', [
+                'dataCount' => count($data),
+                'firstItem' => !empty($data) ? json_encode(array_keys($data[0])) : 'No data',
+                'hasData' => isset($data) && is_array($data)
             ]);
+
+            return response()->json($data);
         } catch (\Exception $e) {
+            Log::error('Error in ReposicionController@index:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'message' => 'Error al procesar la solicitud',
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+
+    // Otros métodos del controlador permanecen sin cambios...
 
     public function store(HttpRequest $request)
     {

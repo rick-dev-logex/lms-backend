@@ -80,6 +80,9 @@ class RequestController extends Controller
     public function index(HttpRequest $request)
     {
         try {
+            $period = $request->input('period', 'last_3_months');
+
+            // Extract user and assigned projects from JWT
             $jwtToken = $request->cookie('jwt-token');
             if (!$jwtToken) {
                 throw new \Exception("No se encontró el token de autenticación en la cookie.");
@@ -90,43 +93,92 @@ class RequestController extends Controller
             if (!$userId) {
                 throw new \Exception("No se encontró el ID de usuario en el token JWT.");
             }
-            $user = User::find($userId);
 
-            $assignedProjectIds = [];
-            if ($user && $user->assignedProjects) {
-                $assignedProjectIds = array_map('strtolower', $user->assignedProjects->projects);
+            // Obtener usuario y sus proyectos asignados
+            $user = User::find($userId);
+            if (!$user) {
+                throw new \Exception("Usuario no encontrado.");
             }
 
+            // Procesar proyectos asignados correctamente
+            $assignedProjectIds = [];
+            if ($user && isset($user->assignedProjects)) {
+                // Log del valor original para diagnóstico
+                Log::info('Raw assigned projects:', ['rawValue' => $user->assignedProjects]);
+
+                // Si es una relación con un objeto, extraer la propiedad 'projects'
+                if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
+                    $projectsValue = $user->assignedProjects->projects;
+
+                    // Si 'projects' es una cadena JSON, decodificarla
+                    if (is_string($projectsValue)) {
+                        $assignedProjectIds = json_decode($projectsValue, true) ?: [];
+                    }
+                    // Si ya es un array, usarlo directamente
+                    else if (is_array($projectsValue)) {
+                        $assignedProjectIds = $projectsValue;
+                    }
+                }
+                // Si es un array directo o una colección, usarlo
+                else if (is_array($user->assignedProjects)) {
+                    $assignedProjectIds = $user->assignedProjects;
+                }
+            }
+
+            // Asegurar que tenemos un array plano
+            if (!empty($assignedProjectIds)) {
+                // Convertir todos los IDs a string para consistencia
+                $assignedProjectIds = array_map('strval', $assignedProjectIds);
+
+                // Log para verificar que tenemos un array plano
+                Log::info('Processed project IDs:', ['ids' => $assignedProjectIds]);
+            }
+
+            // Build the query
             $query = Request::query();
+
+            // Apply filters only if we have valid project IDs
             if (!empty($assignedProjectIds)) {
                 $query->whereIn('project', $assignedProjectIds);
             }
 
-            if ($request->filled('search')) {
-                $searchTerm = $request->search;
-                $query->where(function ($q) use ($searchTerm) {
-                    $q->where('unique_id', 'like', "%{$searchTerm}%")
-                        ->orWhere('project', 'like', "%{$searchTerm}%")
-                        ->orWhere('invoice_number', 'like', "%{$searchTerm}%")
-                        ->orWhere('amount', 'like', "%{$searchTerm}%");
-                });
-            }
-
+            // Apply type filter if provided
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
             }
+
+            // Apply status filter if provided
             if ($request->filled('status')) {
+                // Manejar acción de conteo especial (si es necesario para retrocompatibilidad)
                 if ($request->input('action') === 'count') {
-                    return response()->json(
-                        Request::whereMonth('created_at', now()->month)
-                            ->whereYear('created_at', now()->year)
-                            ->where('status', $request->status)
-                            ->count()
-                    );
+                    $countQuery = clone $query;
+
+                    // Filtrar por mes actual si es necesario
+                    if ($request->filled('month')) {
+                        $month = (int)$request->input('month');
+                        $countQuery->whereMonth('created_at', $month)
+                            ->whereYear('created_at', now()->year);
+                    } else {
+                        $countQuery->whereMonth('created_at', now()->month)
+                            ->whereYear('created_at', now()->year);
+                    }
+
+                    $count = $countQuery->where('status', $request->status)->count();
+                    return response()->json($count);
                 }
+
                 $query->where('status', $request->status);
             }
 
+            // Apply period filter
+            if ($period === 'last_3_months') {
+                $query->where('created_at', '>=', now()->subMonths(3));
+            }
+
+            // Incluir relaciones
+            $query->with(['account:id,name']);
+
+            // Sort by created_at by default, but allow custom sorting
             $sortField = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
             $allowedSortFields = ['unique_id', 'created_at', 'updated_at', 'amount', 'project', 'status'];
@@ -134,27 +186,21 @@ class RequestController extends Controller
                 $query->orderBy($sortField, $sortOrder);
             }
 
-            $query->with(['account:id,name']);
+            // Fetch all requests without pagination
+            $requests = $query->get();
 
-            $perPage = $request->input('per_page', 10);
-            $page = $request->input('page', 1);
-            $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+            // Log para diagnóstico
+            Log::info('Fetched requests count:', ['count' => $requests->count()]);
 
-            $responsibleIds = collect($paginator->items())
-                ->pluck('responsible_id')
-                ->filter()
-                ->unique()
-                ->values();
-
-            $transportIds = collect($paginator->items())
-                ->pluck('transport_id')
-                ->filter()
-                ->unique()
-                ->values();
+            // Get IDs for related models
+            $responsibleIds = $requests->pluck('responsible_id')->filter()->unique()->values();
+            $transportIds = $requests->pluck('transport_id')->filter()->unique()->values();
 
             $responsibles = [];
             $transports = [];
+            $projects = [];
 
+            // Fetch responsibles if needed
             if ($responsibleIds->isNotEmpty()) {
                 $responsibles = DB::connection('sistema_onix')
                     ->table('onix_personal')
@@ -164,6 +210,8 @@ class RequestController extends Controller
                     ->keyBy('id')
                     ->toArray();
             }
+
+            // Fetch transports if needed
             if ($transportIds->isNotEmpty()) {
                 $transports = DB::connection('sistema_onix')
                     ->table('onix_vehiculos')
@@ -174,27 +222,51 @@ class RequestController extends Controller
                     ->toArray();
             }
 
-            $data = collect($paginator->items())->map(function ($item) use ($responsibles, $transports) {
-                if ($item->responsible_id && isset($responsibles[$item->responsible_id])) {
-                    $item->responsible = $responsibles[$item->responsible_id];
-                }
-                if ($item->transport_id && isset($transports[$item->transport_id])) {
-                    $item->transport = $transports[$item->transport_id];
-                }
-                return $item;
-            });
+            // Fetch projects if we have assigned projects
+            if (!empty($assignedProjectIds)) {
+                $projects = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->whereIn('id', $assignedProjectIds)
+                    ->select('id', 'name')
+                    ->get()
+                    ->mapWithKeys(function ($project) {
+                        return [$project->id => $project->name];
+                    })->all();
+            }
 
-            return response()->json([
-                'data' => $data,
-                'meta' => [
-                    'current_page' => $paginator->currentPage(),
-                    'last_page' => $paginator->lastPage(),
-                    'per_page' => $paginator->perPage(),
-                    'total' => $paginator->total(),
-                    'has_more' => $paginator->hasMorePages(),
-                ]
+            // Transform requests to include related data
+            $data = $requests->map(function ($request) use ($responsibles, $transports, $projects) {
+                $requestData = $request->toArray();
+
+                // Add responsible info if available
+                if ($request->responsible_id && isset($responsibles[$request->responsible_id])) {
+                    $requestData['responsible'] = $responsibles[$request->responsible_id];
+                }
+
+                // Add transport info if available
+                if ($request->transport_id && isset($transports[$request->transport_id])) {
+                    $requestData['transport'] = $transports[$request->transport_id];
+                }
+
+                // Add project name if available
+                $requestData['project_name'] = $projects[$request->project] ?? 'Unknown';
+
+                return $requestData;
+            })->all();
+
+            // Log para diagnóstico
+            Log::info('Response data format:', [
+                'dataCount' => count($data),
+                'firstItem' => !empty($data) ? json_encode(array_keys($data[0])) : 'No data',
+                'hasData' => isset($data) && is_array($data)
             ]);
+
+            return response()->json($data);
         } catch (\Exception $e) {
+            Log::error('Error in RequestController@index:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return response()->json([
                 'message' => 'Error al procesar la solicitud',
                 'error' => $e->getMessage()

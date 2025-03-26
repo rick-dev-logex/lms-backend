@@ -139,8 +139,19 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $errors[] = "Fila {$this->rowNumber}: El tipo de personal debe ser 'nomina' o 'transportista'";
         }
 
-        if (empty($mappedRow['valor']) || !is_numeric($mappedRow['valor'])) {
-            $errors[] = "Fila {$this->rowNumber}: Falta el valor o no es numérico";
+        if (empty($mappedRow['no_factura'])) {
+            $errors[] = "Fila {$this->rowNumber}: El número de factura no puede estar vacío";
+        }
+        if (!is_numeric($mappedRow['no_factura'])) {
+            $errors[] = "Fila {$this->rowNumber}: El número de factura únicamente puede contener números";
+        }
+
+        if (empty($mappedRow['valor'])) {
+            $errors[] = "Fila {$this->rowNumber}: El valor no puede estar vacío";
+        }
+
+        if (!is_numeric($mappedRow['valor'])) {
+            $errors[] = "Fila {$this->rowNumber}: El valor debe ser numérico";
         }
 
         if (empty($mappedRow['cuenta'])) {
@@ -149,7 +160,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
         if (preg_match('/^[a-f0-9-]{36}$/', $projectInput)) {
             $projectId = $projectInput;
-            Log::info("Fila {$this->rowNumber}: Proyecto interpretado como UUID: {$projectId}");
+            // Log::info("Fila {$this->rowNumber}: Proyecto interpretado como UUID: {$projectId}");
         } else {
             $normalizedProjectName = trim(strtolower($projectInput));
             $projectId = $this->projects[$normalizedProjectName] ?? null;
@@ -209,7 +220,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             'project' => $projectId, // Guardar el UUID resuelto
             'responsible_id' => $responsibleId,
             'transport_id' => $transportId ?? null,
-            'note' => $mappedRow['observacion'] ?? "No se agregó una observación.",
+            'note' => $this->context === 'expense' ? $mappedRow['observacion'] ?? "No se agregó una observación." : $mappedRow['observacion'] ?? null, // Obligar a poner observación si es que es descuento
             'created_at' => now(),
             'updated_at' => now(),
         ];

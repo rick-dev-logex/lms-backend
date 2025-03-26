@@ -49,6 +49,10 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 ->pluck('id', 'name')
                 ->toArray();
 
+            $this->projects = Project::all()->pluck('id', 'name')->mapWithKeys(function ($id, $name) {
+                return [trim(strtolower($name)) => $id];
+            })->toArray();
+
             $prefix = $this->context === 'discounts' ? 'D-' : 'G-';
             $lastRequest = Request::where('unique_id', 'like', "{$prefix}%")
                 ->orderBy('unique_id', 'desc')
@@ -122,6 +126,8 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         }
 
         $errors = [];
+        $projectId = null;
+        $projectInput = trim($mappedRow['proyecto'] ?? '');
 
         if (empty($mappedRow['fecha'])) {
             $errors[] = "Fila {$this->rowNumber}: Falta la fecha";
@@ -141,18 +147,16 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $errors[] = "Fila {$this->rowNumber}: Falta la cuenta";
         }
 
-        if (empty($mappedRow['proyecto'])) {
-            $errors[] = "Fila {$this->rowNumber}: Falta el proyecto";
-        }
-
-        $projectName = trim($mappedRow['proyecto']); // Nombre original del Excel
-        $projectId = $this->projects[$projectName] ?? null;
-        if (!$projectId) {
-            $errors[] = "Fila {$this->rowNumber}: Proyecto '{$projectName}' no encontrado en la base de datos";
+        if (preg_match('/^[a-f0-9-]{36}$/', $projectInput)) {
+            $projectId = $projectInput;
+            Log::info("Fila {$this->rowNumber}: Proyecto interpretado como UUID: {$projectId}");
         } else {
-            $userProjectIds = $this->userProjects;
-            if (!in_array($projectId, $userProjectIds)) {
-                $errors[] = "Fila {$this->rowNumber}: Proyecto '{$projectName}' no está asignado al usuario";
+            $normalizedProjectName = trim(strtolower($projectInput));
+            $projectId = $this->projects[$normalizedProjectName] ?? null;
+            if ($projectId) {
+                Log::info("Fila {$this->rowNumber}: Proyecto '{$projectInput}' mapeado a UUID: {$projectId}");
+            } else {
+                $errors[] = "Fila {$this->rowNumber}: Proyecto '{$projectInput}' no encontrado en la base de datos";
             }
         }
 
@@ -202,10 +206,10 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             'invoice_number' => $mappedRow['no_factura'] ?? null,
             'account_id' => $accountId,
             'amount' => floatval($mappedRow['valor']),
-            'project' => $projectId, // Guardar el UUID en lugar del nombre
+            'project' => $projectId, // Guardar el UUID resuelto
             'responsible_id' => $responsibleId,
             'transport_id' => $transportId ?? null,
-            'note' => $mappedRow['observacion'] ?? null,
+            'note' => $mappedRow['observacion'] ?? "No se agregó una observación.",
             'created_at' => now(),
             'updated_at' => now(),
         ];

@@ -48,7 +48,7 @@ class AccountSeeder extends Seeder
                 'account_affects' => 'discount'
             ],
             [
-                'name' => 'Cuentas por Cobrar Varios discount Empleados',
+                'name' => 'Cuentas por Cobrar Varios',
                 'account_number' => '1.1.20.4.11',
                 'account_type' => 'nomina',
                 'account_status' => 'active',

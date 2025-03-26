@@ -5,23 +5,21 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Transport;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TransportController extends Controller
 {
     public function index(Request $request)
     {
         if ($request->input('action') === 'count') {
-            return response()->json(Transport::where('deleted', '0')->count());
+            $vehicles = DB::connection('tms1')->table('vehiculos')->where('status', 'ACTIVO')->get()->count();
+            return response()->json($vehicles);
         } else {
             $query = Transport::select('id', 'name')->where('deleted', '0');
 
             // Seleccionar campos específicos si se solicitan
             if ($request->filled('fields')) {
                 $query->select(explode(',', $request->fields));
-            }
-
-            if ($request->filled('proyecto')) {
-                $query->where('proyecto', $request->input('proyecto'));
             }
 
             return response()->json($query->orderBy('name', 'asc')->get());

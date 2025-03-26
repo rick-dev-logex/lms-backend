@@ -297,7 +297,7 @@ class RequestController extends Controller
                 'type' => 'required|in:expense,discount',
                 'personnel_type' => 'required|in:nomina,transportista',
                 'request_date' => 'required|date',
-                'invoice_number' => 'required|string',
+                'invoice_number' => 'required|number',
                 'account_id' => 'required|exists:accounts,id',
                 'amount' => 'required|numeric|min:0',
                 'project' => 'required|string', // Nombre del proyecto desde el frontend

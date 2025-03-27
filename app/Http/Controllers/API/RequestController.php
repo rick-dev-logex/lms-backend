@@ -297,7 +297,7 @@ class RequestController extends Controller
                 'type' => 'required|in:expense,discount',
                 'personnel_type' => 'required|in:nomina,transportista',
                 'request_date' => 'required|date',
-                'invoice_number' => 'required|number',
+                'invoice_number' => 'required|numeric',
                 'account_id' => 'required|exists:accounts,id',
                 'amount' => 'required|numeric|min:0',
                 'project' => 'required|string', // Nombre del proyecto desde el frontend
@@ -314,7 +314,7 @@ class RequestController extends Controller
 
             // Buscar el UUID del proyecto
             $projectName = trim($validated['project']);
-            $project = Project::where('id', $projectName)->first();
+            $project = Project::where('name', $projectName)->first();
             if (!$project) {
                 throw new \Exception("Proyecto no encontrado: {$projectName}");
             }

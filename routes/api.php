@@ -8,6 +8,7 @@ use App\Http\Controllers\API\ResponsibleController;
 use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
+use App\Http\Controllers\API\LoanController;
 use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
@@ -49,6 +50,9 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::apiResource('/accounts', AccountController::class);
     Route::apiResource('/transports', TransportController::class);
     Route::apiResource('/responsibles', ResponsibleController::class);
+    Route::get('/vehicles', [TransportController::class, 'index']);
+
+
 
     Route::prefix('projects')->group(function () {
         Route::apiResource('/', ProjectController::class);
@@ -97,18 +101,23 @@ Route::middleware(['verify.jwt'])->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
     });
 
+    // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
+    Route::apiResource('/areas', AreaController::class);
+
+    Route::apiResource('/requests', RequestController::class);
+    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+
+    // Generar reposiciones
+    Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
+    Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
+
+    // Importar desde Excel
+    Route::post('/requests/import', [RequestController::class, 'import']);
+
+    // Préstamos
+    Route::apiResource('/loans', LoanController::class);
     // Rutas que requieren múltiples permisos
-    Route::middleware(['permission:view_reports,generate_reports'])->group(function () {
-        // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
-        Route::apiResource('/requests', RequestController::class);
-        Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
-
-        Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
-        Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
-
-        Route::post('/requests/import', [RequestController::class, 'import']);
-        Route::apiResource('/areas', AreaController::class);
-    });
+    Route::middleware(['permission:view_reports,generate_reports'])->group(function () {});
 
     // Rutas que requieren rol específico Y permiso específico
     Route::middleware(['role:admin', 'permission:manage_system'])->group(function () {

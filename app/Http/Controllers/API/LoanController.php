@@ -102,7 +102,7 @@ class LoanController extends Controller
                 'type' => 'required|in:nomina,proveedor',
                 'account_id' => 'required|exists:lms_backend.accounts,id',
                 'amount' => 'required|numeric|min:0.01',
-                'project' => 'required|string',
+                'project' => 'required|string', // Recibe el nombre del proyecto
                 'invoice_number' => 'required|string',
                 'installments' => 'required|integer|min:1|max:36',
                 'installment_dates' => 'required|array|size:' . $request->input('installments'),
@@ -127,14 +127,18 @@ class LoanController extends Controller
             $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
             $user = User::findOrFail($decoded->user_id);
             $assignedProjectIds = $this->getAssignedProjects($user);
-            $projectExists = DB::connection('sistema_onix')
+
+            // Convertir el nombre del proyecto a UUID
+            $projectUuid = DB::connection('sistema_onix')
                 ->table('onix_proyectos')
                 ->whereIn('id', $assignedProjectIds)
                 ->where('name', $validated['project'])
-                ->exists();
+                ->value('id'); // Obtener el UUID (id)
 
-            if (!$projectExists) {
-                throw ValidationException::withMessages(['project' => 'El proyecto seleccionado no está asignado al usuario o no existe.']);
+            if (!$projectUuid) {
+                throw ValidationException::withMessages([
+                    'project' => 'El proyecto seleccionado no está asignado al usuario o no existe.',
+                ]);
             }
 
             $file = $request->file('attachment');
@@ -154,7 +158,7 @@ class LoanController extends Controller
                 'type' => $validated['type'],
                 'account_id' => $validated['account_id'],
                 'amount' => $validated['amount'],
-                'project' => $validated['project'],
+                'project' => $projectUuid, // Usar UUID
                 'file_path' => $fileUrl,
                 'note' => $validated['note'],
                 'installments' => $validated['installments'],
@@ -166,11 +170,11 @@ class LoanController extends Controller
             $loan = Loan::create($loanData);
 
             $amountPerInstallment = $validated['amount'] / $validated['installments'];
-            $requestIds = []; // Array limpio para los IDs
+            $requestIds = [];
 
             foreach ($validated['installment_dates'] as $index => $date) {
                 $prefix = 'L-';
-                $lastRequest = Request::where('unique_id', 'like', 'L-%')
+                $lastRequest = Request::where('unique_id', 'like', 'P-%')
                     ->orderBy('id', 'desc')
                     ->first();
                 $nextId = $lastRequest ? ((int)str_replace($prefix, '', $lastRequest->unique_id) + 1) : 1;
@@ -182,26 +186,25 @@ class LoanController extends Controller
                     'personnel_type' => $validated['type'],
                     'status' => 'in_reposition',
                     'request_date' => Carbon::createFromFormat('Y-m', $date)->startOfMonth(),
-                    'invoice_number' => $validated['invoice_number'] . '-' . ($index + 1),
+                    'invoice_number' => $validated['invoice_number'],
                     'account_id' => $validated['account_id'],
                     'amount' => round($amountPerInstallment, 2),
-                    'project' => $validated['project'],
+                    'project' => $projectUuid, // Usar UUID
                     'responsible_id' => $loan->responsible_id,
                     'transport_id' => $loan->vehicle_id,
-                    'note' => "Cuota " . ($index + 1) . " de préstamo ID: {$loan->id}",
+                    'note' => $validated['note'] ?? "Cuota " . ($index + 1) . " de préstamo ID: {$loan->uniqueId}",
                 ];
 
                 $newRequest = Request::create($requestData);
-                $requestIds[] = $newRequest->unique_id; // Solo el valor limpio
+                $requestIds[] = $newRequest->unique_id;
             }
 
-            // Guardar detail como JSON limpio, sin escaping adicional
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => now(),
                 'total_reposicion' => $validated['amount'],
                 'status' => 'pending',
-                'project' => $validated['project'],
-                'detail' => json_encode($requestIds, JSON_UNESCAPED_SLASHES), // JSON limpio
+                'project' => $projectUuid, // Usar UUID
+                'detail' => $requestIds, // Pasar array directamente, Laravel lo convierte a JSON
                 'attachment_url' => $fileUrl,
                 'attachment_name' => $fileName,
                 'note' => $validated['note'],

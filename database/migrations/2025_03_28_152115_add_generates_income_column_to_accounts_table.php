@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('accounts', function (Blueprint $table) {
-            $table->boolean('generates_income')->default(false);
+            $table->boolean('generates_income')->after('account_affects')->default(false);
         });
     }
 

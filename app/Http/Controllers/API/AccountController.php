@@ -13,7 +13,6 @@ class AccountController extends Controller
     public function index(Request $request)
     {
         // Filtrar únicamente cuentas activas
-
         $query = Account::orderBy('name', 'asc');
 
         // Filtro por tipo de cuenta, si se pasa el parámetro
@@ -45,7 +44,8 @@ class AccountController extends Controller
             'account_number'  => 'required|string|max:50|unique:accounts,account_number',
             'account_type'    => ['required', Rule::in(['nomina', 'transportista'])],
             'account_status'  => ['required', Rule::in(['active', 'inactive'])],
-            'account_affects' => 'required|string',
+            'account_affects' => ['required', Rule::in(['discount', 'expense', 'both'])],
+            'generates_income' => 'required|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -73,7 +73,8 @@ class AccountController extends Controller
             'account_number'  => "sometimes|string|max:50|unique:accounts,account_number,{$id}",
             'account_type'    => ['sometimes', Rule::in(['nomina', 'transportista'])],
             'account_status'  => ['sometimes', Rule::in(['active', 'inactive'])],
-            'account_affects' => 'sometimes|string',
+            'account_affects' => ['sometimes', Rule::in(['discount', 'expense', 'both'])],
+            'generates_income' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {

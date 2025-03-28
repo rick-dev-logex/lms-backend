@@ -18,7 +18,8 @@ class Account extends Model
         'account_number',
         'account_type',
         'account_status',
-        'account_affects'
+        'account_affects',
+        'generates_income'
     ];
 
     // Relación con personal de Onix a través del proyecto

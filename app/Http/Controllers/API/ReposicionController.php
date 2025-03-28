@@ -302,7 +302,6 @@ class ReposicionController extends Controller
 
             // Si se está actualizando el estado
             if (isset($validated['status']) && $validated['status'] !== $reposicion->status) {
-                // Actualizar estado de las solicitudes según el estado de la reposición
                 $requestStatus = match ($validated['status']) {
                     'paid' => 'paid',
                     'rejected' => 'rejected',
@@ -311,20 +310,27 @@ class ReposicionController extends Controller
                     default => 'pending'
                 };
 
-                // Actualizar todas las solicitudes asociadas
-                Request::whereIn('unique_id', $reposicion->detail)
-                    ->update([
-                        'status' => $requestStatus,
-                        'note' => $validated['note'] ?? null
-                    ]);
-
                 // Verificación adicional para aprobación
-                if ($validated['status'] === 'paid') {
+                if ($requestStatus === 'paid') {
                     $calculatedTotal = $reposicion->calculateTotal();
                     if ($calculatedTotal != $reposicion->total_reposicion) {
                         throw new \Exception('Total mismatch between requests and reposicion');
                     }
                 }
+            }
+
+            if (isset($validated['when']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
+                Request::whereIn('unique_id', $reposicion->detail)
+                    ->update([
+                        'when' => $validated['when']
+                    ]);
+            }
+
+            if (isset($validated['month']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
+                Request::whereIn('unique_id', $reposicion->detail)
+                    ->update([
+                        'month' => $validated['month']
+                    ]);
             }
 
             $reposicion->update($validated);
@@ -333,13 +339,14 @@ class ReposicionController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => 'Reposición updated successfully',
+                'message' => 'Reposición actualizada exitosamente',
                 'data' => $reposicion
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Error updating reposicion:', ['error' => $e->getMessage()]);
             return response()->json([
-                'message' => 'Error updating reposición',
+                'message' => 'Error al actualizar la reposición',
                 'error' => $e->getMessage()
             ], 422);
         }

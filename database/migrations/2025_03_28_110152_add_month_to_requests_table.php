@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('requests', function (Blueprint $table) {
-            $table->enum('when', ['rol', 'liquidación', 'decimo_tercero', 'decimo_cuarto', 'utilidades'])->after('request_date')->nullable();
+            $table->string('month', 7)->after('request_date')->nullable();
         });
     }
 
@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('requests', function (Blueprint $table) {
-            $table->dropColumn('when');
+            $table->dropColumn('month');
         });
     }
 };

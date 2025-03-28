@@ -13,6 +13,11 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
+    // public function __construct(array $attributes = [])
+    // {
+    //     parent::__construct($attributes);
+    //     $this->setConnection(env('DB_CONNECTION', 'lms_local'));
+    // }
     protected $connection = 'lms_backend';
 
     protected $fillable = [
@@ -20,6 +25,8 @@ class Request extends Model
         'personnel_type',
         'project',
         'request_date',
+        'month',
+        'when',
         'invoice_number',
         'account_id',
         'amount',

@@ -13,7 +13,7 @@ class AreaController extends Controller
      */
     public function index()
     {
-        $areas = Area::select('name')->get();
+        $areas = Area::get();
         return response()->json($areas);
     }
 

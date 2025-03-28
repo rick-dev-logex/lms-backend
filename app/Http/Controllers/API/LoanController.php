@@ -173,7 +173,7 @@ class LoanController extends Controller
             $requestIds = [];
 
             foreach ($validated['installment_dates'] as $index => $date) {
-                $prefix = 'L-';
+                $prefix = 'P-';
                 $lastRequest = Request::where('unique_id', 'like', 'P-%')
                     ->orderBy('id', 'desc')
                     ->first();

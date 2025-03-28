@@ -317,8 +317,17 @@ class ReposicionController extends Controller
                         throw new \Exception('Total mismatch between requests and reposicion');
                     }
                 }
+
+                // Actualizar el estado de todas las solicitudes asociadas
+                if (is_array($reposicion->detail) && !empty($reposicion->detail)) {
+                    Request::whereIn('unique_id', $reposicion->detail)
+                        ->update([
+                            'status' => $requestStatus
+                        ]);
+                }
             }
 
+            // Actualizar el campo 'when' si está presente
             if (isset($validated['when']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
                 Request::whereIn('unique_id', $reposicion->detail)
                     ->update([
@@ -326,6 +335,7 @@ class ReposicionController extends Controller
                     ]);
             }
 
+            // Actualizar el campo 'month' si está presente
             if (isset($validated['month']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
                 Request::whereIn('unique_id', $reposicion->detail)
                     ->update([

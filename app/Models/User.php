@@ -13,7 +13,8 @@ class User extends Authenticatable implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected $connection = 'lms_backend';
+    protected $connection = 'lms_local';
+    // protected $connection = 'lms_backend';
     protected $table = 'users';
 
     protected $fillable = [
@@ -48,13 +49,14 @@ class User extends Authenticatable implements JWTSubject
 
     public function permissions()
     {
-        return $this->belongsToMany(Permission::class)->withTimestamps();
+        return $this->belongsToMany(Permission::class, 'permission_user');
     }
 
     public function assignedProjects()
     {
         return $this->hasOne(UserAssignedProjects::class);
     }
+
     /**
      * Accesor para obtener los detalles de los proyectos asignados.
      * Se consulta la base de datos sistema_onix (modelo Project).

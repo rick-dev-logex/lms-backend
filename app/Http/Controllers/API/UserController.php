@@ -5,275 +5,105 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
-use App\Models\Project;
+use App\Http\Requests\AssignProjectsRequest;
 use App\Models\User;
-use App\Models\Role;
-use App\Models\UserAssignedProjects;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    public function index(Request $request): JsonResponse
+    public function index(): JsonResponse
     {
-        try {
-            $query = User::with(['role', 'permissions', 'assignedProjects'])->orderBy('name', 'asc');
-
-            if ($request->input('action') === 'count') {
-                return response()->json(User::count());
-            }
-
-            // Obtener todos los usuarios (sin paginación)
-            $users = $query->get();
-
-            // Agregar los códigos de proyecto a cada usuario
-            $data = $users->map(function ($user) {
+        $users = User::with(['role', 'permissions', 'assignedProjects'])
+            ->orderBy('name', 'asc')
+            ->get()
+            ->map(function ($user) {
                 $userData = $user->toArray();
-                $userData['projects'] = $user->project_details;
+                $userData['projects'] = $user->assignedProjects ? $user->assignedProjects->projects : [];
                 return $userData;
-            })->values()->all();
+            });
 
-            return response()->json($data);
-        } catch (\Exception $e) {
-            Log::error('Error fetching users: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error fetching users',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json(['data' => $users]);
     }
 
-    // Los demás métodos permanecen sin cambios
     public function store(StoreUserRequest $request): JsonResponse
     {
-        try {
-            return DB::transaction(function () use ($request) {
-                $userData = [
-                    'name' => $request->name,
-                    'email' => $request->email,
-                    'password' => Hash::make($request->password ?? 'L0g3X2025*'),
-                    'role_id' => $request->role_id ?? Role::where('name', 'user')->value('id'),
-                ];
+        return DB::transaction(function () use ($request) {
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password ?? 'L0g3X2025*'),
+                'role_id' => $request->role_id,
+            ]);
 
-                $user = User::create($userData);
+            if ($request->permissions) {
+                $user->permissions()->sync($request->permissions);
+            }
 
-                if ($request->has('permissions')) {
-                    $user->permissions()->attach($request->permissions);
-                }
-
-                return response()->json([
-                    'message' => 'User created successfully',
-                    'user' => $user->load(['role', 'permissions'])
-                ], 201);
-            });
-        } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Error creating user',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+                'data' => $user->load(['role', 'permissions']),
+                'message' => 'User created successfully',
+            ], 201);
+        });
     }
 
     public function show(User $user): JsonResponse
     {
-        try {
-            return response()->json($user->load(['role', 'permissions']));
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error fetching user',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        $user->load(['role', 'permissions', 'assignedProjects']);
+        $userData = $user->toArray();
+        $userData['projects'] = $user->assignedProjects ? $user->assignedProjects->projects : [];
+
+        return response()->json(['data' => $userData]);
     }
 
     public function update(UpdateUserRequest $request, User $user): JsonResponse
     {
-        try {
-            return DB::transaction(function () use ($request, $user) {
-                $validated = $request->validated();
-                $userData = [
-                    'name' => $validated['name'],
-                    'email' => $validated['email'],
-                ];
-                if (isset($validated['role_id'])) {
-                    $userData['role_id'] = $validated['role_id'];
-                }
-                if (!empty($validated['password'])) {
-                    $userData['password'] = Hash::make($validated['password']);
-                }
-                $user->update($userData);
-                if (isset($validated['permissions'])) {
-                    $permissions = array_map('intval', (array) $validated['permissions']);
-                    $user->permissions()->sync($permissions);
-                }
-                $user->load(['role', 'permissions']);
-                return response()->json([
-                    'message' => 'User updated successfully',
-                    'user' => $user
-                ]);
-            });
-        } catch (\Exception $e) {
-            Log::error('Error updating user: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error updating user',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function patch(Request $request, User $user): JsonResponse
-    {
-        try {
-            return DB::transaction(function () use ($request, $user) {
-                $validated = $request->validate([
-                    'dob' => 'nullable|date',
-                    'phone' => 'nullable|string|max:12',
-                    'password' => 'nullable|string|min:8',
-                ]);
-                $userData = [];
-                if (isset($validated['dob'])) {
-                    $userData['dob'] = $validated['dob'];
-                }
-                if (isset($validated['phone'])) {
-                    $userData['phone'] = $validated['phone'];
-                }
-                if (!empty($validated['password'])) {
-                    $userData['password'] = Hash::make($validated['password']);
-                }
-                if (!empty($userData)) {
-                    $user->update($userData);
-                }
-                $user->load(['role']);
-                return response()->json([
-                    'message' => 'User profile updated successfully',
-                    'user' => $user
-                ]);
-            });
-        } catch (\Exception $e) {
-            Log::error('Error updating user profile: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error updating user profile',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function updatePermissions(Request $request, User $user): JsonResponse
-    {
-        try {
-            $validated = $request->validate([
-                'permissions' => 'required|array',
-                'permissions.*' => 'required|integer|exists:permissions,id'
+        return DB::transaction(function () use ($request, $user) {
+            $user->update([
+                'name' => $request->name,
+                'email' => $request->email,
+                'role_id' => $request->role_id,
+                ...($request->password ? ['password' => Hash::make($request->password)] : []),
             ]);
-            return DB::transaction(function () use ($validated, $user) {
-                $permissions = array_map('intval', $validated['permissions']);
-                $user->permissions()->sync($permissions);
-                $user->load(['role', 'permissions']);
-                return response()->json([
-                    'message' => 'Permissions updated successfully',
-                    'user' => $user
-                ]);
-            });
-        } catch (\Exception $e) {
-            Log::error('Error updating permissions: ' . $e->getMessage());
+
+            if ($request->permissions !== null) {
+                $user->permissions()->sync($request->permissions);
+            }
+
             return response()->json([
-                'message' => 'Error updating permissions',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+                'data' => $user->load(['role', 'permissions']),
+                'message' => 'User updated successfully',
+            ]);
+        });
     }
 
     public function destroy(User $user): JsonResponse
     {
-        try {
-            if (!$user) {
-                return response()->json([
-                    'message' => 'User not found'
-                ], 404);
+        return DB::transaction(function () use ($user) {
+            if ($user->id === auth()->user()->id) {
+                return response()->json(['message' => 'Cannot delete your own account'], 403);
             }
-            if ($user->id === request()->user()?->id) {
-                return response()->json([
-                    'message' => 'Cannot delete your own account'
-                ], 403);
-            }
-            DB::beginTransaction();
-            try {
-                $user->permissions()->detach();
-                $user->delete();
-                DB::commit();
-                return response()->json([
-                    'message' => 'User deleted successfully'
-                ]);
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
-        } catch (\Exception $e) {
-            Log::error('Error deleting user: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error deleting user',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+
+            $user->permissions()->detach();
+            $user->delete();
+
+            return response()->json(['message' => 'User deleted successfully']);
+        });
     }
 
-    public function getUserProjects(User $user): JsonResponse
+    public function assignProjects(AssignProjectsRequest $request, User $user): JsonResponse
     {
-        try {
-            return response()->json([
-                'projects' => $user->project_details,
-                'project_codes' => $user->project_codes
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error fetching user projects: ' . $e->getMessage());
-            return response()->json([
-                'message' => 'Error fetching user projects',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function assignProjects(Request $request, User $user)
-    {
-        $data = $request->validate([
-            'projectIds' => 'required|array',
-            'projectIds.*' => 'string'
-        ]);
-
-        try {
-            UserAssignedProjects::updateOrCreate(
+        return DB::transaction(function () use ($request, $user) {
+            $user->assignedProjects()->updateOrCreate(
                 ['user_id' => $user->id],
-                ['projects' => $data['projectIds']]
+                ['projects' => $request->projects]
             );
+
             return response()->json([
+                'data' => $user->load('assignedProjects'),
                 'message' => 'Projects assigned successfully',
-                'assigned_projects' => $data['projectIds']
             ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Error assigning projects',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function getProjectCodesAttribute(): string
-    {
-        return $this->projects()
-            ->active()
-            ->pluck('proyecto')
-            ->join(', ');
-    }
-
-    public function getProjectDetailsAttribute(): array
-    {
-        return $this->projects()
-            ->active()
-            ->select('id', 'name as code', 'description as name')
-            ->get()
-            ->toArray();
+        });
     }
 }

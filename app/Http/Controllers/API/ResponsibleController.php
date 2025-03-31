@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Personal;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ResponsibleController extends Controller
 {
@@ -14,25 +15,27 @@ class ResponsibleController extends Controller
         if ($request->input('action') === 'count') {
             return response()->json(Personal::whereAll(['estado_personal', 'deleted'], ['activo', 0])->count());
         } else {
-            $query = Personal::whereAll(['estado_personal', 'deleted'], ['activo', 0])->orderBy('nombre_completo', 'asc');
+            $query = Personal::where(['estado_personal' => 'activo', 'deleted' => 0])
+                ->orderBy('nombre_completo', 'asc');
             // Seleccionar campos específicos si se solicitan
-            if ($request->filled('fields')) {
-                $query->select(explode(',', $request->fields));
+            if (request('action') === 'count') {
+                return response()->json(['data' => $query->count()]);
             }
 
-            if ($request->filled('proyecto')) {
-                // Buscar el nombre del proyecto asociado al UUID
-                $project = Project::where('id', $request->proyecto)->first();
-                $projectName = $project ? $project->name : $request->proyecto;
+            if (request('fields')) {
+                $query->select(explode(',', request('fields')));
+            }
+
+            if (request('proyecto')) {
+                $projectName = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->where('id', request('proyecto'))
+                    ->value('name') ?? request('proyecto');
                 $query->where('proyecto', $projectName);
             }
 
             if ($request->filled('area')) {
                 $query->where('area', $request->area);
-            }
-
-            if ($request === 'count') {
-                $query->count();
             }
 
             return response()->json($query->get()->toArray());

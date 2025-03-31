@@ -14,14 +14,14 @@ return [
     'lottery' => [2, 100],
     'cookie' => env(
         'SESSION_COOKIE',
-        Str::slug(env('APP_NAME', 'lms_backend'), '_') . '_session'
+        Str::slug(env('APP_NAME', 'lms'), '_') . '_session',
     ),
     'path' => env('SESSION_PATH', '/'),
     // 'domain' => env('SESSION_DOMAIN', '.lms.logex.com.ec'),
-    'domain' => env('SESSION_DOMAIN', null),
+    'domain' => env('SESSION_DOMAIN', 'localhost'),
     // 'secure' => env('SESSION_SECURE_COOKIE', true),
-    'http_only' => env('SESSION_HTTP_ONLY', false),
-    'same_site' => env('SESSION_SAME_SITE', 'none'),
+    'http_only' => env('SESSION_HTTP_ONLY', true),
+    'same_site' => env('SESSION_SAME_SITE', 'lax'),
     'secure' => env('SESSION_SECURE_COOKIE', false),
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
 ];

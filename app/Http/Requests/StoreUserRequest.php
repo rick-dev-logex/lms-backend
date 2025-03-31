@@ -14,13 +14,29 @@ class StoreUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
-            'password' => ['required', 'string', 'min:8'],
-            'role_id' => ['required', 'exists:roles,id'],
-            'dob' => ['date'],
-            'permissions' => ['required', 'array'],
-            'permissions.*' => ['exists:permissions,id']
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'nullable|string|min:8',
+            'role_id' => 'required|exists:roles,id',
+            'dob' => 'nullable|date',
+            'permissions' => 'required|array',
+            'permissions.*' => 'exists:permissions,id'
+        ];
+    }
+}
+
+class UpdateUserRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'name' => 'required|string|max:255',
+            'email' => "required|email|unique:users,email,{$this->user->id}",
+            'password' => 'nullable|string|min:8',
+            'role_id' => 'required|exists:roles,id',
+            'dob' => 'nullable|date',
+            'permissions' => 'nullable|array',
+            'permissions.*' => 'exists:permissions,id',
         ];
     }
 }

@@ -12,16 +12,21 @@ use App\Http\Controllers\API\LoanController;
 use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
+use App\Http\Controllers\API\ThirdPartyAppController;
 use App\Http\Controllers\TemplateController;
 use App\Http\Controllers\TestMailController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['throttle:6,1'])->group(function () {
-    // Rutas públicas con throttle para evitar brute force attacks
-});
+// Rutas públicas
+Route::post('/login', [AuthController::class, 'login']);
+Route::middleware('auth:web')->post('/logout', [AuthController::class, 'logout']);
+Route::get('/me', [AuthController::class, 'me'])->middleware('auth:web');
 
-Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
-Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']);
+Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']);
 
 Route::get('/debug', function () {
     return response()->json([
@@ -31,34 +36,32 @@ Route::get('/debug', function () {
     ]);
 });
 
-
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-
-// Rutas protegidas por autenticación
-Route::middleware(['verify.jwt'])->group(function () {
-    // Rutas generales para usuarios autenticados
-    Route::post('/logout', [AuthController::class, 'logout']);
-    Route::post('/change-password', [AuthController::class, 'changePassword']);
-    Route::post('/refresh-token', [AuthController::class, 'refresh']);
-    Route::patch('/users/{user}', [UserController::class, 'patch']);
-
-
+// Rutas protegidas por Sanctum
+Route::middleware('auth:web')->group(function () {
     Route::apiResource('/accounts', AccountController::class);
-    Route::apiResource('/transports', TransportController::class);
     Route::apiResource('/responsibles', ResponsibleController::class);
+    Route::apiResource('/transports', TransportController::class);
     Route::get('/vehicles', [TransportController::class, 'index']);
-
-
+    Route::get('/transports/by-account/{accountId}', [TransportController::class, 'getTransportByAccountId']);
 
     Route::prefix('projects')->group(function () {
         Route::apiResource('/', ProjectController::class);
-        Route::get('/{id}/users', [ProjectController::class, 'getProjectUsers']);
-        Route::post('/{id}/users', [ProjectController::class, 'assignUsers']);
+        Route::get('/{project}/users', [ProjectController::class, 'getProjectUsers']);
+        Route::post('/{project}/users', [ProjectController::class, 'assignUsers']);
     });
+
+    Route::apiResource('/areas', AreaController::class);
+    Route::apiResource('/requests', RequestController::class);
+    Route::post('/requests/import', [RequestController::class, 'import']);
+    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+
+    Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
+    Route::get('/reposiciones/{reposicion}/file', [ReposicionController::class, 'file']);
+
+    Route::apiResource('/loans', LoanController::class);
+    Route::get('/loans/{loan}/file', [LoanController::class, 'file']);
 
     // Rutas solo para administradores
     Route::middleware(['role:admin,developer'])->group(function () {
@@ -68,64 +71,21 @@ Route::middleware(['verify.jwt'])->group(function () {
             Route::get('/{user}', [UserController::class, 'show']);
             Route::put('/{user}', [UserController::class, 'update']);
             Route::delete('/{user}', [UserController::class, 'destroy']);
-
-            //Permisos
             Route::put('/{user}/permissions', [UserController::class, 'updatePermissions']);
-
-            //Proyectos
             Route::get('/{user}/projects', [UserController::class, 'getUserProjects']);
             Route::post('/{user}/projects', [UserController::class, 'assignProjects']);
         });
 
-        // Rutas de Roles
-        Route::prefix('roles')->group(function () {
-            Route::get('/', [RoleController::class, 'index']);
-            Route::post('/', [RoleController::class, 'store']);
-            Route::get('/{role}', [RoleController::class, 'show']);
-            Route::put('/{role}', [RoleController::class, 'update']);
-            Route::delete('/{role}', [RoleController::class, 'destroy']);
-            Route::get('/{role}/permissions', [RoleController::class, 'permissions']);
-            Route::put('/{role}/permissions', [RoleController::class, 'updatePermissions']);
-        });
+        Route::apiResource('/roles', RoleController::class);
+        Route::get('/roles/{role}/permissions', [RoleController::class, 'permissions']);
+        Route::put('/roles/{role}/permissions', [RoleController::class, 'updatePermissions']);
 
-        // Rutas de Permisos
-        Route::prefix('permissions')->group(function () {
-            Route::get('/', [PermissionController::class, 'index']);
-            Route::post('/', [PermissionController::class, 'store']);
-            Route::get('/{permission}', [PermissionController::class, 'show']);
-            Route::put('/{permission}', [PermissionController::class, 'update']);
-            Route::delete('/{permission}', [PermissionController::class, 'destroy']);
-            Route::post('/{permission}/assign-to-role', [PermissionController::class, 'assignToRole']);
-        });
+        Route::apiResource('/permissions', PermissionController::class);
+        Route::post('/permissions/{permission}/assign-to-role', [PermissionController::class, 'assignToRole']);
 
         Route::post('/register', [AuthController::class, 'register']);
     });
-
-    // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
-    Route::apiResource('/areas', AreaController::class);
-
-    Route::apiResource('/requests', RequestController::class);
-    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
-
-    // Generar reposiciones
-    Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
-    Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
-
-    // Importar desde Excel
-    Route::post('/requests/import', [RequestController::class, 'import']);
-
-    // Préstamos
-    Route::apiResource('/loans', LoanController::class);
-    // Rutas que requieren múltiples permisos
-    Route::middleware(['permission:view_reports,generate_reports'])->group(function () {});
-
-    // Rutas que requieren rol específico Y permiso específico
-    Route::middleware(['role:admin', 'permission:manage_system'])->group(function () {
-        // Rutas de configuración del sistema
-    });
 });
 
-// Al final de api.php, captura todas las peticiones OPTIONS
-Route::options('{any}', function () {
-    return response('', 200);
-})->where('any', '.*');
+// Captura de OPTIONS para CORS
+Route::options('{any}', fn() => response('', 200))->where('any', '.*');

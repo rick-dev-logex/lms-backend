@@ -11,13 +11,19 @@ class Permission extends Model
     use HasFactory;
     use HasApiTokens;
 
-    protected $connection = 'lms_backend';
+    protected $connection = 'lms_local';
+    // protected $connection = 'lms_backend';
     protected $table = 'permissions';
 
     protected $fillable = ['name'];
 
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'permission_role');
+    }
+
     public function users()
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsToMany(User::class, 'permission_user');
     }
 }

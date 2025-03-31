@@ -3,17 +3,15 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreReposicionRequest;
+use App\Http\Requests\UpdateReposicionRequest;
 use App\Models\Reposicion;
 use App\Models\Request;
-use App\Models\User;
-use Illuminate\Http\Request as HttpRequest;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
-use Firebase\JWT\JWT;
-use Firebase\JWT\Key;
 use Google\Cloud\Storage\StorageClient;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Validation\ValidationException;
 
 class ReposicionController extends Controller
 {
@@ -22,416 +20,157 @@ class ReposicionController extends Controller
 
     public function __construct()
     {
-        $this->storage = new StorageClient([
-            'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
-        ]);
-        $this->bucketName = env('GOOGLE_CLOUD_STORAGE_BUCKET');
-    }
-
-    public function index(HttpRequest $request)
-    {
-        try {
-            // Obtener usuario y proyectos asignados
-            $jwtToken = $request->cookie('jwt-token');
-            if (!$jwtToken) {
-                throw new \Exception("No se encontró el token de autenticación en la cookie.");
-            }
-
-            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
-            $userId = $decoded->user_id ?? null;
-            if (!$userId) {
-                throw new \Exception("No se encontró el ID de usuario en el token JWT.");
-            }
-
-            $user = User::find($userId);
-            if (!$user) {
-                throw new \Exception("Usuario no encontrado.");
-            }
-
-            // Procesar proyectos asignados correctamente
-            $assignedProjectIds = [];
-            if ($user && isset($user->assignedProjects)) {
-                // Si es una relación con un objeto, extraer la propiedad 'projects'
-                if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
-                    $projectsValue = $user->assignedProjects->projects;
-
-                    // Si 'projects' es una cadena JSON, decodificarla
-                    if (is_string($projectsValue)) {
-                        $assignedProjectIds = json_decode($projectsValue, true) ?: [];
-                    }
-                    // Si ya es un array, usarlo directamente
-                    else if (is_array($projectsValue)) {
-                        $assignedProjectIds = $projectsValue;
-                    }
-                }
-                // Si es un array directo o una colección, usarlo
-                else if (is_array($user->assignedProjects)) {
-                    $assignedProjectIds = $user->assignedProjects;
-                }
-            }
-
-            // Asegurar que tenemos un array plano
-            if (!empty($assignedProjectIds)) {
-                // Convertir todos los IDs a string para consistencia
-                $assignedProjectIds = array_map('strval', $assignedProjectIds);
-            }
-
-            $query = Reposicion::query();
-
-            $period = $request->input('period', 'last_3_months');
-
-            // Aplicar filtros de período
-            if ($period === 'last_3_months') {
-                $query->where('created_at', '>=', now()->subMonths(3));
-            }
-
-            // Filtrar por proyectos asignados
-            if (!empty($assignedProjectIds)) {
-                $query->whereIn('project', $assignedProjectIds);
-            }
-
-            // Aplicar otros filtros si están presentes
-            if ($request->filled('project')) {
-                $query->where('project', $request->project);
-            }
-
-            if ($request->filled('status')) {
-                $query->where('status', $request->status);
-            }
-
-            if ($request->filled('month')) {
-                $query->where('month', $request->month);
-            }
-
-            // Obtener todas las reposiciones sin paginación
-            $reposiciones = $query->get();
-
-            // Para cada reposición, cargar sus solicitudes relacionadas
-            $reposiciones->each(function ($reposicion) {
-                $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
-            });
-
-            // Obtener proyectos para referencias
-            $projects = [];
-            if (!empty($assignedProjectIds)) {
-                $projects = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->whereIn('id', $assignedProjectIds)
-                    ->select('id', 'name')
-                    ->get()
-                    ->mapWithKeys(function ($project) {
-                        return [$project->id => $project->name];
-                    })->all();
-            }
-
-            // Agregar nombres de proyectos a los datos de respuesta
-            $data = $reposiciones->map(function ($reposicion) use ($projects) {
-                $repoData = $reposicion->toArray();
-                $repoData['project_name'] = $projects[$reposicion->project] ?? 'Unknown';
-                return $repoData;
-            })->values()->all();
-
-            return response()->json($data);
-        } catch (\Exception $e) {
-            Log::error('Error in ReposicionController@index:', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'message' => 'Error al procesar la solicitud',
-                'error' => $e->getMessage()
-            ], 500);
+        $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
+        if (!$base64Key) {
+            Log::error('La variable GOOGLE_CLOUD_KEY_BASE64 no está definida en el archivo .env');
+            throw new \RuntimeException('Configuración de Google Cloud Storage no encontrada');
         }
+
+        $credentials = json_decode(base64_decode($base64Key), true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::error('Error al decodificar GOOGLE_CLOUD_KEY_BASE64: ' . json_last_error_msg());
+            throw new \RuntimeException('Credenciales de Google Cloud Storage inválidas');
+        }
+
+        $this->storage = new StorageClient(['keyFile' => $credentials]);
+        $this->bucketName = env('GOOGLE_CLOUD_STORAGE_BUCKET', 'lms-archivos');
     }
 
-    // Otros métodos del controlador permanecen sin cambios...
-
-    public function store(HttpRequest $request)
+    public function index(): JsonResponse
     {
-        try {
-            if (!env('GOOGLE_CLOUD_KEY_BASE64')) {
-                $dotenv = \Dotenv\Dotenv::createImmutable(base_path());
-                $dotenv->load();
-            }
-            DB::beginTransaction();
+        $user = auth()->user();
+        $assignedProjectIds = $user->assignedProjects ? $user->assignedProjects->projects : [];
 
-            // Obtener request_ids
-            $requestIds = $request->input('request_ids');
-            $existingRequests = Request::whereIn('unique_id', $requestIds)->get();
+        $query = Reposicion::whereIn('project', array_map('strval', $assignedProjectIds));
 
-            // Validación manual
-            if (!$requestIds || !is_array($requestIds)) {
-                throw ValidationException::withMessages([
-                    'request_ids' => ['The request_ids field is required and must be an array.'],
-                ]);
-            }
-            if ($existingRequests->count() !== count($requestIds)) {
-                throw ValidationException::withMessages([
-                    'request_ids' => ['One or more request_ids do not exist in the requests table.'],
-                ]);
-            }
-            if (!$request->hasFile('attachment')) {
-                throw ValidationException::withMessages([
-                    'attachment' => ['The attachment field is required.'],
-                ]);
-            }
+        if (request('period', 'last_3_months') === 'last_3_months') {
+            $query->where('created_at', '>=', now()->subMonths(3));
+        }
+        if (request('project')) $query->where('project', request('project'));
+        if (request('status')) $query->where('status', request('status'));
+        if (request('month')) $query->where('month', request('month'));
 
-            // Obtener las solicitudes
-            $requests = $existingRequests;
+        $reposiciones = $query->get();
+        $reposiciones->each(fn($reposicion) => $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get()));
 
-            if ($requests->isEmpty()) {
-                throw new \Exception('No requests found with the provided IDs');
-            }
+        $projects = DB::connection('sistema_onix')
+            ->table('onix_proyectos')
+            ->whereIn('id', $assignedProjectIds)
+            ->pluck('name', 'id');
 
-            $project = $requests->first()->project;
+        $data = $reposiciones->map(fn($reposicion) => array_merge($reposicion->toArray(), [
+            'project_name' => $projects[$reposicion->project] ?? 'Unknown',
+        ]));
 
+        return response()->json(['data' => $data]);
+    }
+
+    public function store(StoreReposicionRequest $request): JsonResponse
+    {
+        return DB::transaction(function () use ($request) {
+            $requests = Request::whereIn('unique_id', $request->request_ids)->get();
             if ($requests->pluck('project')->unique()->count() > 1) {
-                throw new \Exception('All requests must belong to the same project');
+                return response()->json(['message' => 'All requests must belong to the same project'], 422);
             }
 
-            // Procesar y subir el archivo a Google Cloud Storage
-            if ($request->hasFile('attachment')) {
-                $file = $request->file('attachment');
-                $fileName = $file->getClientOriginalName();
-
-                try {
-                    $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
-
-                    if (!$base64Key) {
-                        throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
-                    }
-
-                    $credentials = json_decode(base64_decode($base64Key), true);
-
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        throw new \Exception('Error al decodificar las credenciales de Google Cloud: ' . json_last_error_msg());
-                    }
-
-                    $storage = new StorageClient([
-                        'keyFile' => $credentials
-                    ]);
-                } catch (\Exception $e) {
-                    Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
-                    throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está correctamente definida la configuración en .env?');
-                }
-
-                try {
-                    $bucketName = env('GOOGLE_CLOUD_BUCKET');
-                    $bucket = $storage->bucket($bucketName);
-                    if (!$bucket->exists()) {
-                        throw new \Exception("El bucket '$bucketName' no existe o no es accesible");
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
-                    throw new \Exception('Error al conectar con el bucket de Google Cloud Storage. ¿Está definido el nombre del bucket en .env?');
-                }
-
-                // Subir el archivo
-                try {
-                    $object = $bucket->upload(
-                        fopen($file->getRealPath(), 'r'),
-                        [
-                            'name' => $fileName,
-                            'predefinedAcl' => null,
-                        ]
-                    );
-                } catch (\Exception $e) {
-                    throw new \Exception('Error al subir el archivo a Google Cloud Storage');
-                }
-
-                // Obtener la URL del archivo
-                $fileUrl = $object->signedUrl(new \DateTime('+ 10 years'));
+            $file = $request->file('attachment');
+            $fileName = $file->getClientOriginalName();
+            $bucket = $this->storage->bucket($this->bucketName);
+            if (!$bucket->exists()) {
+                Log::error("El bucket '{$this->bucketName}' no existe o no es accesible");
+                return response()->json(['message' => 'Bucket de almacenamiento no disponible'], 500);
             }
 
-            // Crear la reposición
+            $object = $bucket->upload(fopen($file->getRealPath(), 'r'), ['name' => $fileName]);
+            $fileUrl = $object->signedUrl(new \DateTime('+10 years'));
+
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => Carbon::now(),
                 'total_reposicion' => $requests->sum('amount'),
                 'status' => 'pending',
-                'project' => $project,
-                'detail' => $requestIds,
-                'attachment_url' => $fileUrl ?? null,
-                'attachment_name' => $fileName ?? null
+                'project' => $requests->first()->project,
+                'detail' => $request->request_ids,
+                'attachment_url' => $fileUrl,
+                'attachment_name' => $fileName,
+                'note' => $request->note,
             ]);
 
-            $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
-
-            // Actualizar el estado de las solicitudes relacionadas
-            Request::whereIn('unique_id', $requestIds)
-                ->update(['status' => 'in_reposition']);
-
-            DB::commit();
-
-            // Cargar las solicitudes para la respuesta
+            Request::whereIn('unique_id', $request->request_ids)->update(['status' => 'in_reposition']);
             $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
 
             return response()->json([
+                'data' => $reposicion,
                 'message' => 'Reposición created successfully',
-                'data' => $reposicion
             ], 201);
-        } catch (ValidationException $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Validation error',
-                'errors' => $e->errors(),
-                'request_data' => $request->all()
-            ], 422);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error creating reposición',
-                'error' => $e->getMessage()
-            ], 422);
-        }
+        });
     }
 
-    public function update(HttpRequest $request, $id)
+    public function show(Reposicion $reposicion): JsonResponse
     {
-        try {
-            DB::beginTransaction();
+        $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+        return response()->json(['data' => $reposicion]);
+    }
 
-            $reposicion = Reposicion::findOrFail($id);
-
-            $validated = $request->validate([
-                'status' => 'sometimes|in:pending,paid,rejected,review',
-                'month' => 'sometimes|string',
-                'when' => 'sometimes|in:rol,liquidación,decimo_tercero,decimo_cuarto,utilidades',
-                'note' => 'sometimes|string',
-            ]);
-
-            // Si se está actualizando el estado
-            if (isset($validated['status']) && $validated['status'] !== $reposicion->status) {
-                $requestStatus = match ($validated['status']) {
-                    'paid' => 'paid',
-                    'rejected' => 'rejected',
-                    'pending' => 'pending',
-                    'review' => 'review',
-                    default => 'pending'
-                };
-
-                // Verificación adicional para aprobación
-                if ($requestStatus === 'paid') {
-                    $calculatedTotal = $reposicion->calculateTotal();
-                    if ($calculatedTotal != $reposicion->total_reposicion) {
-                        throw new \Exception('Total mismatch between requests and reposicion');
+    public function update(UpdateReposicionRequest $request, Reposicion $reposicion): JsonResponse
+    {
+        return DB::transaction(function () use ($request, $reposicion) {
+            if ($request->status && $request->status !== $reposicion->status) {
+                if ($request->status === 'paid') {
+                    $calculatedTotal = $reposicion->requests()->sum('amount');
+                    if (abs($calculatedTotal - $reposicion->total_reposicion) > 0.01) {
+                        return response()->json(['message' => 'Total mismatch between requests and reposicion'], 422);
                     }
                 }
-
-                // Actualizar el estado de todas las solicitudes asociadas
-                if (is_array($reposicion->detail) && !empty($reposicion->detail)) {
-                    Request::whereIn('unique_id', $reposicion->detail)
-                        ->update([
-                            'status' => $requestStatus
-                        ]);
-                }
+                Request::whereIn('unique_id', $reposicion->detail)->update(['status' => $request->status]);
             }
 
-            // Actualizar el campo 'when' si está presente
-            if (isset($validated['when']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
-                Request::whereIn('unique_id', $reposicion->detail)
-                    ->update([
-                        'when' => $validated['when']
-                    ]);
+            if ($request->when) {
+                Request::whereIn('unique_id', $reposicion->detail)->update(['when' => $request->when]);
             }
 
-            // Actualizar el campo 'month' si está presente
-            if (isset($validated['month']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
-                Request::whereIn('unique_id', $reposicion->detail)
-                    ->update([
-                        'month' => $validated['month']
-                    ]);
+            if ($request->month) {
+                Request::whereIn('unique_id', $reposicion->detail)->update(['month' => $request->month]);
             }
 
-            $reposicion->update($validated);
-            $reposicion = $reposicion->fresh();
-
-            DB::commit();
-
+            $reposicion->update($request->validated());
             return response()->json([
-                'message' => 'Reposición actualizada exitosamente',
-                'data' => $reposicion
+                'data' => $reposicion->fresh(),
+                'message' => 'Reposición updated successfully',
             ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error updating reposicion:', ['error' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Error al actualizar la reposición',
-                'error' => $e->getMessage()
-            ], 422);
-        }
+        });
     }
 
-
-    public function show($id, HttpRequest $request)
+    public function destroy(Reposicion $reposicion): JsonResponse
     {
-        $reposicion = Reposicion::findOrFail($id);
-        $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
-
-        return response()->json($reposicion);
-    }
-
-    public function file($id)
-    {
-        try {
-            $reposicion = Reposicion::findOrFail($id);
-
-            if (!$reposicion->attachment_url || !$reposicion->attachment_name) {
-                return response()->json(['message' => 'No se encontró archivo adjunto para esta reposición'], 404);
-            }
-
-            // Devolver directamente la URL almacenada sin consultar GCS
-            $metadata = [
-                'file_url'     => $reposicion->attachment_url,
-                'file_name'    => $reposicion->attachment_name,
-            ];
-
-            return response()->json($metadata);
-        } catch (\Exception $e) {
-            Log::error('Failed to get file URL', [
-                'id' => $id,
-                'error' => $e->getMessage(),
-            ]);
-            return response()->json([
-                'message' => 'Error al recuperar la URL del archivo',
-                'error'   => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    public function destroy($id)
-    {
-        try {
-            DB::beginTransaction();
-
-            $reposicion = Reposicion::findOrFail($id);
-
-            // Eliminar el archivo de Google Cloud Storage si existe
+        return DB::transaction(function () use ($reposicion) {
             if ($reposicion->attachment_name) {
                 $bucket = $this->storage->bucket($this->bucketName);
                 $object = $bucket->object($reposicion->attachment_name);
                 if ($object->exists()) {
                     $object->delete();
+                } else {
+                    Log::warning("Archivo '{$reposicion->attachment_name}' no encontrado en el bucket '{$this->bucketName}'");
                 }
             }
 
-            // Usar la relación requests para actualizar las solicitudes
-            Request::whereIn('unique_id', $reposicion->detail)
-                ->update(['status' => 'pending']);
-
+            Request::whereIn('unique_id', $reposicion->detail)->update(['status' => 'pending']);
             $reposicion->delete();
 
-            DB::commit();
+            return response()->json(['message' => 'Reposición deleted successfully']);
+        });
+    }
 
-            return response()->json([
-                'message' => 'Reposición eliminada correctamente'
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error al eliminar la reposición',
-                'error' => $e->getMessage()
-            ], 422);
+    public function file(Reposicion $reposicion): JsonResponse
+    {
+        if (!$reposicion->attachment_url) {
+            return response()->json(['message' => 'No attachment found'], 404);
         }
+
+        return response()->json([
+            'data' => [
+                'file_url' => $reposicion->attachment_url,
+                'file_name' => $reposicion->attachment_name,
+            ],
+        ]);
     }
 }

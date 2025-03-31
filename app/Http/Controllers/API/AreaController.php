@@ -3,42 +3,43 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreAreaRequest;
+use App\Http\Requests\UpdateAreaRequest;
 use App\Models\Area;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class AreaController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(): JsonResponse
     {
-        $areas = Area::get();
-        return response()->json($areas);
+        return response()->json(['data' => Area::all()]);
     }
 
-    public function store(Request $request)
+    public function store(StoreAreaRequest $request): JsonResponse
     {
-        $area = Area::create($request->all());
-        return response()->json($area, 201);
+        $area = Area::create($request->validated());
+        return response()->json([
+            'data' => $area,
+            'message' => 'Area created successfully',
+        ], 201);
     }
 
-    public function show($id)
+    public function show(Area $area): JsonResponse
     {
-        $area = Area::find($id);
-        return response()->json($area);
+        return response()->json(['data' => $area]);
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateAreaRequest $request, Area $area): JsonResponse
     {
-        $area = Area::find($id);
-        $area->update($request->all());
-        return response()->json($area);
+        $area->update($request->validated());
+        return response()->json([
+            'data' => $area,
+            'message' => 'Area updated successfully',
+        ]);
     }
 
-    public function destroy($id)
+    public function destroy(Area $area): JsonResponse
     {
-        $area = Area::find($id);
         $area->delete();
         return response()->json(['message' => 'Area deleted successfully']);
     }

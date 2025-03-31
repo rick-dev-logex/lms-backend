@@ -3,58 +3,64 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreTransportRequest;
+use App\Http\Requests\UpdateTransportRequest;
 use App\Models\Transport;
-use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
 class TransportController extends Controller
 {
-    public function index(Request $request)
+    public function index(): JsonResponse
     {
-        if ($request->input('action') === 'count') {
-            $vehicles = DB::connection('tms1')->table('vehiculos')->where('status', 'ACTIVO')->get()->count();
-            return response()->json($vehicles);
-        } else {
-            $query = Transport::select('id', 'name')->where('deleted', '0');
-
-            // Seleccionar campos específicos si se solicitan
-            if ($request->filled('fields')) {
-                $query->select(explode(',', $request->fields));
-            }
-
-            return response()->json($query->orderBy('name', 'asc')->get());
+        if (request('action') === 'count') {
+            $count = DB::connection('tms1')
+                ->table('vehiculos')
+                ->where('status', 'ACTIVO')
+                ->count();
+            return response()->json(['data' => $count]);
         }
+
+        $query = Transport::select('id', 'name')->where('deleted', '0');
+        if (request('fields')) {
+            $query->select(explode(',', request('fields')));
+        }
+
+        return response()->json(['data' => $query->orderBy('name', 'asc')->get()]);
     }
 
-    public function store(Request $request)
+    public function store(StoreTransportRequest $request): JsonResponse
     {
-        $transport = Transport::create($request->all());
-        return response()->json($transport, 201);
+        $transport = Transport::create($request->validated());
+        return response()->json([
+            'data' => $transport,
+            'message' => 'Transport created successfully',
+        ], 201);
     }
 
-    public function show($id)
+    public function show(Transport $transport): JsonResponse
     {
-        $transport = Transport::findOrFail($id);
-        return response()->json($transport);
+        return response()->json(['data' => $transport]);
     }
 
-    public function update(Request $request, $id)
+    public function update(UpdateTransportRequest $request, Transport $transport): JsonResponse
     {
-        $transport = Transport::findOrFail($id);
-        $transport->update($request->all());
-        return response()->json($transport, 200);
+        $transport->update($request->validated());
+        return response()->json([
+            'data' => $transport,
+            'message' => 'Transport updated successfully',
+        ]);
     }
 
-    public function destroy($id)
+    public function destroy(Transport $transport): JsonResponse
     {
-        $transport = Transport::findOrFail($id);
         $transport->delete();
-        return response()->json(['message' => 'Transport deleted successfully'], 204);
+        return response()->json(['message' => 'Transport deleted successfully']);
     }
 
-    public function getTransportByAccountId($accountId)
+    public function getTransportByAccountId($accountId): JsonResponse
     {
-        $transport = Transport::where('account_id', $accountId)->get();
-        return response()->json($transport);
+        $transports = Transport::where('account_id', $accountId)->get();
+        return response()->json(['data' => $transports]);
     }
 }

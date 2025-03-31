@@ -13,12 +13,8 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
-    // public function __construct(array $attributes = [])
-    // {
-    //     parent::__construct($attributes);
-    //     $this->setConnection(env('DB_CONNECTION', 'lms_local'));
-    // }
-    protected $connection = 'lms_backend';
+    protected $connection = 'lms_local';
+    // protected $connection = 'lms_backend';
 
     protected $fillable = [
         'type',

@@ -204,9 +204,9 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         $query = Account::where('account_status', 'active');
 
         if ($this->context === 'discounts') {
-            $query->whereIn('account_affects', ['discount', 'both']);
+            $query->where('account_affects', 'discount')->orWhere('account_affects', 'both');
         } elseif ($this->context === 'expenses') {
-            $query->where('account_affects', ['expense', 'both']);
+            $query->where('account_affects', 'expense')->orWhere('account_affects', 'both');
         }
 
         return $query->pluck('name')->toArray();

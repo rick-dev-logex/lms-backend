@@ -6,11 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class UserAssignedProjects extends Model
 {
-    protected $connection = 'lms_local';
     // protected $connection = 'lms_backend';
     protected $table = 'user_assigned_projects';
 
-    // Aunque el campo es LONGTEXT, lo casteamos a array para trabajar como JSON
     protected $casts = [
         'projects' => 'array',
     ];
@@ -19,6 +17,6 @@ class UserAssignedProjects extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

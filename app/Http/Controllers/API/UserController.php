@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class UserController extends Controller
 {
@@ -19,10 +20,25 @@ class UserController extends Controller
             ->orderBy('name', 'asc')
             ->get()
             ->map(function ($user) {
-                $userData = $user->toArray();
-                $userData['projects'] = $user->assignedProjects ? $user->assignedProjects->projects : [];
-                return $userData;
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role ? [
+                        'id' => $user->role->id,
+                        'name' => $user->role->name,
+                    ] : null,
+                    'permissions' => $user->permissions->map(function ($permission) {
+                        return [
+                            'id' => $permission->id,
+                            'name' => $permission->name,
+                        ];
+                    })->all(),
+                    'projects' => $user->assignedProjects ? $user->assignedProjects->projects : [],
+                ];
             });
+
+        Log::debug('Users fetched', ['users' => $users->toArray()]);
 
         return response()->json(['data' => $users]);
     }
@@ -52,7 +68,7 @@ class UserController extends Controller
     {
         $user->load(['role', 'permissions', 'assignedProjects']);
         $userData = $user->toArray();
-        $userData['projects'] = $user->assignedProjects ? $user->assignedProjects->projects : [];
+        $userData['projects'] = $user->assignedProjects->pluck('projects')->flatten()->all();
 
         return response()->json(['data' => $userData]);
     }
@@ -95,13 +111,15 @@ class UserController extends Controller
     public function assignProjects(AssignProjectsRequest $request, User $user): JsonResponse
     {
         return DB::transaction(function () use ($request, $user) {
-            $user->assignedProjects()->updateOrCreate(
-                ['user_id' => $user->id],
-                ['projects' => $request->projects]
-            );
+            // Eliminar asignaciones existentes
+            $user->assignedProjects()->delete();
+            // Crear una nueva asignación
+            $user->assignedProjects()->create([
+                'projects' => $request->projects,
+            ]);
 
             return response()->json([
-                'data' => $user->load('assignedProjects'),
+                'data' => $user->load(['role', 'permissions', 'assignedProjects']),
                 'message' => 'Projects assigned successfully',
             ]);
         });

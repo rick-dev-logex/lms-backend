@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
@@ -43,6 +44,7 @@ class AuthController extends Controller
         $user = Auth::guard('web')->user();
         if (!$user) return response()->json(['message' => 'No autenticado'], 401);
         $user = $user->load(['role', 'permissions', 'assignedProjects']);
+        Log::debug("User:" . $user);
         $userData = $user->toArray();
         $userData['assignedProjects'] = $user->assignedProjects ? $user->assignedProjects->projects : [];
         return response()->json(['data' => $userData]);

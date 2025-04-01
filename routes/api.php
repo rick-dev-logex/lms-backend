@@ -64,27 +64,26 @@ Route::middleware('auth:web')->group(function () {
     Route::get('/loans/{loan}/file', [LoanController::class, 'file']);
 
     // Rutas solo para administradores
-    Route::middleware(['role:admin,developer'])->group(function () {
-        Route::prefix('users')->group(function () {
-            Route::get('/', [UserController::class, 'index']);
-            Route::post('/', [UserController::class, 'store']);
-            Route::get('/{user}', [UserController::class, 'show']);
-            Route::put('/{user}', [UserController::class, 'update']);
-            Route::delete('/{user}', [UserController::class, 'destroy']);
-            Route::put('/{user}/permissions', [UserController::class, 'updatePermissions']);
-            Route::get('/{user}/projects', [UserController::class, 'getUserProjects']);
-            Route::post('/{user}/projects', [UserController::class, 'assignProjects']);
-        });
 
-        Route::apiResource('/roles', RoleController::class);
-        Route::get('/roles/{role}/permissions', [RoleController::class, 'permissions']);
-        Route::put('/roles/{role}/permissions', [RoleController::class, 'updatePermissions']);
-
-        Route::apiResource('/permissions', PermissionController::class);
-        Route::post('/permissions/{permission}/assign-to-role', [PermissionController::class, 'assignToRole']);
-
-        Route::post('/register', [AuthController::class, 'register']);
+    Route::prefix('users')->group(function () {
+        Route::get('/', [UserController::class, 'index']);
+        Route::post('/', [UserController::class, 'store']);
+        Route::get('/{user}', [UserController::class, 'show']);
+        Route::put('/{user}', [UserController::class, 'update']);
+        Route::delete('/{user}', [UserController::class, 'destroy']);
+        Route::put('/{user}/permissions', [UserController::class, 'updatePermissions']);
+        Route::get('/{user}/projects', [UserController::class, 'getUserProjects']);
+        Route::post('/{user}/projects', [UserController::class, 'assignProjects']);
     });
+
+    Route::apiResource('/roles', RoleController::class);
+    Route::get('/roles/{role}/permissions', [RoleController::class, 'permissions']);
+    Route::put('/roles/{role}/permissions', [RoleController::class, 'updatePermissions']);
+
+    Route::apiResource('/permissions', PermissionController::class);
+    Route::post('/permissions/{permission}/assign-to-role', [PermissionController::class, 'assignToRole']);
+
+    Route::post('/register', [AuthController::class, 'register']);
 });
 
 // Captura de OPTIONS para CORS

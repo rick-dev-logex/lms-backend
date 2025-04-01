@@ -80,54 +80,54 @@ class ReposicionController extends Controller
 
             $period = $request->input('period', 'last_3_months');
 
-            // Aplicar filtros de período
+            // Fetch project names for the user's assigned UUIDs
+            $projectNames = [];
+            if (!empty($assignedProjectIds)) {
+                $projectNames = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->whereIn('id', $assignedProjectIds)
+                    ->pluck('name')
+                    ->toArray();
+                $query->whereIn('project', $projectNames); // Filter by names instead of UUIDs
+            }
+
             if ($period === 'last_3_months') {
                 $query->where('created_at', '>=', now()->subMonths(3));
             }
-
-            // Filtrar por proyectos asignados
-            if (!empty($assignedProjectIds)) {
-                $query->whereIn('project', $assignedProjectIds);
-            }
-
-            // Aplicar otros filtros si están presentes
             if ($request->filled('project')) {
                 $query->where('project', $request->project);
             }
-
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
             }
-
             if ($request->filled('month')) {
                 $query->where('month', $request->month);
             }
-
-            // Obtener todas las reposiciones sin paginación
             $reposiciones = $query->get();
-
-            // Para cada reposición, cargar sus solicitudes relacionadas
             $reposiciones->each(function ($reposicion) {
                 $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
             });
 
-            // Obtener proyectos para referencias
-            $projects = [];
-            if (!empty($assignedProjectIds)) {
-                $projects = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->whereIn('id', $assignedProjectIds)
-                    ->select('id', 'name')
-                    ->get()
-                    ->mapWithKeys(function ($project) {
-                        return [$project->id => $project->name];
-                    })->all();
-            }
+            // Log for debugging
+            Log::info('ReposicionController::index', [
+                'user_id' => $userId,
+                'assigned_project_uuids' => $assignedProjectIds,
+                'project_names' => $projectNames,
+                'reposicion_count' => $reposiciones->count(),
+            ]);
 
-            // Agregar nombres de proyectos a los datos de respuesta
+            // Transform data
+            $projects = !empty($assignedProjectIds) ? DB::connection('sistema_onix')
+                ->table('onix_proyectos')
+                ->whereIn('id', $assignedProjectIds)
+                ->select('id', 'name')
+                ->get()
+                ->mapWithKeys(function ($project) {
+                    return [$project->id => $project->name];
+                })->all() : [];
             $data = $reposiciones->map(function ($reposicion) use ($projects) {
                 $repoData = $reposicion->toArray();
-                $repoData['project_name'] = $projects[$reposicion->project] ?? 'Unknown';
+                $repoData['project_name'] = $reposicion->project; // Already a name
                 return $repoData;
             })->values()->all();
 

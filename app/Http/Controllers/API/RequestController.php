@@ -225,17 +225,21 @@ class RequestController extends Controller
                 'type' => 'required|in:expense,discount',
                 'personnel_type' => 'required|in:nomina,transportista',
                 'request_date' => 'required|date',
-                'invoice_number' => 'required|numeric',
-                'account_id' => 'required|exists:accounts,name',
+                'invoice_number' => 'required|string', // Cambiado a string para datos raw
+                'account_id' => 'required|string', // Guardar como string directamente
                 'amount' => 'required|numeric|min:0',
                 'project' => 'required|string',
                 'note' => 'required|string',
             ];
 
             if ($request->input('personnel_type') === 'nomina') {
-                $baseRules['responsible_id'] = 'required|exists:sistema_onix.onix_personal,nombre_completo';
+                $baseRules['responsible_id'] = 'required|string'; // String en lugar de exists
             } else {
-                $baseRules['vehicle_plate'] = 'required|exists:sistema_onix.onix_vehiculos,name';
+                $baseRules['vehicle_plate'] = 'required|string'; // String en lugar de exists
+            }
+
+            if ($request->has('vehicle_number')) {
+                $baseRules['vehicle_number'] = 'nullable|string';
             }
 
             $validated = $request->validate($baseRules);
@@ -246,25 +250,28 @@ class RequestController extends Controller
             $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
             $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
 
+            // Guardar datos raw como llegan
             $requestData = [
                 'type' => $validated['type'],
                 'personnel_type' => $validated['personnel_type'],
-                'project' => $request['project'], // Guardar el nombre
+                'project' => $validated['project'],
                 'request_date' => $validated['request_date'],
                 'invoice_number' => $validated['invoice_number'],
-                'account_id' => $validated['account_id'],
+                'account_id' => $validated['account_id'], // String directo del payload
                 'amount' => $validated['amount'],
-                'vehicle_number' => $request['vehicle_number'],
                 'note' => $validated['note'],
                 'unique_id' => $uniqueId,
                 'status' => 'pending'
             ];
 
-            if (isset($validated['responsible_id'])) {
-                $requestData['responsible_id'] = $validated['responsible_id'];
+            if ($request->has('responsible_id')) {
+                $requestData['responsible_id'] = $request->input('responsible_id'); // String directo
             }
-            if (isset($validated['vehicle_plate'])) {
-                $requestData['vehicle_plate'] = $validated['vehicle_plate'];
+            if ($request->has('vehicle_plate')) {
+                $requestData['vehicle_plate'] = $request->input('vehicle_plate'); // String directo
+            }
+            if ($request->has('vehicle_number')) {
+                $requestData['vehicle_number'] = $request->input('vehicle_number'); // String directo
             }
 
             $newRequest = Request::create($requestData);
@@ -283,6 +290,8 @@ class RequestController extends Controller
 
     public function update(HttpRequest $request, Request $requestRecord)
     {
+        $requestModel = Request::where('unique_id', $request->unique_id)->firstOrFail();
+
         try {
             $baseRules = [
                 'status' => 'sometimes|in:pending,paid,rejected,review,in_reposition',
@@ -295,37 +304,15 @@ class RequestController extends Controller
             ];
 
             if ($request->input('personnel_type') === 'nomina') {
-                $baseRules['responsible_id'] = 'sometimes|exists:sistema_onix.onix_personal,id';
+                $baseRules['responsible_id'] = 'sometimes|exists:sistema_onix.onix_personal,nombre_completo';
             } else {
                 $baseRules['vehicle_plate'] = 'sometimes|exists:sistema_onix.onix_vehiculos,name';
             }
 
             $validated = $request->validate($baseRules);
 
-            // Si se envía un proyecto, convertirlo a UUID
-            if (isset($validated['project'])) {
-                $projectName = trim($validated['project']);
-                $project = Project::where('name', $projectName)->first();
-                if (!$project) {
-                    throw new \Exception("Proyecto no encontrado: {$projectName}");
-                }
-                $validated['project'] = $project->id;
-            }
-
-            $oldStatus = $requestRecord->status;
-
-            $requestRecord->update($validated);
-
-            if (isset($validated['status']) && $validated['status'] !== $oldStatus) {
-                $responsible = $requestRecord->responsible;
-                broadcast(new RequestUpdated($requestRecord))->toOthers();
-
-                if ($responsible) {
-                    $responsible->notify(new RequestNotification($requestRecord, $validated['status']));
-                }
-            }
-
-            return response()->json($requestRecord);
+            $requestModel->update($validated);
+            return response()->json($requestModel);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Error al actualizar la solicitud',

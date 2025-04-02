@@ -259,7 +259,7 @@ class ReposicionController extends Controller
 
             // Actualizar el estado de las solicitudes relacionadas
             Request::whereIn('unique_id', $requestIds)
-                ->update(['status' => 'in_reposition']);
+                ->update(['reposicion_id' => $reposicion->id, 'status' => 'in_reposition']);
 
             DB::commit();
 

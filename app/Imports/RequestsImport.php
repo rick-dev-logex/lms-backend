@@ -12,6 +12,7 @@ use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithStartRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows
 {
@@ -26,12 +27,24 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     private $processedRows = 0;
     private $userProjects;
     private $shouldStop = false;
+    protected $nextId;
 
     public function __construct(string $context = 'discounts', $userId = null)
     {
         $this->context = $context;
 
         try {
+            // Fetch and normalize account names
+            $this->accounts = Account::where('account_status', 'active')
+                ->whereIn('account_affects', $this->context === 'discounts' ? ['discount', 'both'] : ['expense', 'both'])
+                ->pluck('id', 'name')
+                ->mapWithKeys(function ($id, $name) {
+                    $normalizedName = preg_replace('/\s+/', ' ', trim(strtolower($name)));
+                    return [$normalizedName => $id];
+                })->toArray();
+
+            Log::info("Cuentas cargadas para importación:", ['accounts' => $this->accounts]);
+
             $this->accounts = Account::where('account_status', 'active')
                 ->whereIn('account_affects', $this->context === 'discounts' ? ['discount', 'both'] : ['expense'])
                 ->pluck('id', 'name')
@@ -88,157 +101,96 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
     public function model(array $row)
     {
-        if ($this->shouldStop) {
-            return null;
-        }
+        $this->rowNumber++; // Increment row number for error reporting
 
-        $this->rowNumber++;
-
+        // Map Excel columns to meaningful keys (adjust based on your column mapping)
         $mappedRow = [
-            'fecha' => $row[0] ?? null,
-            'personnel_type' => $this->normalizePersonnelType($row[1] ?? null),
-            'no_factura' => $row[2] ?? null,
-            'cuenta' => $row[3] ?? null,
-            'valor' => $row[4] ?? null,
-            'proyecto' => $row[5] ?? null,
-            'responsable' => $row[6] ?? null,
-            'placa' => $row[7] ?? null,
-            'cedula' => $row[8] ?? null,
-            'observacion' => $row[9] ?? null,
+            'fecha' => $row['fecha'] ?? null,
+            'personnel_type' => $row['personnel_type'] ?? null,
+            'no_factura' => $row['no_factura'] ?? null,
+            'cuenta' => $row['cuenta'] ?? null,
+            'valor' => $row['valor'] ?? null,
+            'proyecto' => $row['proyecto'] ?? null,
+            'responsable' => $row['responsable'] ?? null,
+            'placa' => $row['placa'] ?? null,
+            'cedula' => $row['cedula'] ?? null,
+            'observacion' => $row['observacion'] ?? null,
         ];
 
-        Log::info("Fila {$this->rowNumber} mapeada: " . json_encode($mappedRow));
-
-        if (strtolower($mappedRow['fecha']) === 'fecha' || stripos($mappedRow['fecha'], 'completa_una_fila') !== false) {
-            Log::info("Ignorando fila descriptiva o encabezado: " . json_encode($mappedRow));
+        // Skip header or descriptive rows
+        if ($this->rowNumber === 1 && ($mappedRow['fecha'] === 'Fecha' || empty($mappedRow['valor']))) {
+            Log::info("Ignorando fila descriptiva o encabezado:", $mappedRow);
             return null;
         }
 
-        $requiredFields = ['fecha', 'personnel_type', 'valor'];
-        $hasRequiredFields = array_reduce($requiredFields, function ($carry, $field) use ($mappedRow) {
-            return $carry && !empty($mappedRow[$field]);
-        }, true);
-
-        if (!$hasRequiredFields) {
-            Log::info("Fila {$this->rowNumber} incompleta, ignorada: " . json_encode($mappedRow));
-            $this->shouldStop = true;
-            return null;
-        }
-
+        // Initialize errors array
         $errors = [];
-        $projectId = null;
-        $projectInput = trim($mappedRow['proyecto'] ?? '');
 
-        if (empty($mappedRow['fecha'])) {
-            $errors[] = "Fila {$this->rowNumber}: Falta la fecha";
+        // Normalize and find account ID
+        $accountName = preg_replace('/\s+/', ' ', trim(strtolower($mappedRow['cuenta'])));
+        Log::info("Buscando cuenta en fila {$this->rowNumber}:", [
+            'input' => $accountName,
+            'available' => array_keys($this->accounts)
+        ]);
+
+        $accountId = $this->accounts[$accountName] ?? null;
+        if (!$accountId) {
+            $errors[] = "Fila {$this->rowNumber}: Cuenta '{$mappedRow['cuenta']}' no encontrada";
+        } else {
+            Log::info("Cuenta encontrada en fila {$this->rowNumber}:", ['account_id' => $accountId]);
         }
 
-        if (empty($mappedRow['personnel_type'])) {
-            $errors[] = "Fila {$this->rowNumber}: Falta el tipo de personal";
-        } elseif (!in_array($mappedRow['personnel_type'], ['nomina', 'transportista'])) {
-            $errors[] = "Fila {$this->rowNumber}: El tipo de personal debe ser 'nomina' o 'transportista'";
-        }
-
+        // Basic validations
         if (empty($mappedRow['no_factura'])) {
             $errors[] = "Fila {$this->rowNumber}: El número de factura no puede estar vacío";
         }
-        if (!is_numeric($mappedRow['no_factura'])) {
-            $errors[] = "Fila {$this->rowNumber}: El número de factura únicamente puede contener números";
+
+        if (empty($mappedRow['valor']) || !is_numeric($mappedRow['valor'])) {
+            $errors[] = "Fila {$this->rowNumber}: El valor debe ser un número válido";
         }
 
-        if (empty($mappedRow['valor'])) {
-            $errors[] = "Fila {$this->rowNumber}: El valor no puede estar vacío";
-        }
-
-        if (!is_numeric($mappedRow['valor'])) {
-            $errors[] = "Fila {$this->rowNumber}: El valor debe ser numérico";
-        }
-
-        if (empty($mappedRow['cuenta'])) {
-            $errors[] = "Fila {$this->rowNumber}: Falta la cuenta";
-        }
-
-        if (preg_match('/^[a-f0-9-]{36}$/', $projectInput)) {
-            $projectId = $projectInput;
-            // Log::info("Fila {$this->rowNumber}: Proyecto interpretado como UUID: {$projectId}");
+        // Validate Excel date
+        if (empty($mappedRow['fecha']) || !is_numeric($mappedRow['fecha']) || $mappedRow['fecha'] < 1) {
+            $errors[] = "Fila {$this->rowNumber}: La fecha no es válida";
         } else {
-            $normalizedProjectName = trim(strtolower($projectInput));
-            $projectId = $this->projects[$normalizedProjectName] ?? null;
-            if ($projectId) {
-                Log::info("Fila {$this->rowNumber}: Proyecto '{$projectInput}' mapeado a UUID: {$projectId}");
-            } else {
-                $errors[] = "Fila {$this->rowNumber}: Proyecto '{$projectInput}' no encontrado en la base de datos";
-            }
-        }
-
-        $accountName = trim($mappedRow['cuenta']);
-        $accountId = $this->accounts[$accountName] ?? null;
-        if (!$accountId) {
-            $errors[] = "Fila {$this->rowNumber}: Cuenta '{$accountName}' no encontrada";
-        }
-
-        $responsibleId = null;
-        $cedula = trim($mappedRow['cedula'] ?? '');
-        if ($mappedRow['personnel_type'] === 'nomina') {
-            if (empty($cedula)) {
-                $errors[] = "Fila {$this->rowNumber}: Cédula requerida para tipo 'nomina'";
-            } else {
-                $responsibleId = $this->personals[$cedula] ?? null;
-                if (!$responsibleId) {
-                    $errors[] = "Fila {$this->rowNumber}: Responsable con cédula '{$cedula}' no encontrado";
+            try {
+                $date = Date::excelToDateTimeObject($mappedRow['fecha']);
+                if (!$date instanceof \DateTime) {
+                    $errors[] = "Fila {$this->rowNumber}: La fecha no es válida";
                 }
+            } catch (\Exception $e) {
+                $errors[] = "Fila {$this->rowNumber}: La fecha no es válida ({$e->getMessage()})";
             }
         }
 
-        $transportId = null;
-        $plate = $this->normalizePlate($mappedRow['placa'] ?? '');
-        if ($mappedRow['personnel_type'] === 'transportista') {
-            if (empty($plate)) {
-                $errors[] = "Fila {$this->rowNumber}: Placa requerida para tipo 'transportista'";
-            } else {
-                $transportId = $this->vehicles[$plate] ?? null;
-                if (!$transportId) {
-                    $errors[] = "Fila {$this->rowNumber}: Vehículo no encontrado con placa '{$plate}'";
-                }
-            }
-        }
-
-        $prefix = $this->context === 'discounts' ? 'D-' : 'G-';
-        $uniqueId = $this->nextSequence <= 9999
-            ? sprintf('%s%05d', $prefix, $this->nextSequence)
-            : sprintf('%s%d', $prefix, $this->nextSequence);
-
-        $potentialRequestData = [
-            'unique_id' => $uniqueId,
-            'type' => $this->context === 'discounts' ? 'discount' : 'expense',
+        // Prepare request data with raw values
+        $requestData = [
+            'unique_id' => sprintf("G-%05d", $this->nextId++),
+            'type' => $this->context, // 'expense' or 'discounts' from constructor
             'personnel_type' => $mappedRow['personnel_type'],
             'status' => 'pending',
-            'request_date' => $this->parseDate($mappedRow['fecha']),
-            'invoice_number' => $mappedRow['no_factura'] ?? null,
-            'account_id' => $accountId,
+            'request_date' => isset($date) ? \Carbon\Carbon::instance($date)->toDateString() : null,
+            'invoice_number' => $mappedRow['no_factura'],
+            'account_id' => $accountId, // Still an ID, not raw name
             'amount' => floatval($mappedRow['valor']),
-            'project' => $projectId, // Guardar el UUID resuelto
-            'responsible_id' => $responsibleId,
-            'transport_id' => $transportId ?? null,
-            'note' => $this->context === 'expense' ? $mappedRow['observacion'] ?? "No se agregó una observación." : $mappedRow['observacion'] ?? null, // Obligar a poner observación si es que es descuento
-            'created_at' => now(),
-            'updated_at' => now(),
+            'project' => $mappedRow['proyecto'], // Raw name, e.g., "CNYA"
+            'responsible_id' => $mappedRow['responsable'], // Raw name, e.g., "MORA CASTILLO CRISTOFER HERNANDO"
+            'transport_id' => $mappedRow['placa'] ?? null, // Assuming plate number, e.g., "EUBA3845"
+            'note' => $mappedRow['observacion'] ?? null,
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
         ];
 
-        Log::info("Datos potenciales para fila {$this->rowNumber} antes de validaciones: " . json_encode($potentialRequestData));
+        // Log potential data for debugging
+        Log::info("Datos potenciales para fila {$this->rowNumber} antes de validaciones:", $requestData);
 
+        // Throw exception if there are errors
         if (!empty($errors)) {
-            $this->errors = array_merge($this->errors, $errors);
-            Log::warning("Errores en fila {$this->rowNumber}: " . implode(', ', $errors));
-            $this->shouldStop = true;
-            return null;
+            Log::warning("Errores en fila {$this->rowNumber}:", $errors);
+            throw new \Exception(implode(", ", $errors));
         }
 
-        $requestData = $potentialRequestData;
-        $this->nextSequence++;
-
-        Log::info("Registro a crear en fila {$this->rowNumber}: " . json_encode($requestData));
-        $this->processedRows++;
+        // Return new Request instance
         return new Request($requestData);
     }
 
@@ -256,7 +208,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     private function parseDate($date): string
     {
         if (is_numeric($date)) {
-            return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($date)->format('Y-m-d');
+            return Date::excelToDateTimeObject($date)->format('Y-m-d');
         }
         return date('Y-m-d', strtotime($date));
     }

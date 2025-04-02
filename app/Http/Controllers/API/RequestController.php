@@ -296,9 +296,10 @@ class RequestController extends Controller
             $baseRules = [
                 'status' => 'sometimes|in:pending,paid,rejected,review,in_reposition',
                 'request_date' => 'sometimes|date',
+                'account_id' => 'sometimes|string',
                 'invoice_number' => 'sometimes|numeric',
                 'amount' => 'sometimes|numeric',
-                'project' => 'sometimes|string', // Nombre del proyecto desde el frontend
+                'project' => 'sometimes|string',
                 'vehicle_number' => 'sometimes|string',
                 'note' => 'sometimes|string',
             ];

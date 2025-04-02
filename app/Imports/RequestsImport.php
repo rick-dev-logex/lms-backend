@@ -3,95 +3,35 @@
 namespace App\Imports;
 
 use App\Models\Request;
-use App\Models\Account;
-use App\Models\Project;
-use App\Models\UserAssignedProjects;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithStartRow;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
-use PhpOffice\PhpSpreadsheet\Shared\Date;
+use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows
 {
-    private $context;
-    private $accounts;
-    private $projects;
-    private $personals;
-    private $vehicles;
-    private $nextSequence;
-    public $errors = [];
-    private $rowNumber = 0;
-    private $processedRows = 0;
-    private $userProjects;
-    private $shouldStop = false;
+    protected $rowNumber = 0;
     protected $nextId;
+    protected $context;
 
     public function __construct(string $context = 'discounts', $userId = null)
     {
-        $this->context = $context;
-
-        try {
-            // Fetch and normalize account names
-            $this->accounts = Account::where('account_status', 'active')
-                ->whereIn('account_affects', $this->context === 'discounts' ? ['discount', 'both'] : ['expense', 'both'])
-                ->pluck('id', 'name')
-                ->mapWithKeys(function ($id, $name) {
-                    $normalizedName = preg_replace('/\s+/', ' ', trim(strtolower($name)));
-                    return [$normalizedName => $id];
-                })->toArray();
-
-            Log::info("Cuentas cargadas para importación:", ['accounts' => $this->accounts]);
-
-            $this->accounts = Account::where('account_status', 'active')
-                ->whereIn('account_affects', $this->context === 'discounts' ? ['discount', 'both'] : ['expense'])
-                ->pluck('id', 'name')
-                ->toArray();
-
-            $this->projects = Project::pluck('id', 'name')->toArray();
-
-            $this->personals = DB::connection('sistema_onix')
-                ->table('onix_personal')
-                ->pluck('id', 'name')
-                ->toArray();
-
-            $this->vehicles = DB::connection('sistema_onix')
-                ->table('onix_vehiculos')
-                ->pluck('id', 'name')
-                ->toArray();
-
-            $this->projects = Project::all()->pluck('id', 'name')->mapWithKeys(function ($id, $name) {
-                return [trim(strtolower($name)) => $id];
-            })->toArray();
-
-            $prefix = $this->context === 'discounts' ? 'D-' : 'G-';
-            $lastRequest = Request::where('unique_id', 'like', "{$prefix}%")
-                ->orderBy('unique_id', 'desc')
-                ->first();
-
-            $this->nextSequence = $lastRequest
-                ? (int) substr($lastRequest->unique_id, 2) + 1
-                : 1;
-
-            if ($userId) {
-                $userProjects = UserAssignedProjects::where('user_id', $userId)->first();
-                $this->userProjects = $userProjects ? $userProjects->projects : [];
-            } else {
-                $this->userProjects = [];
-            }
-
-            Log::info("Iniciando importación con contexto: {$context}, próximo ID: {$this->nextSequence}");
-        } catch (\Exception $e) {
-            Log::error("Error al inicializar importación: " . $e->getMessage());
-            throw new \Exception("No se pudo inicializar la importación. Contacte al administrador.");
+        $this->context = in_array(strtolower($context), ['expense', 'discount']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : 'discount');
+        // Fetch the max unique_id from the database and increment
+        $lastRequest = Request::orderBy('unique_id', 'desc')->first();
+        if ($lastRequest && preg_match('/G-(\d{5})/', $lastRequest->unique_id, $matches)) {
+            $this->nextId = (int)$matches[1] + 1;
+        } else {
+            $this->nextId = 1; // Start at 1 if no records exist
         }
+        $this->rowNumber = 0;
     }
 
     public function startRow(): int
     {
-        return 3;
+        return 4;
     }
 
     public function chunkSize(): int
@@ -101,115 +41,84 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
     public function model(array $row)
     {
-        $this->rowNumber++; // Increment row number for error reporting
+        $this->rowNumber++;
 
-        // Map Excel columns to meaningful keys (adjust based on your column mapping)
-        $mappedRow = [
-            'fecha' => $row['fecha'] ?? null,
-            'personnel_type' => $row['personnel_type'] ?? null,
-            'no_factura' => $row['no_factura'] ?? null,
-            'cuenta' => $row['cuenta'] ?? null,
-            'valor' => $row['valor'] ?? null,
-            'proyecto' => $row['proyecto'] ?? null,
-            'responsable' => $row['responsable'] ?? null,
-            'placa' => $row['placa'] ?? null,
-            'cedula' => $row['cedula'] ?? null,
-            'observacion' => $row['observacion'] ?? null,
-        ];
-
-        // Skip header or descriptive rows
-        if ($this->rowNumber === 1 && ($mappedRow['fecha'] === 'Fecha' || empty($mappedRow['valor']))) {
-            Log::info("Ignorando fila descriptiva o encabezado:", $mappedRow);
+        if (count($row) < 10) {
+            Log::warning("Skipping row {$this->rowNumber}: incomplete row", $row);
             return null;
         }
 
-        // Initialize errors array
+        $mappedRow = [
+            'fecha' => $row[0] ?? null,
+            'personnel_type' => $row[1] ?? null,
+            'no_factura' => $row[2] ?? null,
+            'cuenta' => $row[3] ?? null,
+            'valor' => $row[4] ?? null,
+            'proyecto' => $row[5] ?? null,
+            'responsable' => $row[6] ?? null,
+            'vehicle_plate' => $row[7] ?? null,
+            'cedula_responsable' => $row[8] ?? null,
+            'note' => $row[9] ?? "—",
+        ];
+
         $errors = [];
 
-        // Normalize and find account ID
-        $accountName = preg_replace('/\s+/', ' ', trim(strtolower($mappedRow['cuenta'])));
-        Log::info("Buscando cuenta en fila {$this->rowNumber}:", [
-            'input' => $accountName,
-            'available' => array_keys($this->accounts)
-        ]);
-
-        $accountId = $this->accounts[$accountName] ?? null;
-        if (!$accountId) {
-            $errors[] = "Fila {$this->rowNumber}: Cuenta '{$mappedRow['cuenta']}' no encontrada";
-        } else {
-            Log::info("Cuenta encontrada en fila {$this->rowNumber}:", ['account_id' => $accountId]);
+        if (empty($mappedRow['personnel_type'])) {
+            $errors[] = "Missing personnel_type";
         }
 
-        // Basic validations
         if (empty($mappedRow['no_factura'])) {
-            $errors[] = "Fila {$this->rowNumber}: El número de factura no puede estar vacío";
+            $errors[] = "Missing invoice_number";
         }
 
-        if (empty($mappedRow['valor']) || !is_numeric($mappedRow['valor'])) {
-            $errors[] = "Fila {$this->rowNumber}: El valor debe ser un número válido";
+        if (!is_numeric($mappedRow['valor'])) {
+            $errors[] = "Invalid amount";
         }
 
-        // Validate Excel date
-        if (empty($mappedRow['fecha']) || !is_numeric($mappedRow['fecha']) || $mappedRow['fecha'] < 1) {
-            $errors[] = "Fila {$this->rowNumber}: La fecha no es válida";
+        if (empty($mappedRow['proyecto'])) {
+            $errors[] = "Missing project";
+        }
+
+        if (!is_numeric($mappedRow['fecha']) || $mappedRow['fecha'] <= 0) {
+            $errors[] = "Invalid date";
         } else {
             try {
-                $date = Date::excelToDateTimeObject($mappedRow['fecha']);
-                if (!$date instanceof \DateTime) {
-                    $errors[] = "Fila {$this->rowNumber}: La fecha no es válida";
-                }
+                $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($mappedRow['fecha']);
             } catch (\Exception $e) {
-                $errors[] = "Fila {$this->rowNumber}: La fecha no es válida ({$e->getMessage()})";
+                $errors[] = "Invalid date: " . $e->getMessage();
             }
         }
 
-        // Prepare request data with raw values
+        // Additional validations if needed
+        // For example, if cedula_responsable is required to be numeric and 10 digits
+        if (!empty($mappedRow['cedula_responsable']) && (!is_numeric($mappedRow['cedula_responsable']) || strlen((string)$mappedRow['cedula_responsable']) < 10)) {
+            $errors[] = "Invalid cedula_responsable";
+        }
+
+        if (!empty($errors)) {
+            Log::warning("Skipping row {$this->rowNumber} due to errors:", $errors);
+            return null;
+        }
+
+        // Prepare request data
         $requestData = [
             'unique_id' => sprintf("G-%05d", $this->nextId++),
-            'type' => $this->context, // 'expense' or 'discounts' from constructor
+            'type' => $this->context,
             'personnel_type' => $mappedRow['personnel_type'],
             'status' => 'pending',
-            'request_date' => isset($date) ? \Carbon\Carbon::instance($date)->toDateString() : null,
+            'request_date' => Carbon::instance($date)->toDateString(),
             'invoice_number' => $mappedRow['no_factura'],
-            'account_id' => $accountId, // Still an ID, not raw name
+            'account_id' => $mappedRow['cuenta'],
             'amount' => floatval($mappedRow['valor']),
-            'project' => $mappedRow['proyecto'], // Raw name, e.g., "CNYA"
-            'responsible_id' => $mappedRow['responsable'], // Raw name, e.g., "MORA CASTILLO CRISTOFER HERNANDO"
-            'transport_id' => $mappedRow['placa'] ?? null, // Assuming plate number, e.g., "EUBA3845"
-            'note' => $mappedRow['observacion'] ?? null,
+            'project' => $mappedRow['proyecto'],
+            'responsible_id' => $mappedRow['responsable'],
+            'vehicle_plate' => $mappedRow['vehicle_plate'],
+            'cedula_responsable' => $mappedRow['cedula_responsable'],
+            'note' => $mappedRow['note'] ?? "—",
             'created_at' => now()->toDateTimeString(),
             'updated_at' => now()->toDateTimeString(),
         ];
 
-        // Log potential data for debugging
-        Log::info("Datos potenciales para fila {$this->rowNumber} antes de validaciones:", $requestData);
-
-        // Throw exception if there are errors
-        if (!empty($errors)) {
-            Log::warning("Errores en fila {$this->rowNumber}:", $errors);
-            throw new \Exception(implode(", ", $errors));
-        }
-
-        // Return new Request instance
         return new Request($requestData);
-    }
-
-    private function normalizePlate(string $plate): string
-    {
-        return str_replace([' ', '-'], '', trim($plate));
-    }
-
-    private function normalizePersonnelType(?string $type): string
-    {
-        if (!$type) return '';
-        return str_replace('ó', 'o', strtolower(trim($type)));
-    }
-
-    private function parseDate($date): string
-    {
-        if (is_numeric($date)) {
-            return Date::excelToDateTimeObject($date)->format('Y-m-d');
-        }
-        return date('Y-m-d', strtotime($date));
     }
 }

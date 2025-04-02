@@ -147,14 +147,6 @@ class RequestController extends Controller
             }
             $requests = $query->get();
 
-            // Log for debugging
-            Log::info('RequestController::index', [
-                'user_id' => $userId,
-                'assigned_project_uuids' => $assignedProjectIds,
-                'project_names' => $projectNames,
-                'request_count' => $requests->count(),
-            ]);
-
             // Transform data (keep project_name for frontend)
             $projects = !empty($assignedProjectIds) ? DB::connection('sistema_onix')
                 ->table('onix_proyectos')

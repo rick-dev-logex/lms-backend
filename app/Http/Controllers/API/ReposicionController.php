@@ -88,7 +88,7 @@ class ReposicionController extends Controller
                     ->whereIn('id', $assignedProjectIds)
                     ->pluck('name')
                     ->toArray();
-                $query->whereIn('project', $projectNames); // Filter by names instead of UUIDs
+                $query->whereIn('project', $projectNames);
             }
 
             if ($period === 'last_3_months') {
@@ -109,11 +109,11 @@ class ReposicionController extends Controller
             });
 
             // Log for debugging
-            Log::info('ReposicionController::index', [
-                'user_id' => $userId,
-                'assigned_project_uuids' => $assignedProjectIds,
+            Log::info('ReposicionController::index Query', [
+                'sql' => $query->toSql(),
+                'bindings' => $query->getBindings(),
                 'project_names' => $projectNames,
-                'reposicion_count' => $reposiciones->count(),
+                'assigned_project_ids' => $assignedProjectIds,
             ]);
 
             // Transform data

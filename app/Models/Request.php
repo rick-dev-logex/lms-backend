@@ -14,6 +14,7 @@ class Request extends Model
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
     protected $connection = 'lms_backend';
+    // protected $connection = 'lms_local';
 
     protected $fillable = [
         'type',
@@ -28,6 +29,7 @@ class Request extends Model
         'note',
         'unique_id',
         'responsible_id',
+        'cedula_responsable',
         'vehicle_plate',
         'vehicle_number',
         'status'

@@ -266,6 +266,13 @@ class RequestController extends Controller
 
             if ($request->has('responsible_id')) {
                 $requestData['responsible_id'] = $request->input('responsible_id'); // String directo
+                // Obtener la cédula del responsable desde la base de datos externa
+                $cedula = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('nombre_completo', $requestData['responsible_id'])
+                    ->value('name');
+
+                $requestData['cedula_responsable'] = $cedula;
             }
             if ($request->has('vehicle_plate')) {
                 $requestData['vehicle_plate'] = $request->input('vehicle_plate'); // String directo
@@ -306,6 +313,13 @@ class RequestController extends Controller
 
             if ($request->input('personnel_type') === 'nomina') {
                 $baseRules['responsible_id'] = 'sometimes|exists:sistema_onix.onix_personal,nombre_completo';
+                // Obtener la cédula del responsable desde la base de datos externa
+                $cedula = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('nombre_completo', $baseRules['responsible_id'])
+                    ->value('name');
+
+                $baseRules['cedula_responsable'] = $cedula;
             } else {
                 $baseRules['vehicle_plate'] = 'sometimes|exists:sistema_onix.onix_vehiculos,name';
             }

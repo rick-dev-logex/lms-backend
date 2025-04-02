@@ -60,10 +60,10 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 'F001',
                 'Alimentación',
                 '100.00',
-                $this->projectNames[0], // Usar el primer proyecto como ejemplo
+                $this->projectNames[0],
                 'ALARCON LARREA CARLOS JULIO',
                 '',
-                "'1734567890", // Notice the leading apostrophe to force string format
+                "1734567890",
                 'Ejemplo - Puedes eliminar esta fila.'
             ]
         ]);

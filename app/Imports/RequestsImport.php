@@ -19,9 +19,10 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     public function __construct(string $context = 'discounts', $userId = null)
     {
         $this->context = in_array(strtolower($context), ['expense', 'discount']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : 'discount');
-        // Fetch the max unique_id from the database and increment
+
+        // Fetch the max unique_id from the database, considering both G- and D- prefixes
         $lastRequest = Request::orderBy('unique_id', 'desc')->first();
-        if ($lastRequest && preg_match('/G-(\d{5})/', $lastRequest->unique_id, $matches)) {
+        if ($lastRequest && preg_match('/[GD]-(\d{5})/', $lastRequest->unique_id, $matches)) {
             $this->nextId = (int)$matches[1] + 1;
         } else {
             $this->nextId = 1; // Start at 1 if no records exist
@@ -102,7 +103,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
         // Prepare request data
         $requestData = [
-            'unique_id' => sprintf("G-%05d", $this->nextId++),
+            'unique_id' => sprintf("%s-%05d", $this->context === 'discount' ? 'D' : 'G', $this->nextId++),
             'type' => $this->context,
             'personnel_type' => $mappedRow['personnel_type'],
             'status' => 'pending',

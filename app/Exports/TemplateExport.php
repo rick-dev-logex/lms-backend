@@ -63,7 +63,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 $this->projectNames[0], // Usar el primer proyecto como ejemplo
                 'ALARCON LARREA CARLOS JULIO',
                 '',
-                '1734567890',
+                "'1734567890", // Notice the leading apostrophe to force string format
                 'Ejemplo - Puedes eliminar esta fila.'
             ]
         ]);
@@ -169,6 +169,10 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                     ->setZoomScale(100)
                     ->setZoomScaleNormal(100)
                     ->setView('pageLayout');
+
+                $sheet->getStyle("I4:I$lastRow")
+                    ->getNumberFormat()
+                    ->setFormatCode('@');
 
                 $sheet->setSelectedCell('A4');
 

@@ -20,6 +20,10 @@ Route::middleware(['throttle:6,1'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
 });
 
+// Para actualizar la data subida previamente con UUIDs
+Route::get('/update-data', [RequestController::class, 'updateRequestsData']);
+
+
 Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
 Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
 

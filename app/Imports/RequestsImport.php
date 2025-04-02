@@ -20,13 +20,11 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     {
         $this->context = in_array(strtolower($context), ['expense', 'discount']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : 'discount');
 
-        // Fetch the max unique_id from the database, considering both G- and D- prefixes
-        $lastRequest = Request::orderBy('unique_id', 'desc')->first();
-        if ($lastRequest && preg_match('/[GD]-(\d{5})/', $lastRequest->unique_id, $matches)) {
-            $this->nextId = (int)$matches[1] + 1;
-        } else {
-            $this->nextId = 1; // Start at 1 if no records exist
-        }
+        $prefix = $this->context === 'discount' ? 'D-' : 'G-';
+        $lastRequest = Request::where('unique_id', 'like', $prefix . '%')
+            ->orderBy('unique_id', 'desc')
+            ->first();
+        $lastRequest && preg_match('/[GD]-(\d{5})/', $lastRequest->unique_id, $matches) ? $this->nextId = (int)$matches[1] + 1 : $this->nextId = 1;
         $this->rowNumber = 0;
     }
 

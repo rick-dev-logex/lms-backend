@@ -11,6 +11,7 @@ use App\Models\Request;
 use App\Models\User;
 use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
+use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Illuminate\Http\Request as HttpRequest;
@@ -43,26 +44,26 @@ class RequestController extends Controller
 
             $jwtToken = $request->cookie('jwt-token');
             if (!$jwtToken) {
-                throw new \Exception("No se encontró el token de autenticación en la cookie.");
+                throw new Exception("No se encontró el token de autenticación en la cookie.");
             }
 
             $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
             $userId = $decoded->user_id ?? null;
 
             if (!$userId) {
-                throw new \Exception("No se encontró el ID de usuario en el token JWT.");
+                throw new Exception("No se encontró el ID de usuario en el token JWT.");
             }
 
             $import = new RequestsImport($context, $userId);
             $excel->import($import, $file);
 
             if (!empty($import->errors)) {
-                throw new \Exception(json_encode($import->errors));
+                throw new Exception(json_encode($import->errors));
             }
 
             DB::commit();
             return response()->json(['message' => 'Importación exitosa'], 200);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             Log::error('Error en la importación: ' . $e->getMessage());
             $errors = json_decode($e->getMessage(), true);
@@ -81,19 +82,19 @@ class RequestController extends Controller
             // Extract user and assigned projects from JWT
             $jwtToken = $request->cookie('jwt-token');
             if (!$jwtToken) {
-                throw new \Exception("No se encontró el token de autenticación en la cookie.");
+                throw new Exception("No se encontró el token de autenticación en la cookie.");
             }
 
             $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
             $userId = $decoded->user_id ?? null;
             if (!$userId) {
-                throw new \Exception("No se encontró el ID de usuario en el token JWT.");
+                throw new Exception("No se encontró el ID de usuario en el token JWT.");
             }
 
             // Obtener usuario y sus proyectos asignados
             $user = User::find($userId);
             if (!$user) {
-                throw new \Exception("Usuario no encontrado.");
+                throw new Exception("Usuario no encontrado.");
             }
 
             // Procesar proyectos asignados correctamente
@@ -125,7 +126,7 @@ class RequestController extends Controller
                     ->whereIn('id', $assignedProjectIds)
                     ->pluck('name')
                     ->toArray();
-                $query->whereIn('project', $projectNames); // Filter by names instead of UUIDs
+                $query->whereIn('project', $projectNames);
             }
 
             if ($request->filled('type')) {
@@ -171,7 +172,7 @@ class RequestController extends Controller
             })->all();
 
             return response()->json($data);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Error in RequestController@index:', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
@@ -210,7 +211,7 @@ class RequestController extends Controller
             $requestRecord->transport = $transport;
 
             return response()->json($requestRecord);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error al obtener la solicitud',
                 'error' => $e->getMessage()
@@ -287,7 +288,7 @@ class RequestController extends Controller
                 'message' => 'Request created successfully',
                 'data' => $newRequest
             ], 201);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error creating request',
                 'error' => $e->getMessage()
@@ -328,7 +329,7 @@ class RequestController extends Controller
 
             $requestModel->update($validated);
             return response()->json($requestModel);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'message' => 'Error al actualizar la solicitud',
                 'error' => $e->getMessage()
@@ -360,20 +361,20 @@ class RequestController extends Controller
                 try {
                     $personnelType = $this->normalizePersonnelType($discount['Tipo']);
                     if (!in_array($personnelType, ['nomina', 'transportista'])) {
-                        throw new \Exception("Tipo de personal inválido: {$discount['Tipo']}. Debe ser 'Nómina/nomina' o 'Transportista/transportista'");
+                        throw new Exception("Tipo de personal inválido: {$discount['Tipo']}. Debe ser 'Nómina/nomina' o 'Transportista/transportista'");
                     }
 
                     $projectName = trim($discount['Proyecto']);
                     $project = Project::where('name', $projectName)->first();
                     if (!$project) {
-                        throw new \Exception("Proyecto no encontrado: {$projectName}");
+                        throw new Exception("Proyecto no encontrado: {$projectName}");
                     }
 
                     if ($personnelType === 'nomina') {
                         $responsibleId = $this->getResponsibleId($discount['Responsable']);
                     } else {
                         if (!isset($discount['Placa']) || empty($discount['Placa'])) {
-                            throw new \Exception("La placa del vehículo es requerida para transportistas");
+                            throw new Exception("La placa del vehículo es requerida para transportistas");
                         }
                         $transportId = $this->getTransportId($discount['Placa']);
                     }
@@ -415,7 +416,7 @@ class RequestController extends Controller
 
                     if ($validator->fails()) {
                         $errorMessages = $validator->errors()->all();
-                        throw new \Exception("Error en la fila " . ($index + 2) . ": " . implode(", ", $errorMessages));
+                        throw new Exception("Error en la fila " . ($index + 2) . ": " . implode(", ", $errorMessages));
                     }
 
                     $prefix = 'D-';
@@ -428,7 +429,7 @@ class RequestController extends Controller
 
                     Request::create($mappedData);
                     $processedCount++;
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $errors[] = [
                         'row' => $index + 2,
                         'data' => $discount,
@@ -450,7 +451,7 @@ class RequestController extends Controller
                     'errors' => $errors
                 ], 422);
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
             return response()->json([
                 'message' => 'Error al procesar los descuentos',
@@ -478,7 +479,7 @@ class RequestController extends Controller
     {
         $account = Account::where('name', $accountName)->first();
         if (!$account) {
-            throw new \Exception("Cuenta no encontrada: {$accountName}");
+            throw new Exception("Cuenta no encontrada: {$accountName}");
         }
         return $account->name;
     }
@@ -491,7 +492,7 @@ class RequestController extends Controller
             ->first();
 
         if (!$responsible) {
-            throw new \Exception("Responsable no encontrado: {$responsibleName}");
+            throw new Exception("Responsable no encontrado: {$responsibleName}");
         }
         return $responsible->nombre_completo;
     }
@@ -504,8 +505,70 @@ class RequestController extends Controller
             ->first();
 
         if (!$transport) {
-            throw new \Exception("Vehículo no encontrado con placa: {$plate}");
+            throw new Exception("Vehículo no encontrado con placa: {$plate}");
         }
         return $transport->name;
+    }
+
+    public function updateRequestsData(Request $request)
+    {
+        try {
+            // Obtener los proyectos externos: arreglo de uuid => name
+            $proyectos = DB::connection('sistema_onix')
+                ->table('onix_proyectos')
+                ->pluck('name', 'uuid')
+                ->toArray();
+
+            // Obtener el personal externo: arreglo de uuid => nombre_completo
+            $personal = DB::connection('sistema_onix')
+                ->table('onix_personal')
+                ->pluck('nombre_completo', 'uuid')
+                ->toArray();
+
+            // Contadores para saber cuántos registros se actualizaron
+            $updatedProjects = 0;
+            $updatedResponsibles = 0;
+
+            // Actualizar columna project en la DB local
+            // Obtenemos las requests que tengan un valor de project (uuid) que exista en $proyectos
+            $requestsProject = DB::table('requests')
+                ->whereIn('project', array_keys($proyectos))
+                ->get(['id', 'project']);
+
+            foreach ($requestsProject as $req) {
+                // Si se encontró el proyecto en el arreglo, actualizamos
+                if (isset($proyectos[$req->project])) {
+                    DB::table('requests')
+                        ->where('id', $req->id)
+                        ->update(['project' => $proyectos[$req->project]]);
+                    $updatedProjects++;
+                }
+            }
+
+            // Actualizar columna responsible_id en la DB local
+            // Obtenemos las requests que tengan un valor de responsible_id (uuid) que exista en $personal
+            $requestsResponsible = DB::table('requests')
+                ->whereIn('responsible_id', array_keys($personal))
+                ->get(['id', 'responsible_id']);
+
+            foreach ($requestsResponsible as $req) {
+                if (isset($personal[$req->responsible_id])) {
+                    DB::table('requests')
+                        ->where('id', $req->id)
+                        ->update(['responsible_id' => $personal[$req->responsible_id]]);
+                    $updatedResponsibles++;
+                }
+            }
+
+            // Retornamos una respuesta con el número de filas actualizadas
+            return response()->json([
+                'message' => 'Datos actualizados correctamente',
+                'rows_project_updated' => $updatedProjects,
+                'rows_responsible_updated' => $updatedResponsibles,
+            ]);
+        } catch (Exception $e) {
+            Log::error('Error en updateRequestsData: ' . $e->getMessage());
+            return response()->json(['error' => 'Error al actualizar: ' . $e->getMessage()], 500);
+        }
     }
 }

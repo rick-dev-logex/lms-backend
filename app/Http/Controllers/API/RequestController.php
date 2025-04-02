@@ -508,20 +508,27 @@ class RequestController extends Controller
             // Obtener los proyectos externos: arreglo de uuid => name
             $proyectos = DB::connection('sistema_onix')
                 ->table('onix_proyectos')
-                ->pluck('name', 'uuid')
+                ->pluck('name', 'id')
                 ->toArray();
 
             // Obtener el personal externo: arreglo de uuid => nombre_completo
             $personal = DB::connection('sistema_onix')
                 ->table('onix_personal')
-                ->pluck('nombre_completo', 'uuid')
+                ->pluck('nombre_completo', 'id')
+                ->toArray();
+
+            $cuentas = DB::connection('sistema_onix')
+                ->table('lms_backend')
+                ->pluck('name', 'id')
                 ->toArray();
 
             // Contadores para saber cuántos registros se actualizaron
             $updatedProjects = 0;
             $updatedResponsibles = 0;
+            $updatedAccounts = 0;
 
             // Actualizar columna project en la DB local
+
             // Obtenemos las requests que tengan un valor de project (uuid) que exista en $proyectos
             $requestsProject = DB::table('requests')
                 ->whereIn('project', array_keys($proyectos))
@@ -549,6 +556,19 @@ class RequestController extends Controller
                         ->where('id', $req->id)
                         ->update(['responsible_id' => $personal[$req->responsible_id]]);
                     $updatedResponsibles++;
+                }
+            }
+
+            $requestsAccount = DB::table('requests')
+                ->whereIn('account_id', array_keys($cuentas))
+                ->get(['id', 'account_id']);
+
+            foreach ($requestsAccount as $req) {
+                if (isset($cuentas[$req->account_id])) {
+                    DB::table('requests')
+                        ->where('id', $req->id)
+                        ->update(['account_id' => $cuentas[$req->account_id]]);
+                    $updatedAccounts++;
                 }
             }
 

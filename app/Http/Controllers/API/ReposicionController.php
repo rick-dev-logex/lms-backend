@@ -15,6 +15,8 @@ use Google\Cloud\Storage\StorageClient;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
+use function PHPUnit\Framework\isArray;
+
 class ReposicionController extends Controller
 {
     private $storage;
@@ -151,7 +153,18 @@ class ReposicionController extends Controller
             DB::beginTransaction();
 
             // Obtener request_ids
-            $requestIds = $request->input('request_ids');
+            Log::info('Request Payload:', $request->all());
+            $requestIds = $request->input('request_ids', $request->input('request_ids', []));
+            Log::info('Extracted request_ids:', ['request_ids' => $requestIds]);
+
+            if (empty($requestIds)) {
+                throw ValidationException::withMessages(['request_ids' => ['Los request_ids son requeridos.']]);
+            }
+
+            // Asegurar que RequestIds es un array
+            $requestIds = is_array($requestIds) ? $requestIds : [$requestIds];
+
+            // Fetch de requests existentes
             $existingRequests = Request::whereIn('unique_id', $requestIds)->get();
 
             // Validación manual

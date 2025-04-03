@@ -78,14 +78,25 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $errors[] = "Missing project";
         }
 
-        if (!is_numeric($mappedRow['fecha']) || $mappedRow['fecha'] <= 0) {
-            $errors[] = "Invalid date";
-        } else {
+        // Aquí está el cambio importante para manejar tanto fechas Excel como fechas string
+        $date = null;
+
+        if (is_numeric($mappedRow['fecha']) && $mappedRow['fecha'] > 0) {
+            // Si es un número serial de Excel
             try {
                 $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($mappedRow['fecha']);
             } catch (\Exception $e) {
-                $errors[] = "Invalid date: " . $e->getMessage();
+                $errors[] = "Invalid Excel date: " . $e->getMessage();
             }
+        } else if (is_string($mappedRow['fecha']) && !empty($mappedRow['fecha'])) {
+            // Si es una fecha en formato string (por ejemplo "2025-01-31")
+            try {
+                $date = Carbon::parse($mappedRow['fecha']);
+            } catch (\Exception $e) {
+                $errors[] = "Invalid string date: " . $e->getMessage();
+            }
+        } else {
+            $errors[] = "Invalid or missing date";
         }
 
         // Additional validations if needed
@@ -94,8 +105,9 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $errors[] = "Invalid cedula_responsable";
         }
 
-        if (!empty($errors)) {
-            Log::warning("Skipping row {$this->rowNumber} due to errors:", $errors);
+        if (!empty($errors) || $date === null) {
+            $errors[] = "No valid date could be determined";
+            // Log::warning("Skipping row {$this->rowNumber} due to errors:", $errors);
             return null;
         }
 
@@ -105,7 +117,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             'type' => $this->context,
             'personnel_type' => $mappedRow['personnel_type'],
             'status' => 'pending',
-            'request_date' => Carbon::instance($date)->toDateString(),
+            'request_date' => $date instanceof \DateTime ? $date->format('Y-m-d') : null,
             'invoice_number' => $mappedRow['no_factura'],
             'account_id' => $mappedRow['cuenta'],
             'amount' => floatval($mappedRow['valor']),

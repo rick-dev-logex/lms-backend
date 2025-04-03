@@ -288,9 +288,9 @@ class RequestController extends Controller
         }
     }
 
-    public function update(HttpRequest $request, Request $requestRecord)
+    public function update(HttpRequest $request, $id)
     {
-        $requestModel = Request::where('unique_id', $request->unique_id)->firstOrFail();
+        $requestModel = Request::findOrFail($id);
 
         try {
             $baseRules = [
@@ -332,7 +332,7 @@ class RequestController extends Controller
     public function destroy(Request $requestRecord)
     {
         $requestRecord->delete();
-        return response()->json(['message' => 'Request deleted successfully']);
+        return response()->json(['message' => 'Registro eliminado exitosamente']);
     }
 
     public function uploadDiscounts(HttpRequest $request)

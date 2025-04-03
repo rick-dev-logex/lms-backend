@@ -103,18 +103,12 @@ class ReposicionController extends Controller
             if ($request->filled('month')) {
                 $query->where('month', $request->month);
             }
-            $reposiciones = $query->get();
+
+            $reposiciones = $query->orderByDesc('id')->get();
+
             $reposiciones->each(function ($reposicion) {
                 $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
             });
-
-            // Log for debugging
-            Log::info('ReposicionController::index Query', [
-                'sql' => $query->toSql(),
-                'bindings' => $query->getBindings(),
-                'project_names' => $projectNames,
-                'assigned_project_ids' => $assignedProjectIds,
-            ]);
 
             // Transform data
             $projects = !empty($assignedProjectIds) ? DB::connection('sistema_onix')

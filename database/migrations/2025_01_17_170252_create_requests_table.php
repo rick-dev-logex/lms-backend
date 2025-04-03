@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('requests', function (Blueprint $table) {
             $table->id();
             $table->string('unique_id')->unique(); // Prefijo 'g-' o 'd-' según sea gasto o descuento
-            $table->enum('type', ['expense', 'discount']);
+            $table->enum('type', ['expense', 'discount', 'income']);
             $table->string('personnel_type');
             $table->enum('status', ['pending', 'paid', 'rejected', 'review', 'in_reposition']);
             $table->date('request_date');

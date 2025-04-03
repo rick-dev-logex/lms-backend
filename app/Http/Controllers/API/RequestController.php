@@ -132,6 +132,7 @@ class RequestController extends Controller
             if ($request->filled('type')) {
                 $query->where('type', $request->type);
             }
+
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
             }
@@ -145,7 +146,8 @@ class RequestController extends Controller
             if (in_array($sortField, $allowedSortFields)) {
                 $query->orderBy($sortField, $sortOrder);
             }
-            $requests = $query->get();
+
+            $requests = $query->orderByDesc('id')->get();
 
             // Transform data (keep project_name for frontend)
             $projects = !empty($assignedProjectIds) ? DB::connection('sistema_onix')
@@ -215,7 +217,7 @@ class RequestController extends Controller
     {
         try {
             $baseRules = [
-                'type' => 'required|in:expense,discount',
+                'type' => 'required|in:expense,discount,income',
                 'personnel_type' => 'required|in:nomina,transportista',
                 'request_date' => 'required|date',
                 'invoice_number' => 'required|string', // Cambiado a string para datos raw
@@ -238,7 +240,7 @@ class RequestController extends Controller
             $validated = $request->validate($baseRules);
 
             // Generar el identificador único
-            $prefix = $validated['type'] === 'expense' ? 'G-' : 'D-';
+            $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : "D-");
             $lastRecord = Request::where('type', $validated['type'])->orderBy('id', 'desc')->first();
             $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
             $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);

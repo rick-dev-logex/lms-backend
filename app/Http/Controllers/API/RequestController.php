@@ -278,9 +278,8 @@ class RequestController extends Controller
 
             // Chequear si es UUID
             $isUUID = is_string($requestData['project']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $requestData['project']);
-
-            if ($request->has('project') && $isUUID) {
-                $projectName = $request->input('project');
+            if ($isUUID) {
+                $projectName = $requestData['project'];
                 $project = DB::connection('sistema_onix')
                     ->table('onix_proyectos')
                     ->where('id', $projectName)

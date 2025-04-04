@@ -276,6 +276,16 @@ class RequestController extends Controller
                 $requestData['vehicle_number'] = $request->input('vehicle_number'); // String directo
             }
 
+            if ($request->has('project')) {
+                $projectName = $request->input('project');
+                $project = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->where('id', $projectName)
+                    ->pluck('name')
+                    ->first();
+                $requestData['project'] = $project;
+            }
+
             $newRequest = Request::create($requestData);
 
             return response()->json([
@@ -317,6 +327,15 @@ class RequestController extends Controller
                 $baseRules['cedula_responsable'] = $cedula;
             } else {
                 $baseRules['vehicle_plate'] = 'sometimes|exists:sistema_onix.onix_vehiculos,name';
+            }
+
+            if ($request->has('project')) {
+                $projectName = $request->input('project');
+                $project = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->where('id', $projectName)
+                    ->value('name');
+                $baseRules['project'] = $project;
             }
 
             $validated = $request->validate($baseRules);

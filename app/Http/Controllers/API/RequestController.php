@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers\API;
 
-use App\Events\RequestUpdated;
 use App\Http\Controllers\Controller;
 use App\Imports\RequestsImport;
 use App\Models\Account;
-// use App\Models\CajaChica;
+use App\Models\CajaChica;
 use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
@@ -19,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Excel;
+use Str;
 
 class RequestController extends Controller
 {
@@ -299,22 +299,34 @@ class RequestController extends Controller
 
             $newRequest = Request::create($requestData);
 
-            // CajaChica::create([
-            //     'fecha' => $requestData['request_date'],
-            //     'codigo' => "CAJA CHICA" . $newRequest->unique_id,
-            //     'descripcion' => $requestData['note'],
-            //     'saldo' => $requestData['amount'],
-            //     'centro_costo' => $requestData['request_date'],
-            //     'cuenta' => $requestData['account_id'],
-            //     'nombre_de_cuenta' => $requestData['account_id'],
-            //     'proveedor' => 'CAJA CHICA',
-            //     'empresa' => 'SERSUPPORT',
-            //     'proyecto' => $requestData['project'],
-            //     'i_e' => 'EGRESO',
-            //     'mes_servicio' => date('Y-m-d', strtotime($requestData['request_date'])),
-            //     'tipo' => $requestData['type'],
-            //     'estado' => $newRequest->status,
-            // ]);
+            $cuenta = strtoupper($requestData['account_id']);
+            $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestData['account_id'])); // sin tildes
+            $proyecto = strtoupper($requestData['project']);
+
+            // Formatear centro_costo: ENE 2025, ABR 2025, etc.
+            $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+            $fecha = \Carbon\Carbon::parse($requestData['request_date']);
+            $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
+
+            // mes_servicio: 1/1/2025, 1/2/2025, etc.
+            $mesServicio = $fecha->format('j/n/Y');
+
+            CajaChica::create([
+                'fecha' => $requestData['request_date'],
+                'codigo' => "CAJA CHICA" . $newRequest->unique_id,
+                'descripcion' => $requestData['note'],
+                'saldo' => $requestData['amount'],
+                'centro_costo' => $centroCosto,
+                'cuenta' => $nombreCuenta,
+                'nombre_de_cuenta' => $cuenta,
+                'proveedor' => $requestData['type'] === "expense" ? 'CAJA CHICA' : ($requestData['type'] === "discount" && "DESCUENTOS"),
+                'empresa' => 'SERSUPPORT',
+                'proyecto' => $proyecto,
+                'i_e' => 'EGRESO',
+                'mes_servicio' => $mesServicio,
+                'tipo' => $requestData['type'] === "expense" ? "GASTO" : ($requestData['type'] === "discount" && "DESCUENTO"),
+                'estado' => $newRequest->status,
+            ]);
 
             return response()->json([
                 'message' => 'Request created successfully',

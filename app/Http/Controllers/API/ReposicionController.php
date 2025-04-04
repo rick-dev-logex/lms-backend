@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\CajaChica;
 use App\Models\Reposicion;
 use App\Models\Request;
 use App\Models\User;
@@ -15,7 +16,6 @@ use Google\Cloud\Storage\StorageClient;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
-use function PHPUnit\Framework\isArray;
 
 class ReposicionController extends Controller
 {
@@ -205,6 +205,8 @@ class ReposicionController extends Controller
             }
 
             // Procesar y subir el archivo a Google Cloud Storage
+            $fileName = null;
+            $shortUrl = null;
             if ($request->hasFile('attachment')) {
                 $file = $request->file('attachment');
                 $fileName = $file->getClientOriginalName();
@@ -254,19 +256,23 @@ class ReposicionController extends Controller
                     throw new \Exception('Error al subir el archivo a Google Cloud Storage');
                 }
 
-                // Obtener la URL del archivo
-                $fileUrl = $object->signedUrl(new \DateTime('+ 10 years'));
+                // Generar una URL acortada (solo la base sin parámetros de firma)
+                $shortUrl = "https://storage.googleapis.com/{$bucketName}/" . urlencode($fileName);
+                if (strlen($shortUrl) > 255) {
+                    // Si aún es demasiado larga, usar un hash corto como identificador
+                    $shortUrl = "https://storage.googleapis.com/{$bucketName}/" . substr(hash('sha256', $fileName), 0, 20);
+                }
             }
 
-            // Crear la reposición
+            // Crear la reposición con la URL acortada
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => Carbon::now(),
                 'total_reposicion' => $requests->sum('amount'),
                 'status' => 'pending',
                 'project' => $project,
                 'detail' => $requestIds,
-                'attachment_url' => $fileUrl ?? null,
-                'attachment_name' => $fileName ?? null
+                'attachment_url' => $shortUrl ?? null, // URL acortada
+                'attachment_name' => $fileName ?? null, // Nombre completo del archivo
             ]);
 
             $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
@@ -274,6 +280,16 @@ class ReposicionController extends Controller
             // Actualizar el estado de las solicitudes relacionadas
             Request::whereIn('unique_id', $requestIds)
                 ->update(['reposicion_id' => $reposicion->id, 'status' => 'in_reposition']);
+
+            // Para caja chica
+            foreach ($requestIds as $uniqueId) {
+                $codigo = "CAJA CHICA" . $reposicion->id . $uniqueId;
+
+                CajaChica::where('codigo', 'LIKE', "CAJA CHICA%{$uniqueId}")->update([
+                    'codigo' => $codigo,
+                    'estado' => 'EN REPOSICIÓN',
+                ]);
+            }
 
             DB::commit();
 
@@ -339,6 +355,10 @@ class ReposicionController extends Controller
                             'status' => $requestStatus
                         ]);
                 }
+                foreach ($reposicion->detail as $uniqueId) {
+                    CajaChica::where('codigo', 'LIKE', "CAJA CHICA%{$uniqueId}")
+                        ->update(['estado' => $requestStatus]);
+                }
             }
 
             // Actualizar el campo 'when' si está presente
@@ -390,14 +410,43 @@ class ReposicionController extends Controller
         try {
             $reposicion = Reposicion::findOrFail($id);
 
-            if (!$reposicion->attachment_url || !$reposicion->attachment_name) {
+            if (!$reposicion->attachment_name) {
                 return response()->json(['message' => 'No se encontró archivo adjunto para esta reposición'], 404);
             }
 
-            // Devolver directamente la URL almacenada sin consultar GCS
+            // Configurar el cliente de Google Cloud Storage
+            $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
+            if (!$base64Key) {
+                throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
+            }
+
+            $credentials = json_decode(base64_decode($base64Key), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception('Error al decodificar las credenciales de Google Cloud: ' . json_last_error_msg());
+            }
+
+            $storage = new StorageClient([
+                'keyFile' => $credentials
+            ]);
+
+            $bucketName = env('GOOGLE_CLOUD_BUCKET');
+            $bucket = $storage->bucket($bucketName);
+            if (!$bucket->exists()) {
+                throw new \Exception("El bucket '$bucketName' no existe o no es accesible");
+            }
+
+            // Obtener el objeto del archivo usando attachment_name y generar la URL firmada
+            $object = $bucket->object($reposicion->attachment_name);
+            if (!$object->exists()) {
+                return response()->json(['message' => 'El archivo no existe en Google Cloud Storage'], 404);
+            }
+
+            $fileUrl = $object->signedUrl(new \DateTime('+10 years'));
+
+            // Devolver la metadata con la URL generada
             $metadata = [
-                'file_url'     => $reposicion->attachment_url,
-                'file_name'    => $reposicion->attachment_name,
+                'file_url' => $fileUrl,
+                'file_name' => $reposicion->attachment_name,
             ];
 
             return response()->json($metadata);
@@ -408,7 +457,7 @@ class ReposicionController extends Controller
             ]);
             return response()->json([
                 'message' => 'Error al recuperar la URL del archivo',
-                'error'   => $e->getMessage()
+                'error' => $e->getMessage()
             ], 500);
         }
     }

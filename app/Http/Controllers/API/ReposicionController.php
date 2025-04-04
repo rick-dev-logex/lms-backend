@@ -153,9 +153,7 @@ class ReposicionController extends Controller
             DB::beginTransaction();
 
             // Obtener request_ids
-            Log::info('Request Payload:', $request->all());
             $requestIds = $request->input('request_ids', $request->input('request_ids', []));
-            Log::info('Extracted request_ids:', ['request_ids' => $requestIds]);
 
             if (empty($requestIds)) {
                 throw ValidationException::withMessages(['request_ids' => ['Los request_ids son requeridos.']]);
@@ -181,6 +179,15 @@ class ReposicionController extends Controller
             if (!$request->hasFile('attachment')) {
                 throw ValidationException::withMessages([
                     'attachment' => ['The attachment field is required.'],
+                ]);
+            }
+
+            // Validar tamaño del archivo (límite de 20MB como ejemplo)
+            $file = $request->file('attachment');
+            $maxFileSize = 20 * 1024 * 1024; // 20MB en bytes
+            if ($file->getSize() > $maxFileSize) {
+                throw ValidationException::withMessages([
+                    'attachment' => ['El archivo es demasiado grande. El tamaño máximo permitido es 20MB. Reduce el tamaño e intenta de nuevo.'],
                 ]);
             }
 

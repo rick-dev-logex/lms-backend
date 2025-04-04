@@ -6,10 +6,10 @@ use App\Events\RequestUpdated;
 use App\Http\Controllers\Controller;
 use App\Imports\RequestsImport;
 use App\Models\Account;
+// use App\Models\CajaChica;
 use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
-use App\Notifications\RequestNotification;
 use App\Services\PersonnelService;
 use Exception;
 use Firebase\JWT\JWT;
@@ -220,17 +220,17 @@ class RequestController extends Controller
                 'type' => 'required|in:expense,discount,income',
                 'personnel_type' => 'required|in:nomina,transportista',
                 'request_date' => 'required|date',
-                'invoice_number' => 'required|string', // Cambiado a string para datos raw
-                'account_id' => 'required|string', // Guardar como string directamente
+                'invoice_number' => 'required|string',
+                'account_id' => 'required|string',
                 'amount' => 'required|numeric|min:0',
                 'project' => 'required|string',
                 'note' => 'required|string',
             ];
 
             if ($request->input('personnel_type') === 'nomina') {
-                $baseRules['responsible_id'] = 'required|string'; // String en lugar de exists
+                $baseRules['responsible_id'] = 'required|string';
             } else {
-                $baseRules['vehicle_plate'] = 'required|string'; // String en lugar de exists
+                $baseRules['vehicle_plate'] = 'required|string';
             }
 
             if ($request->has('vehicle_number')) {
@@ -241,9 +241,21 @@ class RequestController extends Controller
 
             // Generar el identificador único
             $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : "D-");
-            $lastRecord = Request::where('type', $validated['type'])->orderBy('id', 'desc')->first();
+
+            // Buscar el último unique_id para el tipo dado
+            $lastRecord = Request::where('type', $validated['type'])
+                ->where('unique_id', 'like', $prefix . '%')
+                ->orderByRaw('CAST(SUBSTRING(unique_id, 3) AS UNSIGNED) DESC')
+                ->first();
+
             $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
             $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+
+            // Verificar si el unique_id ya existe y ajustar si es necesario
+            while (Request::where('unique_id', $uniqueId)->exists()) {
+                $nextId++;
+                $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+            }
 
             // Guardar datos raw como llegan
             $requestData = [
@@ -252,7 +264,7 @@ class RequestController extends Controller
                 'project' => $validated['project'],
                 'request_date' => $validated['request_date'],
                 'invoice_number' => $validated['invoice_number'],
-                'account_id' => $validated['account_id'], // String directo del payload
+                'account_id' => $validated['account_id'],
                 'amount' => $validated['amount'],
                 'note' => $validated['note'],
                 'unique_id' => $uniqueId,
@@ -260,23 +272,20 @@ class RequestController extends Controller
             ];
 
             if ($request->has('responsible_id')) {
-                $requestData['responsible_id'] = $request->input('responsible_id'); // String directo
-                // Obtener la cédula del responsable desde la base de datos externa
+                $requestData['responsible_id'] = $request->input('responsible_id');
                 $cedula = DB::connection('sistema_onix')
                     ->table('onix_personal')
                     ->where('nombre_completo', $requestData['responsible_id'])
                     ->value('name');
-
                 $requestData['cedula_responsable'] = $cedula;
             }
             if ($request->has('vehicle_plate')) {
-                $requestData['vehicle_plate'] = $request->input('vehicle_plate'); // String directo
+                $requestData['vehicle_plate'] = $request->input('vehicle_plate');
             }
             if ($request->has('vehicle_number')) {
-                $requestData['vehicle_number'] = $request->input('vehicle_number'); // String directo
+                $requestData['vehicle_number'] = $request->input('vehicle_number');
             }
 
-            // Chequear si es UUID
             $isUUID = is_string($requestData['project']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $requestData['project']);
             if ($isUUID) {
                 $projectName = $requestData['project'];
@@ -289,6 +298,23 @@ class RequestController extends Controller
             }
 
             $newRequest = Request::create($requestData);
+
+            // CajaChica::create([
+            //     'fecha' => $requestData['request_date'],
+            //     'codigo' => "CAJA CHICA" . $newRequest->unique_id,
+            //     'descripcion' => $requestData['note'],
+            //     'saldo' => $requestData['amount'],
+            //     'centro_costo' => $requestData['request_date'],
+            //     'cuenta' => $requestData['account_id'],
+            //     'nombre_de_cuenta' => $requestData['account_id'],
+            //     'proveedor' => 'CAJA CHICA',
+            //     'empresa' => 'SERSUPPORT',
+            //     'proyecto' => $requestData['project'],
+            //     'i_e' => 'EGRESO',
+            //     'mes_servicio' => date('Y-m-d', strtotime($requestData['request_date'])),
+            //     'tipo' => $requestData['type'],
+            //     'estado' => $newRequest->status,
+            // ]);
 
             return response()->json([
                 'message' => 'Request created successfully',

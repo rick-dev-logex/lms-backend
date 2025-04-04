@@ -276,7 +276,10 @@ class RequestController extends Controller
                 $requestData['vehicle_number'] = $request->input('vehicle_number'); // String directo
             }
 
-            if ($request->has('project')) {
+            // Chequear si es UUID
+            $isUUID = is_string($requestData['project']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $requestData['project']);
+
+            if ($request->has('project') && $isUUID) {
                 $projectName = $request->input('project');
                 $project = DB::connection('sistema_onix')
                     ->table('onix_proyectos')

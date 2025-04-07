@@ -242,8 +242,25 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
-            // Generar ID único usando el servicio centralizado
-            $uniqueId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
+            // // Generar ID único usando el servicio centralizado
+            // $uniqueId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
+            // Generar el identificador único
+            $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : ($validated['type'] === "loan" ? 'P-' : "D-"));
+
+            // Buscar el último unique_id para el tipo dado
+            $lastRecord = Request::where('type', $validated['type'])
+                ->where('unique_id', 'like', $prefix . '%')
+                ->orderByRaw('CAST(SUBSTRING(unique_id, 3) AS UNSIGNED) DESC')
+                ->first();
+
+            $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
+            $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+
+            // Verificar si el unique_id ya existe y ajustar si es necesario
+            while (Request::where('unique_id', $uniqueId)->exists()) {
+                $nextId++;
+                $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+            }
 
             // Guardar datos raw como llegan
             $requestData = [

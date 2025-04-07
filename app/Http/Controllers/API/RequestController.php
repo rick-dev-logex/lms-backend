@@ -10,7 +10,6 @@ use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
 use App\Services\PersonnelService;
-use App\Services\UniqueIdService;
 use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -19,17 +18,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Maatwebsite\Excel\Excel;
-use Str;
 
 class RequestController extends Controller
 {
     private $personnelService;
     private $uniqueIdService;
 
-    public function __construct(PersonnelService $personnelService, UniqueIdService $uniqueIdService)
+    public function __construct(PersonnelService $personnelService)
     {
         $this->personnelService = $personnelService;
-        $this->uniqueIdService = $uniqueIdService;
     }
 
     public function import(HttpRequest $request, Excel $excel)
@@ -242,8 +239,6 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
-            // // Generar ID único usando el servicio centralizado
-            // $uniqueId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
             // Generar el identificador único
             $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : ($validated['type'] === "loan" ? 'P-' : "D-"));
 
@@ -308,22 +303,28 @@ class RequestController extends Controller
                 $requestData['account_id'] = $accountName;
             }
 
-            // Agregar esta verificación en el método store del RequestController
-            $existingRequest = Request::where([
-                'type' => $validated['type'],
-                'personnel_type' => $validated['personnel_type'],
-                'project' => $validated['project'],
-                'invoice_number' => $validated['invoice_number'],
-                'account_id' => $validated['account_id'],
-                'amount' => $validated['amount']
-            ])
-                ->where('created_at', '>=', now()->subMinutes(5)) // Solo buscar en los últimos 5 minutos
-                ->first();
+            // Verificar si ya existe un registro similar ANTES de generar un nuevo ID único
+            // Esta verificación es solo para los datos ingresados por el usuario
+            $existingRequestQuery = Request::query();
+
+            // Agregar condiciones para los campos principales
+            $existingRequestQuery->where('type', $validated['type']);
+            $existingRequestQuery->where('personnel_type', $validated['personnel_type']);
+            $existingRequestQuery->where('project', $validated['project']);
+            $existingRequestQuery->where('invoice_number', $validated['invoice_number']);
+            $existingRequestQuery->where('account_id', $validated['account_id']);
+            $existingRequestQuery->where('amount', $validated['amount']);
+
+            // Limitar la búsqueda a registros recientes
+            $existingRequestQuery->where('created_at', '>=', now()->subMinutes(5));
+
+            // Ejecutar la consulta
+            $existingRequest = $existingRequestQuery->first();
 
             if ($existingRequest) {
                 // Ya existe un registro similar creado recientemente
                 return response()->json([
-                    'message' => 'Request already exists',
+                    'message' => 'Ya existe un registro con todos estos datos. Por favor, ingresa uno diferente.',
                     'data' => $existingRequest
                 ], 200);
             }

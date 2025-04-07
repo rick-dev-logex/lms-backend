@@ -239,6 +239,32 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
+            // Verificar si ya existe un registro similar ANTES de generar un nuevo ID único
+            // Esta verificación es solo para los datos ingresados por el usuario
+            $existingRequestQuery = Request::query();
+
+            // Agregar condiciones para los campos principales
+            $existingRequestQuery->where('type', $validated['type']);
+            $existingRequestQuery->where('personnel_type', $validated['personnel_type']);
+            $existingRequestQuery->where('project', $validated['project']);
+            $existingRequestQuery->where('invoice_number', $validated['invoice_number']);
+            $existingRequestQuery->where('account_id', $validated['account_id']);
+            $existingRequestQuery->where('amount', $validated['amount']);
+
+            // Limitar la búsqueda a registros recientes
+            $existingRequestQuery->where('created_at', '>=', now()->subMinutes(5));
+
+            // Ejecutar la consulta
+            $existingRequest = $existingRequestQuery->first();
+
+            if ($existingRequest) {
+                // Ya existe un registro similar creado recientemente
+                return response()->json([
+                    'message' => 'Ya existe un registro con todos estos datos. Por favor, ingresa uno diferente.',
+                    'data' => $existingRequest
+                ], 200);
+            }
+
             // Generar el identificador único
             $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : ($validated['type'] === "loan" ? 'P-' : "D-"));
 
@@ -301,32 +327,6 @@ class RequestController extends Controller
             if (is_numeric($requestData['account_id'])) {
                 $accountName = Account::where('id', $requestData['account_id'])->pluck('name')->first();
                 $requestData['account_id'] = $accountName;
-            }
-
-            // Verificar si ya existe un registro similar ANTES de generar un nuevo ID único
-            // Esta verificación es solo para los datos ingresados por el usuario
-            $existingRequestQuery = Request::query();
-
-            // Agregar condiciones para los campos principales
-            $existingRequestQuery->where('type', $validated['type']);
-            $existingRequestQuery->where('personnel_type', $validated['personnel_type']);
-            $existingRequestQuery->where('project', $validated['project']);
-            $existingRequestQuery->where('invoice_number', $validated['invoice_number']);
-            $existingRequestQuery->where('account_id', $validated['account_id']);
-            $existingRequestQuery->where('amount', $validated['amount']);
-
-            // Limitar la búsqueda a registros recientes
-            $existingRequestQuery->where('created_at', '>=', now()->subMinutes(5));
-
-            // Ejecutar la consulta
-            $existingRequest = $existingRequestQuery->first();
-
-            if ($existingRequest) {
-                // Ya existe un registro similar creado recientemente
-                return response()->json([
-                    'message' => 'Ya existe un registro con todos estos datos. Por favor, ingresa uno diferente.',
-                    'data' => $existingRequest
-                ], 200);
             }
 
             $newRequest = Request::create($requestData);

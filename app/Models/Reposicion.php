@@ -7,14 +7,12 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
 
 class Reposicion extends Model
 {
-    use HasApiTokens, Notifiable;
-
-    protected $connection = 'lms_backend';
-    // protected $connection = 'lms_local';
+    use HasApiTokens, Notifiable, SoftDeletes;
 
     protected $table = 'reposiciones';
 

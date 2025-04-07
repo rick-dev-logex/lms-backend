@@ -258,23 +258,83 @@ class RequestController extends Controller
                 ], 200);
             }
 
-            // Generar el identificador único
-            $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : ($validated['type'] === "loan" ? 'P-' : "D-"));
+            // // Generar el identificador único
+            // $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : ($validated['type'] === "loan" ? 'P-' : "D-"));
 
-            // Buscar el último unique_id para el tipo dado
-            $lastRecord = Request::where('type', $validated['type'])
+            // // Buscar el último unique_id para el tipo dado
+            // $lastRecord = Request::where('type', $validated['type'])
+            //     ->where('unique_id', 'like', $prefix . '%')
+            //     ->orderByRaw('CAST(SUBSTRING(unique_id, 3) AS UNSIGNED) DESC')
+            //     ->first();
+
+            // $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
+            // $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+
+            // // Verificar si el unique_id ya existe y ajustar si es necesario
+            // while (Request::where('unique_id', $uniqueId)->exists()) {
+            //     $nextId++;
+            //     $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+            // }
+
+            // ===== SOLUCIÓN RADICAL PARA GENERAR IDs ÚNICOS =====
+            // En lugar de usar el servicio, generamos directamente un ID único 
+            // que garantiza no colisionar con IDs existentes
+
+            $prefix = '';
+            switch (strtolower($validated['type'])) {
+                case 'expense':
+                    $prefix = 'G-';
+                    break;
+                case 'income':
+                    $prefix = 'I-';
+                    break;
+                case 'discount':
+                    $prefix = 'D-';
+                    break;
+                case 'loan':
+                    $prefix = 'P-';
+                    break;
+                default:
+                    $prefix = 'S-';
+                    break;
+            }
+
+            // OPCIÓN 1: Saltar completamente a un rango alto
+            // Obtener el máximo ID actual y saltar a un rango seguro
+            $maxIdQuery = DB::table('requests')
                 ->where('unique_id', 'like', $prefix . '%')
-                ->orderByRaw('CAST(SUBSTRING(unique_id, 3) AS UNSIGNED) DESC')
+                ->selectRaw('MAX(CAST(SUBSTRING(unique_id, ' . (strlen($prefix) + 1) . ') AS UNSIGNED)) as max_id')
                 ->first();
 
-            $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
-            $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+            $nextNumber = ($maxIdQuery && $maxIdQuery->max_id) ? ($maxIdQuery->max_id + 1) : 1;
 
-            // Verificar si el unique_id ya existe y ajustar si es necesario
-            while (Request::where('unique_id', $uniqueId)->exists()) {
-                $nextId++;
-                $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+            // Si el siguiente número es el problemático o está en un rango cercano, saltamos a un número seguro (300)
+            if ($prefix === 'D-' && $nextNumber >= 220 && $nextNumber <= 230) {
+                Log::warning("Saltando rango problemático cerca de D-00226. Siguiente ID normal sería: {$prefix}{$nextNumber}");
+                $nextNumber = 300; // Saltar a un rango seguro
             }
+
+            // Formatear el ID con ceros a la izquierda
+            $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+
+            // VERIFICACIÓN DE SEGURIDAD: si aún así el ID existe, usamos un ID completamente diferente
+            if (DB::table('requests')->where('unique_id', $uniqueId)->exists()) {
+                Log::error("ID duplicado detectado a pesar de las precauciones: {$uniqueId}. Cambiando a formato alternativo.");
+
+                // OPCIÓN 2: Generar un ID totalmente diferente basado en timestamp y aleatorio
+                $timestamp = now()->format('mdHis'); // formato: mes+día+hora+minuto+segundo
+                $randomPart = mt_rand(100, 999);
+                $uniqueId = $prefix . $timestamp . $randomPart;
+
+                // Verificar nuevamente (aunque es extremadamente improbable que colisione)
+                if (DB::table('requests')->where('unique_id', $uniqueId)->exists()) {
+                    // OPCIÓN 3: Si todo lo anterior falla, usar un UUID truncado como último recurso
+                    Log::error("ID basado en timestamp también duplicado. Usando UUID como último recurso.");
+                    $uuid = substr(str_replace('-', '', \Illuminate\Support\Str::uuid()), 0, 10);
+                    $uniqueId = $prefix . $uuid;
+                }
+            }
+
 
             // Guardar datos raw como llegan
             $requestData = [
@@ -333,7 +393,7 @@ class RequestController extends Controller
             ], 201);
         } catch (Exception $e) {
             return response()->json([
-                'message' => 'Error creating request',
+                'message' => 'No se pudo crear el registro',
                 'error' => $e->getMessage()
             ], 422);
         }

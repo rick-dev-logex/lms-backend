@@ -13,6 +13,8 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
+    protected $connection = 'lms_backend';
+
     protected $fillable = [
         'type',
         'personnel_type',

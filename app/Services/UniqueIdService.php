@@ -14,38 +14,45 @@ class UniqueIdService
      * @param string $type Tipo de solicitud ('expense', 'discount', 'income')
      * @return string ID único generado
      */
-    // En el servicio UniqueIdService.php
     public function generateUniqueRequestId(string $type): string
     {
-        // Determinar el prefijo según el tipo
-        $prefix = $this->getPrefixForType($type);
+        try {
+            $prefix = $this->getPrefixForType($type);
 
-        // Consultar el último ID con el prefijo específico
-        $lastRecord = Request::where('type', $type)
-            ->where('unique_id', 'like', $prefix . '%')
-            ->orderByRaw('CAST(SUBSTRING(unique_id, ' . (strlen($prefix) + 1) . ') AS UNSIGNED) DESC')
-            ->first();
+            // Usar una transacción para evitar problemas de concurrencia
+            return DB::transaction(function () use ($prefix, $type) {
+                // Consultar el último ID con el prefijo específico
+                $lastRecord = Request::where('type', $type)
+                    ->where('unique_id', 'like', $prefix . '%')
+                    ->orderByRaw('CAST(SUBSTRING(unique_id, ' . (strlen($prefix) + 1) . ') AS UNSIGNED) DESC')
+                    ->lockForUpdate() // Bloqueo para evitar concurrencia
+                    ->first();
 
-        // Obtener el próximo ID numérico
-        $nextId = 1;
-        if ($lastRecord) {
-            // Extraer el número del ID usando expresión regular
-            if (preg_match('/' . preg_quote($prefix, '/') . '(\d+)/', $lastRecord->unique_id, $matches)) {
-                $nextId = (int)$matches[1] + 1;
-            }
+                $nextId = 1;
+                if ($lastRecord && $lastRecord->unique_id) {
+                    if (preg_match('/' . preg_quote($prefix, '/') . '(\d+)/', $lastRecord->unique_id, $matches)) {
+                        $nextId = (int)$matches[1] + 1;
+                    } else {
+                        Log::warning('Formato de unique_id inválido encontrado: ' . $lastRecord->unique_id);
+                    }
+                }
+
+                // Generar el ID inicial
+                $uniqueId = sprintf('%s%05d', $prefix, $nextId);
+
+                // Verificar duplicados y ajustar si es necesario
+                while (Request::where('unique_id', $uniqueId)->exists()) {
+                    $nextId++;
+                    $uniqueId = sprintf('%s%05d', $prefix, $nextId);
+                }
+
+                return $uniqueId;
+            });
+        } catch (\Exception $e) {
+            Log::error('Error generando unique_id: ' . $e->getMessage());
+            // Usar un ID de respaldo en caso de fallo crítico
+            return $this->generateFallbackId($prefix);
         }
-
-        // Formatear el ID con ceros a la izquierda (5 dígitos)
-        $uniqueId = sprintf('%s%05d', $prefix, $nextId);
-
-        // IMPORTANTE: Verificación adicional para evitar duplicados
-        // Bucle para incrementar hasta encontrar un ID no utilizado
-        while (Request::where('unique_id', $uniqueId)->exists()) {
-            $nextId++;
-            $uniqueId = sprintf('%s%05d', $prefix, $nextId);
-        }
-
-        return $uniqueId;
     }
 
     /**
@@ -76,16 +83,15 @@ class UniqueIdService
      */
     private function generateFallbackId(string $prefix): string
     {
-        // Generar un timestamp + aleatorio para asegurar unicidad
         $randomPart = time() . rand(1000, 9999);
         $uniqueId = $prefix . $randomPart;
 
-        // Verificar que no exista (improbable pero posible)
         while (Request::where('unique_id', $uniqueId)->exists()) {
             $randomPart = time() . rand(1000, 9999);
             $uniqueId = $prefix . $randomPart;
         }
 
+        Log::info('Generado unique_id de respaldo: ' . $uniqueId);
         return $uniqueId;
     }
 }

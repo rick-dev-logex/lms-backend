@@ -446,7 +446,7 @@ class RequestController extends Controller
 
     public function update(HttpRequest $request, $id)
     {
-        $requestModel = Request::findOrFail($id);
+        $requestModel = Request::where('unique_id', $id)->firstOrFail();
 
         try {
             $baseRules = [

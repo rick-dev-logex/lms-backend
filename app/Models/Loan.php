@@ -10,16 +10,11 @@ class Loan extends Model
 {
     use HasApiTokens, Notifiable;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->setConnection(env('DB_CONNECTION', 'lms_backend'));
-    }
-
     protected $fillable = [
         'loan_date',
         'type',
         'account_id',
+        'account_name',
         'amount',
         'project',
         'file_path',

@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
 use App\Services\PersonnelService;
+use App\Services\UniqueIdService;
 use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -23,10 +24,12 @@ use Str;
 class RequestController extends Controller
 {
     private $personnelService;
+    private $uniqueIdService;
 
-    public function __construct(PersonnelService $personnelService)
+    public function __construct(PersonnelService $personnelService, UniqueIdService $uniqueIdService)
     {
         $this->personnelService = $personnelService;
+        $this->uniqueIdService = $uniqueIdService;
     }
 
     public function import(HttpRequest $request, Excel $excel)
@@ -54,7 +57,7 @@ class RequestController extends Controller
                 throw new Exception("No se encontró el ID de usuario en el token JWT.");
             }
 
-            $import = new RequestsImport($context, $userId);
+            $import = new RequestsImport($context, $userId, $this->uniqueIdService);
             $excel->import($import, $file);
 
             if (!empty($import->errors)) {
@@ -239,23 +242,8 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
-            // Generar el identificador único
-            $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : "D-");
-
-            // Buscar el último unique_id para el tipo dado
-            $lastRecord = Request::where('type', $validated['type'])
-                ->where('unique_id', 'like', $prefix . '%')
-                ->orderByRaw('CAST(SUBSTRING(unique_id, 3) AS UNSIGNED) DESC')
-                ->first();
-
-            $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
-            $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
-
-            // Verificar si el unique_id ya existe y ajustar si es necesario
-            while (Request::where('unique_id', $uniqueId)->exists()) {
-                $nextId++;
-                $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
-            }
+            // Generar ID único usando el servicio centralizado
+            $uniqueId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
 
             // Guardar datos raw como llegan
             $requestData = [
@@ -297,36 +285,36 @@ class RequestController extends Controller
                 $requestData['project'] = $project;
             }
 
+            // Si es que es numero, buscar el id de account y obtener el nombre
+            if (is_numeric($requestData['account_id'])) {
+                $accountName = Account::where('id', $requestData['account_id'])->pluck('name')->first();
+                $requestData['account_id'] = $accountName;
+            }
+
+            // Agregar esta verificación en el método store del RequestController
+            $existingRequest = Request::where([
+                'type' => $validated['type'],
+                'personnel_type' => $validated['personnel_type'],
+                'project' => $validated['project'],
+                'invoice_number' => $validated['invoice_number'],
+                'account_id' => $validated['account_id'],
+                'amount' => $validated['amount']
+            ])
+                ->where('created_at', '>=', now()->subMinutes(5)) // Solo buscar en los últimos 5 minutos
+                ->first();
+
+            if ($existingRequest) {
+                // Ya existe un registro similar creado recientemente
+                return response()->json([
+                    'message' => 'Request already exists',
+                    'data' => $existingRequest
+                ], 200);
+            }
+
             $newRequest = Request::create($requestData);
 
-            $cuenta = strtoupper($requestData['account_id']);
-            $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestData['account_id'])); // sin tildes
-            $proyecto = strtoupper($requestData['project']);
-
-            // Formatear centro_costo: ENE 2025, ABR 2025, etc.
-            $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-            $fecha = \Carbon\Carbon::parse($requestData['request_date']);
-            $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
-
-            // mes_servicio: 1/1/2025, 1/2/2025, etc.
-            $mesServicio = $fecha->format('j/n/Y');
-
-            CajaChica::create([
-                'fecha' => $requestData['request_date'],
-                'codigo' => "CAJA CHICA" . $newRequest->unique_id,
-                'descripcion' => $requestData['note'],
-                'saldo' => $requestData['amount'],
-                'centro_costo' => $centroCosto,
-                'cuenta' => $nombreCuenta,
-                'nombre_de_cuenta' => $cuenta,
-                'proveedor' => $requestData['type'] === "expense" ? 'CAJA CHICA' : ($requestData['type'] === "discount" && "DESCUENTOS"),
-                'empresa' => 'SERSUPPORT',
-                'proyecto' => $proyecto,
-                'i_e' => 'EGRESO',
-                'mes_servicio' => $mesServicio,
-                'tipo' => $requestData['type'] === "expense" ? "GASTO" : ($requestData['type'] === "discount" && "DESCUENTO"),
-                'estado' => $newRequest->status,
-            ]);
+            // Crear registro en CajaChica
+            $this->createCajaChicaRecord($requestData, $newRequest->unique_id);
 
             return response()->json([
                 'message' => 'Request created successfully',
@@ -340,6 +328,51 @@ class RequestController extends Controller
         }
     }
 
+    /**
+     * Crea un registro en la tabla CajaChica
+     * 
+     * @param array $requestData Datos de la solicitud
+     * @param string $uniqueId ID único de la solicitud
+     * @return void
+     */
+    private function createCajaChicaRecord(array $requestData, string $uniqueId): void
+    {
+        Log::debug('Intentando crear registro en CajaChica:', [
+            'uniqueId' => $uniqueId,
+            'request_date' => $requestData['request_date'],
+            'type' => $requestData['type']
+        ]);
+        $numeroCuenta = Account::where('name', $requestData['account_id'])->pluck('account_number')->first();
+        $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestData['account_id'])); // sin tildes
+        $proyecto = strtoupper($requestData['project']);
+
+        // Formatear centro_costo: ENE 2025, ABR 2025, etc.
+        $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+        $fecha = \Carbon\Carbon::parse($requestData['request_date']);
+        $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
+
+        // mes_servicio: 1/1/2025, 1/2/2025, etc.
+        $mesServicio = $fecha->format('j/n/Y');
+
+        CajaChica::create([
+            'FECHA' => $requestData['request_date'],
+            'CODIGO' => "CAJA CHICA " . $uniqueId,
+            'DESCRIPCION' => $requestData['note'],
+            'SALDO' => $requestData['amount'],
+            'CENTRO_COSTO' => $centroCosto,
+            'CUENTA' => $numeroCuenta,
+            'NOMBRE_DE_CUENTA' => $nombreCuenta,
+            'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : ($requestData['type'] === "discount" ? "DESCUENTOS" : "INGRESO"),
+            'EMPRESA' => 'SERSUPPORT',
+            'PROYECTO' => $proyecto,
+            'I_E' => $requestData['type'] === "income" ? 'INGRESO' : 'EGRESO',
+            'MES_SERVICIO' => $mesServicio,
+            'TIPO' => $requestData['type'] === "expense" ? "GASTO" : ($requestData['type'] === "discount" ? "DESCUENTO" : "INGRESO"),
+            'ESTADO' => $requestData['status'],
+        ]);
+        Log::debug('Registro en CajaChica creado con éxito');
+    }
+
     public function update(HttpRequest $request, $id)
     {
         $requestModel = Request::findOrFail($id);
@@ -349,7 +382,7 @@ class RequestController extends Controller
                 'status' => 'sometimes|in:pending,paid,rejected,review,in_reposition',
                 'request_date' => 'sometimes|date',
                 'account_id' => 'sometimes|string',
-                'invoice_number' => 'sometimes|numeric',
+                'invoice_number' => 'sometimes|string',
                 'amount' => 'sometimes|numeric',
                 'project' => 'sometimes|string',
                 'vehicle_number' => 'sometimes|string',
@@ -361,26 +394,40 @@ class RequestController extends Controller
                 // Obtener la cédula del responsable desde la base de datos externa
                 $cedula = DB::connection('sistema_onix')
                     ->table('onix_personal')
-                    ->where('nombre_completo', $baseRules['responsible_id'])
+                    ->where('nombre_completo', $request->input('responsible_id'))
                     ->value('name');
 
-                $baseRules['cedula_responsable'] = $cedula;
-            } else {
+                if ($cedula) {
+                    $request->merge(['cedula_responsable' => $cedula]);
+                }
+            } else if ($request->has('personnel_type') && $request->input('personnel_type') === 'transportista') {
                 $baseRules['vehicle_plate'] = 'sometimes|exists:sistema_onix.onix_vehiculos,name';
             }
 
             if ($request->has('project')) {
                 $projectName = $request->input('project');
-                $project = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->where('id', $projectName)
-                    ->value('name');
-                $baseRules['project'] = $project;
+                $isUUID = is_string($projectName) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $projectName);
+
+                if ($isUUID) {
+                    $project = DB::connection('sistema_onix')
+                        ->table('onix_proyectos')
+                        ->where('id', $projectName)
+                        ->value('name');
+
+                    if ($project) {
+                        $request->merge(['project' => $project]);
+                    }
+                }
             }
 
             $validated = $request->validate($baseRules);
 
+            // Actualizar registro principal
             $requestModel->update($validated);
+
+            // Actualizar registro correspondiente en CajaChica
+            $this->updateCajaChicaRecord($requestModel);
+
             return response()->json($requestModel);
         } catch (Exception $e) {
             return response()->json([
@@ -390,10 +437,75 @@ class RequestController extends Controller
         }
     }
 
+    /**
+     * Actualiza el registro correspondiente en CajaChica
+     * 
+     * @param Request $requestModel El modelo de solicitud actualizado
+     * @return void
+     */
+    private function updateCajaChicaRecord(Request $requestModel): void
+    {
+        try {
+            $cajaChica = CajaChica::where('CODIGO', 'CAJA CHICA' . $requestModel->unique_id)->first();
+
+            if ($cajaChica) {
+                $numeroCuenta = Account::where('name', $requestModel->account_id)->pluck('account_number')->first();
+                $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestModel->account_id));
+                $proyecto = strtoupper($requestModel->project);
+
+                // Formatear centro_costo: ENE 2025, ABR 2025, etc.
+                $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+                $fecha = \Carbon\Carbon::parse($requestModel->request_date);
+                $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
+
+                // mes_servicio: 1/1/2025, 1/2/2025, etc.
+                $mesServicio = $fecha->format('j/n/Y');
+
+                $cajaChica->update([
+                    'FECHA' => $requestModel->request_date,
+                    'DESCRIPCION' => $requestModel->note,
+                    'SALDO' => $requestModel->amount,
+                    'CENTRO_COSTO' => $centroCosto,
+                    'CUENTA' => $numeroCuenta,
+                    'NOMBRE_DE_CUENTA' => $nombreCuenta,
+                    'PROYECTO' => $proyecto,
+                    'MES_SERVICIO' => $mesServicio,
+                    'ESTADO' => $requestModel->status,
+                ]);
+            }
+        } catch (Exception $e) {
+            Log::error('Error al actualizar registro en CajaChica:', [
+                'request_id' => $requestModel->id,
+                'error' => $e->getMessage()
+            ]);
+            // No lanzamos excepción para no interrumpir la actualización principal
+        }
+    }
+
     public function destroy(Request $requestRecord)
     {
-        $requestRecord->delete();
-        return response()->json(['message' => 'Registro eliminado exitosamente']);
+        try {
+            DB::beginTransaction();
+
+            // Eliminar registro relacionado en CajaChica
+            CajaChica::where('codigo', 'CAJA CHICA' . $requestRecord->unique_id)->delete();
+
+            // Eliminar solicitud
+            $requestRecord->delete();
+
+            DB::commit();
+            return response()->json(['message' => 'Registro eliminado exitosamente']);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Error al eliminar solicitud:', [
+                'request_id' => $requestRecord->id,
+                'error' => $e->getMessage()
+            ]);
+            return response()->json([
+                'message' => 'Error al eliminar el registro',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function uploadDiscounts(HttpRequest $request)
@@ -441,8 +553,8 @@ class RequestController extends Controller
                         'account_id' => $this->getAccountId($discount['Cuenta']),
                         'amount' => floatval($discount['Valor']),
                         'project' => $project,
-                        'responsible_id' => $responsibleId,
-                        'vehicle_plate' => $transportId,
+                        'responsible_id' => $personnelType === 'nomina' ? $responsibleId : null,
+                        'vehicle_plate' => $personnelType === 'transportista' ? $transportId : null,
                         'note' => $discount['Observación'],
                     ];
 
@@ -457,30 +569,19 @@ class RequestController extends Controller
                         'note' => 'required|string'
                     ]);
 
-                    if ($personnelType === 'nomina') {
-                        $validator->addRules([
-                            'responsible_id' => 'required|exists:sistema_onix.onix_personal,id'
-                        ]);
-                    } else {
-                        $validator->addRules([
-                            'vehicle_plate' => 'required|exists:sistema_onix.onix_vehiculos,name'
-                        ]);
-                    }
-
                     if ($validator->fails()) {
                         $errorMessages = $validator->errors()->all();
                         throw new Exception("Error en la fila " . ($index + 2) . ": " . implode(", ", $errorMessages));
                     }
 
-                    $prefix = 'D-';
-                    $lastRecord = Request::where('type', 'discount')
-                        ->orderBy('id', 'desc')
-                        ->first();
-                    $nextId = $lastRecord ?
-                        ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
-                    $mappedData['unique_id'] = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
+                    // Usar servicio para generar ID único
+                    $mappedData['unique_id'] = $this->uniqueIdService->generateUniqueRequestId('discount');
 
-                    Request::create($mappedData);
+                    $newRequest = Request::create($mappedData);
+
+                    // Crear registro en CajaChica
+                    $this->createCajaChicaRecord($mappedData, $newRequest->unique_id);
+
                     $processedCount++;
                 } catch (Exception $e) {
                     $errors[] = [
@@ -638,6 +739,7 @@ class RequestController extends Controller
                 'message' => 'Datos actualizados correctamente',
                 'rows_project_updated' => $updatedProjects,
                 'rows_responsible_updated' => $updatedResponsibles,
+                'rows_account_updated' => $updatedAccounts
             ]);
         } catch (Exception $e) {
             Log::error('Error en updateRequestsData: ' . $e->getMessage());

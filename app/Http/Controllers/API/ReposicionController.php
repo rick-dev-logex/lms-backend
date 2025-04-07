@@ -141,8 +141,6 @@ class ReposicionController extends Controller
         }
     }
 
-    // Otros métodos del controlador permanecen sin cambios...
-
     public function store(HttpRequest $request)
     {
         try {

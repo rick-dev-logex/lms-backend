@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\Account;
 use App\Models\Loan;
 use App\Models\Request;
 use App\Models\Reposicion;
@@ -102,7 +103,7 @@ class LoanController extends Controller
                 'type' => 'required|in:nomina,proveedor',
                 'account_id' => 'required|exists:lms_backend.accounts,id',
                 'amount' => 'required|numeric|min:0.01',
-                'project' => 'required|string', // Recibe el nombre del proyecto
+                'project' => 'required|string',
                 'invoice_number' => 'required|string',
                 'installments' => 'required|integer|min:1|max:36',
                 'installment_dates' => 'required|array|size:' . $request->input('installments'),
@@ -112,9 +113,9 @@ class LoanController extends Controller
             ];
 
             if ($request->input('type') === 'nomina') {
-                $rules['responsible_id'] = 'required|exists:sistema_onix.onix_personal,id';
+                $rules['responsible_id'] = 'required|uuid'; // Validar como UUID
             } else {
-                $rules['vehicle_id'] = 'required|exists:sistema_onix.onix_vehiculos,id';
+                $rules['vehicle_id'] = 'required|uuid';
             }
 
             $messages = [
@@ -128,12 +129,12 @@ class LoanController extends Controller
             $user = User::findOrFail($decoded->user_id);
             $assignedProjectIds = $this->getAssignedProjects($user);
 
-            // Convertir el nombre del proyecto a UUID
+            // Obtener el proyecto
             $projectUuid = DB::connection('sistema_onix')
                 ->table('onix_proyectos')
                 ->whereIn('id', $assignedProjectIds)
                 ->where('name', $validated['project'])
-                ->value('id'); // Obtener el UUID (id)
+                ->value('name');
 
             if (!$projectUuid) {
                 throw ValidationException::withMessages([
@@ -141,8 +142,42 @@ class LoanController extends Controller
                 ]);
             }
 
+            // Obtener el nombre de la cuenta basado en el ID
+            $accountName = Account::where('id', $validated['account_id'])->value('name');
+            if (!$accountName) {
+                throw ValidationException::withMessages([
+                    'account_id' => 'La cuenta seleccionada no existe.',
+                ]);
+            }
+
+            // Obtener el nombre del responsable (si es nomina) o vehículo (si es proveedor)
+            $responsibleName = null;
+            $vehicleName = null;
+            if ($validated['type'] === 'nomina') {
+                $responsibleName = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('id', $validated['responsible_id'])
+                    ->value('nombre_completo');
+                if (!$responsibleName) {
+                    throw ValidationException::withMessages([
+                        'responsible_id' => 'El responsable seleccionado no existe.',
+                    ]);
+                }
+            } else {
+                $vehicleName = DB::connection('sistema_onix')
+                    ->table('onix_vehiculos')
+                    ->where('id', $validated['vehicle_id'])
+                    ->value('name');
+                if (!$vehicleName) {
+                    throw ValidationException::withMessages([
+                        'vehicle_id' => 'El vehículo seleccionado no existe.',
+                    ]);
+                }
+            }
+
+            // Subir el archivo a Google Cloud Storage
             $file = $request->file('attachment');
-            $fileName = time() . '_' . $file->getClientOriginalName();
+            $fileName = $file->getClientOriginalName();
             $bucket = $this->storage->bucket($this->bucketName);
             if (!$bucket->exists()) {
                 throw new \Exception("El bucket '$this->bucketName' no existe o no es accesible");
@@ -153,22 +188,27 @@ class LoanController extends Controller
             );
             $fileUrl = $object->signedUrl(new \DateTime('+10 years'));
 
+            // Datos del préstamo
             $loanData = [
                 'loan_date' => now(),
                 'type' => $validated['type'],
-                'account_id' => $validated['account_id'],
+                'account_id' => $validated['account_id'], // ID real para la FK
+                'account_name' => $accountName, // Nombre de la cuenta
                 'amount' => $validated['amount'],
-                'project' => $projectUuid, // Usar UUID
-                'file_path' => $fileUrl,
+                'project' => $projectUuid, // ID del proyecto
+                'file_path' => $fileName,
                 'note' => $validated['note'],
                 'installments' => $validated['installments'],
-                'responsible_id' => $validated['type'] === 'nomina' ? $validated['responsible_id'] : null,
-                'vehicle_id' => $validated['type'] === 'proveedor' ? $validated['vehicle_id'] : null,
+                'responsible_id' => $responsibleName, // Nombre del responsable
+                'vehicle_id' => $vehicleName, // Nombre del vehículo (null si es nomina)
                 'status' => 'pending',
             ];
 
+            Log::info('Loan data:', $loanData);
+
             $loan = Loan::create($loanData);
 
+            // Crear las solicitudes (requests)
             $amountPerInstallment = $validated['amount'] / $validated['installments'];
             $requestIds = [];
 
@@ -189,9 +229,9 @@ class LoanController extends Controller
                     'invoice_number' => $validated['invoice_number'],
                     'account_id' => $validated['account_id'],
                     'amount' => round($amountPerInstallment, 2),
-                    'project' => $projectUuid, // Usar UUID
-                    'responsible_id' => $loan->responsible_id,
-                    'transport_id' => $loan->vehicle_id,
+                    'project' => $projectUuid,
+                    'responsible_id' => $responsibleName,
+                    'transport_id' => $vehicleName,
                     'note' => $validated['note'] ?? "Cuota " . ($index + 1) . " de préstamo ID: {$loan->uniqueId}",
                 ];
 
@@ -199,12 +239,13 @@ class LoanController extends Controller
                 $requestIds[] = $newRequest->unique_id;
             }
 
+            // Crear la reposición
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => now(),
                 'total_reposicion' => $validated['amount'],
                 'status' => 'pending',
-                'project' => $projectUuid, // Usar UUID
-                'detail' => $requestIds, // Pasar array directamente, Laravel lo convierte a JSON
+                'project' => $projectUuid,
+                'detail' => $requestIds,
                 'attachment_url' => $fileUrl,
                 'attachment_name' => $fileName,
                 'note' => $validated['note'],
@@ -226,20 +267,6 @@ class LoanController extends Controller
                 'message' => 'Error de validación',
                 'errors' => $e->errors(),
             ], 422);
-        } catch (\Illuminate\Database\QueryException $e) {
-            DB::rollBack();
-            if (strpos($e->getMessage(), 'SQLSTATE[22001]') !== false && strpos($e->getMessage(), 'file_path') !== false) {
-                Log::error('Error in LoanController@store: URL de archivo demasiado larga', ['message' => $e->getMessage()]);
-                return response()->json([
-                    'message' => 'Error al guardar el archivo',
-                    'error' => 'La URL del archivo subido es demasiado larga. Por favor, contacta al soporte técnico.',
-                ], 500);
-            }
-            Log::error('Error in LoanController@store:', ['message' => $e->getMessage()]);
-            return response()->json([
-                'message' => 'Error al crear el préstamo',
-                'error' => $e->getMessage(),
-            ], 500);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Error in LoanController@store:', ['message' => $e->getMessage()]);
@@ -259,7 +286,7 @@ class LoanController extends Controller
             }
 
             $bucket = $this->storage->bucket($this->bucketName);
-            $object = $bucket->object($loan->file_path);
+            $object = $bucket->object($loan->file_path);  // Ahora file_path es solo el nombre del archivo
             if (!$object->exists()) {
                 return response()->json(['message' => 'El archivo no existe en Google Cloud Storage'], 404);
             }

@@ -13,7 +13,9 @@ class Reposicion extends Model
 {
     use HasApiTokens, Notifiable;
 
-    protected $connection = 'lms_backend';
+    // protected $connection = 'lms_backend';
+    protected $connection = 'lms_local';
+
     protected $table = 'reposiciones';
 
     protected $fillable = [

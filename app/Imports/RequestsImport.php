@@ -211,8 +211,8 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
             // mes_servicio: 1/1/2025, 1/2/2025, etc.
             // mes_servicio: 01/01/2025, etc., usando d/m/Y correctamente
-            $fechaServicioObj = Carbon::createFromFormat('d/m/Y', $requestData['request_date']);
-            $mesServicio = $fechaServicioObj->startOfMonth()->format('d/m/Y');
+            $fechaObj = Carbon::parse($requestData['request_date']);
+            $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
 
 
             CajaChica::create([

@@ -422,22 +422,22 @@ class RequestController extends Controller
         $fecha = \Carbon\Carbon::parse($requestData['request_date']);
         $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
 
-        // mes_servicio: 1/1/2025, 1/2/2025, etc.
-        $mesServicio = $fecha->format('j/n/Y');
+        // mes_servicio: 1/1/2025, 2/1/2025, etc.
+        $mesServicio = $fecha->startOfMonth()->format('d/m/Y');
 
         CajaChica::create([
             'FECHA' => $requestData['request_date'],
             'CODIGO' => "CAJA CHICA " . $uniqueId,
             'DESCRIPCION' => $requestData['note'],
             'SALDO' => $requestData['amount'],
-            'CENTRO_COSTO' => $centroCosto,
+            'CENTRO COSTO' => $centroCosto,
             'CUENTA' => $numeroCuenta,
-            'NOMBRE_DE_CUENTA' => $nombreCuenta,
+            'NOMBRE DE CUENTA' => $nombreCuenta,
             'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : ($requestData['type'] === "discount" ? "DESCUENTOS" : "INGRESO"),
             'EMPRESA' => 'SERSUPPORT',
             'PROYECTO' => $proyecto,
             'I_E' => $requestData['type'] === "income" ? 'INGRESO' : 'EGRESO',
-            'MES_SERVICIO' => $mesServicio,
+            'MES SERVICIO' => $mesServicio,
             'TIPO' => $requestData['type'] === "expense" ? "GASTO" : ($requestData['type'] === "discount" ? "DESCUENTO" : "INGRESO"),
             'ESTADO' => $requestData['status'],
         ]);
@@ -530,17 +530,17 @@ class RequestController extends Controller
                 $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
 
                 // mes_servicio: 1/1/2025, 1/2/2025, etc.
-                $mesServicio = $fecha->format('j/n/Y');
+                $mesServicio = $fecha->startOfMonth()->format('d/m/Y');
 
                 $cajaChica->update([
                     'FECHA' => $requestModel->request_date,
                     'DESCRIPCION' => $requestModel->note,
                     'SALDO' => $requestModel->amount,
-                    'CENTRO_COSTO' => $centroCosto,
+                    'CENTRO COSTO' => $centroCosto,
                     'CUENTA' => $numeroCuenta,
-                    'NOMBRE_DE_CUENTA' => $nombreCuenta,
+                    'NOMBRE DE CUENTA' => $nombreCuenta,
                     'PROYECTO' => $proyecto,
-                    'MES_SERVICIO' => $mesServicio,
+                    'MES SERVICIO' => $mesServicio,
                     'ESTADO' => $requestModel->status,
                 ]);
             }

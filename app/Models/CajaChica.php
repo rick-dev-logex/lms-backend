@@ -12,14 +12,14 @@ class CajaChica extends Model
         'CODIGO',
         'DESCRIPCION',
         'SALDO',
-        'CENTRO_COSTO',
+        'CENTRO COSTO',
         'CUENTA',
-        'NOMBRE_DE_CUENTA',
+        'NOMBRE DE CUENTA',
         'PROVEEDOR',
         'EMPRESA',
         'PROYECTO',
         'I_E',
-        'MES_SERVICIO',
+        'MES SERVICIO',
         'TIPO',
         'ESTADO',
     ];
@@ -27,7 +27,7 @@ class CajaChica extends Model
     // cast
     protected $casts = [
         'FECHA' => 'date',
-        'MES_SERVICIO' => 'date',
+        'MES SERVICIO' => 'date',
         'SALDO' => 'decimal:2',
     ];
 }

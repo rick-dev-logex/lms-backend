@@ -210,21 +210,21 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $centroCosto = $meses[$fechaObj->month - 1] . ' ' . $fechaObj->year;
 
             // mes_servicio: 1/1/2025, 1/2/2025, etc.
-            $mesServicio = $fechaObj->format('j/n/Y');
+            $mesServicio = $fechaObj->startOfMonth()->format('d/m/Y');
 
             CajaChica::create([
                 'FECHA' => $fechaFormateada, // Usar la fecha formateada
                 'CODIGO' => "CAJA CHICA" . $uniqueId,
                 'DESCRIPCION' => $requestData['note'],
                 'SALDO' => $requestData['amount'],
-                'CENTRO_COSTO' => $centroCosto,
+                'CENTRO COSTO' => $centroCosto,
                 'CUENTA' => $numeroCuenta,
-                'NOMBRE_DE_CUENTA' => $nombreCuenta,
+                'NOMBRE DE CUENTA' => $nombreCuenta,
                 'PROVEEDOR' => $this->context === "expense" ? 'CAJA CHICA' : ($this->context === "discount" ? "DESCUENTOS" : "INGRESO"),
                 'EMPRESA' => 'SERSUPPORT',
                 'PROYECTO' => $proyecto,
                 'I_E' => $this->context === "income" ? 'INGRESO' : 'EGRESO',
-                'MES_SERVICIO' => $mesServicio,
+                'MES SERVICIO' => $mesServicio,
                 'TIPO' => $this->context === "expense" ? "GASTO" : ($this->context === "discount" ? "DESCUENTO" : "INGRESO"),
                 'ESTADO' => $requestData['status'],
             ]);

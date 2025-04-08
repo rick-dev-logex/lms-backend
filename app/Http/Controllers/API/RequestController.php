@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
 use App\Services\PersonnelService;
+use Carbon\Carbon;
 use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -419,11 +420,12 @@ class RequestController extends Controller
 
         // Formatear centro_costo: ENE 2025, ABR 2025, etc.
         $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-        $fecha = \Carbon\Carbon::parse($requestData['request_date']);
+        $fecha = Carbon::parse($requestData['request_date']);
         $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
 
         // mes_servicio: 1/1/2025, 2/1/2025, etc.
-        $mesServicio = $fecha->startOfMonth()->format('d/m/Y');
+        $fechaServicioObj = Carbon::createFromFormat('d/m/Y', $requestData['request_date']);
+        $mesServicio = $fechaServicioObj->startOfMonth()->format('d/m/Y');
 
         CajaChica::create([
             'FECHA' => $requestData['request_date'],
@@ -526,11 +528,14 @@ class RequestController extends Controller
 
                 // Formatear centro_costo: ENE 2025, ABR 2025, etc.
                 $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-                $fecha = \Carbon\Carbon::parse($requestModel->request_date);
+                $fecha = Carbon::parse($requestModel->request_date);
                 $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
 
                 // mes_servicio: 1/1/2025, 1/2/2025, etc.
-                $mesServicio = $fecha->startOfMonth()->format('d/m/Y');
+                // mes_servicio: 01/01/2025, etc., usando d/m/Y correctamente
+                $fechaServicioObj = Carbon::createFromFormat('d/m/Y', $requestModel['request_date']);
+                $mesServicio = $fechaServicioObj->startOfMonth()->format('d/m/Y');
+
 
                 $cajaChica->update([
                     'FECHA' => $requestModel->request_date,
@@ -553,10 +558,13 @@ class RequestController extends Controller
         }
     }
 
-    public function destroy(Request $requestRecord)
+    public function destroy(HttpRequest $request, $id)
     {
         try {
             DB::beginTransaction();
+
+            // Buscar explícitamente por unique_id
+            $requestRecord = Request::where('unique_id', $id)->firstOrFail();
 
             // Eliminar registro relacionado en CajaChica
             CajaChica::where('codigo', 'CAJA CHICA' . $requestRecord->unique_id)->delete();
@@ -569,7 +577,7 @@ class RequestController extends Controller
         } catch (Exception $e) {
             DB::rollBack();
             Log::error('Error al eliminar solicitud:', [
-                'request_id' => $requestRecord->id,
+                'unique_id' => $id,
                 'error' => $e->getMessage()
             ]);
             return response()->json([

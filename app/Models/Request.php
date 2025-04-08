@@ -14,7 +14,9 @@ class Request extends Model
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
     protected $connection = 'lms_backend';
+    // protected $connection = 'lms_local';
 
+    protected $dates = ['deleted_at'];
     protected $fillable = [
         'type',
         'personnel_type',

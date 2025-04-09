@@ -152,8 +152,10 @@ class RequestController extends Controller
 
             if ($request->type === 'income') {
                 $requests->where('type', "income");
-            } else {
-                $requests->whereIn('type', ["income", "expense"]);
+            } elseif ($request->type === "expense") {
+                $requests->where('type', "expense");
+            } elseif ($request->type === "discount") {
+                $requests->where('type', "discount");
             }
 
             // Transform data (keep project_name for frontend)

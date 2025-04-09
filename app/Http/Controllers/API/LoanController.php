@@ -251,6 +251,8 @@ class LoanController extends Controller
                 'note' => $validated['note'],
             ]);
 
+            Request::whereIn('unique_id', $requestIds)->update(['reposicion_id' => $reposicion->id]);
+
             DB::commit();
 
             $loan->load('account');

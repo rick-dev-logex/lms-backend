@@ -32,7 +32,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
      */
     public function __construct(string $context = 'discounts', $userId = null, UniqueIdService $uniqueIdService = null)
     {
-        $this->context = in_array(strtolower($context), ['expense', 'discount']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : 'discount');
+        $this->context = in_array(strtolower($context), ['expense', 'discount', 'income']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : ('discount' ? 'discount' : 'income'));
         $this->userId = $userId;
         $this->uniqueIdService = $uniqueIdService ?: new UniqueIdService();
         $this->rowNumber = 0;
@@ -104,7 +104,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 // Si es un número serial de Excel
                 try {
                     $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($mappedRow['fecha']);
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $rowErrors[] = "Fecha Excel inválida: " . $e->getMessage();
                 }
             } else if (is_string($mappedRow['fecha']) && !empty($mappedRow['fecha'])) {
@@ -115,7 +115,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                     if (!$date->isValid()) {
                         throw new Exception("Fecha inválida");
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $rowErrors[] = "Fecha string inválida: " . $e->getMessage();
                 }
             } else {
@@ -163,7 +163,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 try {
                     $this->createCajaChicaRecord($requestData, $uniqueId);
                 } catch (Exception $e) {
-                    Log::error('Error al crear registro en CajaChica durante importación:', [
+                    Log::error('Error al crear registro en caja_chica durante importación:', [
                         'row' => $this->rowNumber,
                         'unique_id' => $uniqueId,
                         'error' => $e->getMessage()
@@ -181,7 +181,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     }
 
     /**
-     * Crea un registro en CajaChica a partir de los datos importados
+     * Crea un registro en caja_chica a partir de los datos importados
      * 
      * @param array $requestData Datos de la solicitud
      * @param string $uniqueId ID único de la solicitud
@@ -232,7 +232,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 'ESTADO' => $requestData['status'],
             ]);
         } catch (Exception $e) {
-            Log::error('Error al crear registro en CajaChica durante importación:', [
+            Log::error('Error al crear registro en caja_chica durante importación:', [
                 'row' => $this->rowNumber,
                 'unique_id' => $uniqueId,
                 'error' => $e->getMessage()

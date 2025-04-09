@@ -32,7 +32,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
 
     public function title(): string
     {
-        return $this->context === 'discounts' ? 'Plantilla de Descuentos' : 'Plantilla de Gastos';
+        return $this->context === 'discounts' ? 'Plantilla de Descuentos' : ($this->context === 'expenses' ? 'Plantilla de Gastos' : 'Plantilla de Ingresos');
     }
 
     public function headings(): array
@@ -80,8 +80,8 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
                 $sheet->insertNewRowBefore(1, 2);
                 $sheet->mergeCells('A1:J1');
                 $sheet->mergeCells('A2:J2');
-                $sheet->setCellValue('A1', $this->context === 'discounts' ? 'PLANTILLA DE DESCUENTOS' : 'PLANTILLA DE GASTOS');
-                $sheet->setCellValue('A2', '📝 Completa una fila por cada ' . ($this->context === 'discounts' ? 'descuento' : 'gasto') . ' que quieras registrar');
+                $sheet->setCellValue('A1', $this->context === 'discounts' ? 'PLANTILLA DE DESCUENTOS' : ($this->context === "expenses" ? 'PLANTILLA DE GASTOS' : "PLANTILLA DE INGRESOS"));
+                $sheet->setCellValue('A2', '📝 Completa una fila por cada ' . ($this->context === 'discounts' ? 'descuento' : ($this->context === "expenses" ? 'gasto' : "ingreso")) . ' que quieras registrar');
 
                 // Estilo del título principal
                 $sheet->getStyle('A1')->applyFromArray([
@@ -210,7 +210,9 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         if ($this->context === 'discounts') {
             $query->where('account_affects', 'discount')->orWhere('account_affects', 'both');
         } elseif ($this->context === 'expenses') {
-            $query->where('account_affects', 'expense')->orWhere('account_affects', 'both');
+            $query->where('account_affects', 'expense')->orWhere('account _affects', 'both');
+        } elseif ($this->context === 'income') {
+            $query->where('account_affects', 'expense')->orWhere('account_affects', 'discount')->orWhere('account _affects', 'both');
         }
 
         return $query->pluck('name')->toArray();

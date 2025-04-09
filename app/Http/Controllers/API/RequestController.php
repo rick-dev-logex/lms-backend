@@ -150,6 +150,12 @@ class RequestController extends Controller
 
             $requests = $query->orderByDesc('id')->get();
 
+            if ($request->type === 'income') {
+                $requests->where('type', "income");
+            } else {
+                $requests->where('type', 'not like', "income");
+            }
+
             // Transform data (keep project_name for frontend)
             $projects = !empty($assignedProjectIds) ? DB::connection('sistema_onix')
                 ->table('onix_proyectos')
@@ -259,48 +265,14 @@ class RequestController extends Controller
                 ], 200);
             }
 
-            // // Generar el identificador único
-            // $prefix = $validated['type'] === 'expense' ? 'G-' : ($validated['type'] === "income" ? 'I-' : ($validated['type'] === "loan" ? 'P-' : "D-"));
+            $prefix = match (strtolower($validated['type'])) {
+                'expense' => 'G-',
+                'income' => 'I-',
+                'discount' => 'D-',
+                'loan' => 'P-',
+                default => 'S-',
+            };
 
-            // // Buscar el último unique_id para el tipo dado
-            // $lastRecord = Request::where('type', $validated['type'])
-            //     ->where('unique_id', 'like', $prefix . '%')
-            //     ->orderByRaw('CAST(SUBSTRING(unique_id, 3) AS UNSIGNED) DESC')
-            //     ->first();
-
-            // $nextId = $lastRecord ? ((int)str_replace($prefix, '', $lastRecord->unique_id) + 1) : 1;
-            // $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
-
-            // // Verificar si el unique_id ya existe y ajustar si es necesario
-            // while (Request::where('unique_id', $uniqueId)->exists()) {
-            //     $nextId++;
-            //     $uniqueId = $nextId <= 9999 ? sprintf('%s%05d', $prefix, $nextId) : sprintf('%s%d', $prefix, $nextId);
-            // }
-
-            // ===== SOLUCIÓN RADICAL PARA GENERAR IDs ÚNICOS =====
-            // En lugar de usar el servicio, generamos directamente un ID único 
-            // que garantiza no colisionar con IDs existentes
-
-            $prefix = '';
-            switch (strtolower($validated['type'])) {
-                case 'expense':
-                    $prefix = 'G-';
-                    break;
-                case 'income':
-                    $prefix = 'I-';
-                    break;
-                case 'discount':
-                    $prefix = 'D-';
-                    break;
-                case 'loan':
-                    $prefix = 'P-';
-                    break;
-                default:
-                    $prefix = 'S-';
-                    break;
-            }
-
-            // OPCIÓN 1: Saltar completamente a un rango alto
             // Obtener el máximo ID actual y saltar a un rango seguro
             $maxIdQuery = DB::table('requests')
                 ->where('unique_id', 'like', $prefix . '%')
@@ -564,7 +536,7 @@ class RequestController extends Controller
             $requestRecord = Request::where('unique_id', $id)->firstOrFail();
 
             // Eliminar registro relacionado en CajaChica
-            CajaChica::where('codigo', 'CAJA CHICA' . $requestRecord->unique_id)->delete();
+            CajaChica::where('codigo', 'CAJA CHICA ' . $requestRecord->unique_id)->delete();
 
             // Eliminar solicitud
             $requestRecord->delete();

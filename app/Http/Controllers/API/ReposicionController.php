@@ -53,30 +53,21 @@ class ReposicionController extends Controller
             // Procesar proyectos asignados correctamente
             $assignedProjectIds = [];
             if ($user && isset($user->assignedProjects)) {
-                // Si es una relación con un objeto, extraer la propiedad 'projects'
                 if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
                     $projectsValue = $user->assignedProjects->projects;
-
-                    // Si 'projects' es una cadena JSON, decodificarla
                     if (is_string($projectsValue)) {
                         $assignedProjectIds = json_decode($projectsValue, true) ?: [];
-                    }
-                    // Si ya es un array, usarlo directamente
-                    else if (is_array($projectsValue)) {
+                    } elseif (is_array($projectsValue)) {
                         $assignedProjectIds = $projectsValue;
                     }
-                }
-                // Si es un array directo o una colección, usarlo
-                else if (is_array($user->assignedProjects)) {
+                } elseif (is_array($user->assignedProjects)) {
                     $assignedProjectIds = $user->assignedProjects;
                 }
             }
 
-            // Asegurar que tenemos un array plano
-            if (!empty($assignedProjectIds)) {
-                // Convertir todos los IDs a string para consistencia
-                $assignedProjectIds = array_map('strval', $assignedProjectIds);
-            }
+            $assignedProjectIds = !empty($assignedProjectIds)
+                ? array_map('strval', $assignedProjectIds)
+                : [];
 
             $query = Reposicion::query();
 
@@ -97,13 +88,13 @@ class ReposicionController extends Controller
                 $query->where('created_at', '>=', now()->subMonths(3));
             }
             if ($request->filled('project')) {
-                $query->where('project', $request->project);
+                $query->where('project', $request->input('project'));
             }
             if ($request->filled('status')) {
-                $query->where('status', $request->status);
+                $query->where('status', $request->input('status'));
             }
             if ($request->filled('month')) {
-                $query->where('month', $request->month);
+                $query->where('month', $request->input('month'));
             }
 
             $reposiciones = $query->orderByDesc('id')->get();
@@ -112,15 +103,33 @@ class ReposicionController extends Controller
                 $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
             });
 
+            // Filtrar según el parámetro type
+            $type = $request->input('type');
+            if ($type === 'income') {
+                // Mostrar solo ingresos (todas las solicitudes son I-XXXX)
+                $reposiciones = $reposiciones->filter(function ($reposicion) {
+                    $requestIds = $reposicion->requests->pluck('unique_id')->all();
+                    return !empty($requestIds) && count($requestIds) === count(array_filter($requestIds, fn($id) => str_starts_with($id, 'I-')));
+                });
+            } else {
+                // Excluir ingresos (no todas las solicitudes son I-XXXX)
+                $reposiciones = $reposiciones->filter(function ($reposicion) {
+                    $requestIds = $reposicion->requests->pluck('unique_id')->all();
+                    return empty($requestIds) || count($requestIds) !== count(array_filter($requestIds, fn($id) => str_starts_with($id, 'I-')));
+                });
+            }
+
             // Transform data
-            $projects = !empty($assignedProjectIds) ? DB::connection('sistema_onix')
+            $projects = !empty($assignedProjectIds)
+                ? DB::connection('sistema_onix')
                 ->table('onix_proyectos')
                 ->whereIn('id', $assignedProjectIds)
                 ->select('id', 'name')
                 ->get()
-                ->mapWithKeys(function ($project) {
-                    return [$project->id => $project->name];
-                })->all() : [];
+                ->mapWithKeys(fn($project) => [$project->id => $project->name])
+                ->all()
+                : [];
+
             $data = $reposiciones->map(function ($reposicion) use ($projects) {
                 $repoData = $reposicion->toArray();
                 $repoData['project_name'] = $reposicion->project; // Already a name

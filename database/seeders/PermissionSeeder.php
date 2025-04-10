@@ -10,36 +10,49 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = [
-            // Permisos administrativos
-            ['name' => 'manage_users'],
+            // Usuarios
             ['name' => 'view_users'],
-            ['name' => 'create_users'],
             ['name' => 'edit_users'],
-            ['name' => 'delete_users'],
+            ['name' => 'manage_users'],
 
-            // Permisos de ingresos
-            ['name' => 'register_income'],
+            // Ingresos
             ['name' => 'view_income'],
             ['name' => 'edit_income'],
+            ['name' => 'manage_income'],
 
-            // Permisos de registros
+            // Descuentos
             ['name' => 'view_discounts'],
+            ['name' => 'edit_discounts'],
             ['name' => 'manage_discounts'],
+
+            // Gastos
             ['name' => 'view_expenses'],
+            ['name' => 'edit_expenses'],
             ['name' => 'manage_expenses'],
 
-            // Permisos de gestión
+            // Solicitudes
             ['name' => 'view_requests'],
+            ['name' => 'edit_requests'],
             ['name' => 'manage_requests'],
-            ['name' => 'view_reports'],
-            ['name' => 'manage_reports'],
 
-            // Permisos especiales
-            ['name' => 'manage_special_income'],
+            // Reposiciones
+            ['name' => 'view_repositions'],
+            ['name' => 'edit_repositions'],
+            ['name' => 'manage_repositions'],
+
+            // Presupuesto
             ['name' => 'view_budget'],
+            ['name' => 'edit_budget'],
             ['name' => 'manage_budget'],
+
+            // Provisiones
             ['name' => 'view_provisions'],
+            ['name' => 'edit_provisions'],
             ['name' => 'manage_provisions'],
+
+            // Soporte
+            ['name' => 'view_support'],
+            ['name' => 'edit_support'],
             ['name' => 'manage_support'],
         ];
 

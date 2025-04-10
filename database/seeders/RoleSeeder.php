@@ -10,76 +10,68 @@ class RoleSeeder extends Seeder
 {
     public function run(): void
     {
-        // Definir roles
         $roles = [
-            'registrador',
-            'revisor',
-            'revisor_aprobador',
-            'visualizador',
             'admin',
-            'developer'
+            'developer',
+            'finance_manager',
+            'income_registrar',
+            'expense_registrar',
+            'discount_registrar',
+            'reposition_manager',
+            'viewer',
         ];
 
-        // Primero, crear todos los roles
         foreach ($roles as $roleName) {
             Role::firstOrCreate(['name' => $roleName]);
         }
 
-        // Definir asignaciones de permisos por rol
         $rolePermissions = [
-            'registrador' => [
-                'register_income',
-                'view_income',
-                'view_requests',
-                'view_reports',
-            ],
-            'revisor' => [
-                'view_income',
-                'view_discounts',
-                'view_expenses',
-                'view_requests',
-                'view_reports',
-                'view_budget',
-                'view_provisions',
-            ],
-            'revisor_aprobador' => [
-                'view_income',
-                'edit_income',
-                'view_discounts',
-                'manage_discounts',
-                'view_expenses',
-                'manage_expenses',
-                'view_requests',
-                'manage_requests',
-                'view_reports',
-                'view_budget',
-                'view_provisions',
-            ],
-            'visualizador' => [
-                'view_income',
-                'view_discounts',
-                'view_expenses',
-                'view_requests',
-                'view_reports',
-                'view_budget',
-                'view_provisions',
-            ],
             'admin' => [], // Todos los permisos
             'developer' => [], // Todos los permisos
+            'finance_manager' => [
+                'manage_income',
+                'manage_expenses',
+                'manage_discounts',
+                'manage_requests',
+                'manage_repositions',
+                'manage_budget',
+                'manage_provisions',
+            ],
+            'income_registrar' => [
+                'edit_income',
+                'view_expenses',
+                'view_discounts',
+            ],
+            'expense_registrar' => [
+                'edit_expenses',
+                'view_discounts',
+            ],
+            'discount_registrar' => [
+                'edit_discounts',
+                'view_expenses',
+            ],
+            'reposition_manager' => [
+                'manage_repositions',
+            ],
+            'viewer' => [
+                'view_income',
+                'view_expenses',
+                'view_discounts',
+                'view_requests',
+                'view_repositions',
+                'view_budget',
+                'view_provisions',
+            ],
         ];
 
-        // Asignar permisos a cada rol
         $allPermissions = Permission::all();
 
         foreach ($rolePermissions as $roleName => $permissionNames) {
             $role = Role::where('name', $roleName)->first();
-
             if ($role) {
                 if (in_array($roleName, ['admin', 'developer'])) {
-                    // Asignar todos los permisos
                     $role->permissions()->sync($allPermissions->pluck('id')->toArray());
                 } else {
-                    // Asignar solo los permisos específicos
                     $permissions = Permission::whereIn('name', $permissionNames)->get();
                     $role->permissions()->sync($permissions->pluck('id')->toArray());
                 }

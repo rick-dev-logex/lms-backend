@@ -3,25 +3,23 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rules\Password;
 
 class UpdateUserRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize()
     {
-        return true;
+        return true; // Ajusta según tu lógica de autorización
     }
 
-    public function rules(): array
+    public function rules()
     {
         return [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $this->user->id,
-            'role_id' => 'sometimes|required|exists:roles,id',
-            'password' => 'sometimes|nullable|min:8',
-            'dob' => ['nullable', 'date'],
+            'email' => 'required|email|max:255|unique:users,email,' . $this->user()->id,
+            'role_id' => 'sometimes|required|integer|exists:roles,id',
+            'password' => 'nullable|string|min:8',
             'permissions' => 'sometimes|array',
-            'permissions.*' => 'integer|exists:permissions,id'
+            'permissions.*' => 'integer|exists:permissions,id',
         ];
     }
 }

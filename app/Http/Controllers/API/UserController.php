@@ -79,6 +79,10 @@ class UserController extends Controller
 
     public function show(User $user): JsonResponse
     {
+        Log::info($user->load([
+            'role',
+            'permissions',
+        ]));
         try {
             return response()->json($user->load(['role', 'permissions']));
         } catch (\Exception $e) {
@@ -99,7 +103,10 @@ class UserController extends Controller
                     'email' => $validated['email'],
                 ];
                 if (isset($validated['role_id'])) {
-                    $userData['role_id'] = $validated['role_id'];
+                    $userData['role_id'] = (int) $validated['role_id']; // Asegurar que sea entero
+                    Log::info("Actualizando role_id a: " . $userData['role_id']);
+                } else {
+                    Log::info("No se proporcionó role_id en la solicitud");
                 }
                 if (!empty($validated['password'])) {
                     $userData['password'] = Hash::make($validated['password']);
@@ -115,6 +122,12 @@ class UserController extends Controller
                     'user' => $user
                 ]);
             });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error updating user: ' . json_encode($e->errors()));
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             Log::error('Error updating user: ' . $e->getMessage());
             return response()->json([
@@ -177,6 +190,12 @@ class UserController extends Controller
                     'user' => $user
                 ]);
             });
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('Validation error updating permissions: ' . json_encode($e->errors()));
+            return response()->json([
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             Log::error('Error updating permissions: ' . $e->getMessage());
             return response()->json([
@@ -275,5 +294,10 @@ class UserController extends Controller
             ->select('id', 'name as code', 'description as name')
             ->get()
             ->toArray();
+    }
+
+    public function me()
+    {
+        return $this->user();
     }
 }

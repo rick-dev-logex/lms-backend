@@ -16,61 +16,36 @@ class UniqueIdService
      */
     public function generateUniqueRequestId($type)
     {
-        // Obtener el prefijo según el tipo
         $prefix = $this->getPrefixForType($type);
-
-        // Obtener todos los IDs con este prefijo
-        $existingIds = Request::where('unique_id', 'like', $prefix . '%')
-            ->pluck('unique_id')
-            ->toArray();
-
-        // Si no hay IDs existentes, empezar desde 1
-        if (empty($existingIds)) {
-            return $prefix . '00001';
-        }
-
-        // Encontrar el número más alto actualmente en uso
-        $highestNumber = 0;
         $prefixLength = strlen($prefix);
 
-        foreach ($existingIds as $id) {
-            $currentNumber = (int) substr($id, $prefixLength);
-            $highestNumber = max($highestNumber, $currentNumber);
+        // Consultar directamente el número más alto usado
+        $maxIdQuery = DB::table('requests')
+            ->where('unique_id', 'like', $prefix . '%')
+            ->selectRaw('MAX(CAST(SUBSTRING(unique_id, ' . ($prefixLength + 1) . ') AS UNSIGNED)) as max_id')
+            ->first();
+
+        $nextNumber = ($maxIdQuery && $maxIdQuery->max_id) ? ($maxIdQuery->max_id + 1) : 1;
+
+        // Saltar el rango problemático
+        if ($nextNumber >= 470 && $nextNumber <= 480) {
+            Log::warning("Saltando rango problemático cerca de {$prefix}00471. Siguiente ID normal sería: {$prefix}" . str_pad($nextNumber, 5, '0', STR_PAD_LEFT));
+            $nextNumber = 500;
         }
 
-        // Comenzar con el siguiente número disponible
-        $nextNumber = $highestNumber + 1;
-
-        // Formatear el ID con ceros a la izquierda
+        // Generar el ID
         $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
-        // Verificar si el ID generado ya existe y buscar otro disponible si es necesario
-        while (in_array($uniqueId, $existingIds)) {
+        // Seguridad adicional: asegurarse de que no exista en la base de datos
+        while (Request::where('unique_id', $uniqueId)->exists()) {
             Log::warning("ID duplicado detectado: {$uniqueId}. Intentando con el siguiente valor.");
             $nextNumber++;
             $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
         }
 
-        // Verificación final de seguridad directamente contra la base de datos
-        $maxAttempts = 100; // Límite de seguridad para evitar bucles infinitos
-        $attempts = 0;
-
-        while (Request::where('unique_id', $uniqueId)->exists() && $attempts < $maxAttempts) {
-            Log::warning("ID duplicado detectado a pesar de la verificación: {$uniqueId}. Incrementando al siguiente valor.");
-            $nextNumber++;
-            $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
-            $attempts++;
-        }
-
-        if ($attempts >= $maxAttempts) {
-            Log::error("No se pudo generar un ID único después de {$maxAttempts} intentos para el tipo {$type}");
-            throw new \Exception("No se pudo generar un ID único después de múltiples intentos");
-        }
-
-        Log::info("ID único generado exitosamente: {$uniqueId} para tipo {$type} después de {$attempts} verificaciones adicionales");
-
         return $uniqueId;
     }
+
 
     /**
      * Obtiene el prefijo correspondiente al tipo de solicitud

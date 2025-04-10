@@ -259,13 +259,14 @@ class RequestController extends Controller
             $existingRequestQuery->where('created_at', '>=', now()->subMinutes(5));
             $existingRequest = $existingRequestQuery->first();
 
-            if ($existingRequest) {
-                // Ya existe un registro similar creado recientemente
-                return response()->json([
-                    'message' => 'Ya existe un registro con la información provista.',
-                    'data' => $existingRequest
-                ], 200);
-            }
+            // Validador de duplicados
+            // if ($existingRequest) {
+            //     // Ya existe un registro similar creado recientemente
+            //     return response()->json([
+            //         'message' => 'Ya existe un registro con la información provista.',
+            //         'data' => $existingRequest
+            //     ], 200);
+            // }
 
             $prefix = match (strtolower($validated['type'])) {
                 'expense' => 'G-',

@@ -109,7 +109,7 @@ class LoanController extends Controller
                 'installment_dates' => 'required|array|size:' . $request->input('installments'),
                 'installment_dates.*' => 'required|date_format:Y-m',
                 'note' => 'required|string',
-                'attachment' => 'required|file|mimes:pdf,jpg,png|max:10240',
+                'attachment' => 'required|file|max:10240',
             ];
 
             if ($request->input('type') === 'nomina') {
@@ -118,11 +118,11 @@ class LoanController extends Controller
                 $rules['vehicle_id'] = 'required|uuid';
             }
 
-            $messages = [
-                'attachment.mimes' => 'El archivo debe ser un documento PDF o una imagen JPG/PNG.',
-            ];
+            // $messages = [
+            //     'attachment.mimes' => 'El archivo debe ser un documento PDF o una imagen JPG/PNG.',
+            // ];
 
-            $validated = $request->validate($rules, $messages);
+            $validated = $request->validate($rules);
 
             $jwtToken = $request->cookie('jwt-token');
             $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));

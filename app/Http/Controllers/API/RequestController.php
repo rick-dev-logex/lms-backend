@@ -401,23 +401,25 @@ class RequestController extends Controller
         $fechaObj = Carbon::parse($requestData['request_date']);
         $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
 
-        CajaChica::create([
-            'FECHA' => $requestData['request_date'],
-            'CODIGO' => "CAJA CHICA " . $uniqueId,
-            'DESCRIPCION' => $requestData['note'],
-            'SALDO' => $requestData['amount'],
-            'CENTRO COSTO' => $centroCosto,
-            'CUENTA' => $numeroCuenta,
-            'NOMBRE DE CUENTA' => $nombreCuenta,
-            'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
-            'EMPRESA' => 'SERSUPPORT',
-            'PROYECTO' => $proyecto,
-            'I_E' => $requestData['type'] === "income" ? 'INGRESO' : 'EGRESO',
-            'MES SERVICIO' => $mesServicio,
-            'TIPO' => $requestData['type'] === "expense" ? "GASTO" : ($requestData['type'] === "discount" ? "DESCUENTO" : "INGRESO"),
-            'ESTADO' => $requestData['status'],
-        ]);
-        Log::debug('Registro en CajaChica creado con éxito');
+        if (!$requestData['type'] === "income") {
+            CajaChica::create([
+                'FECHA' => $requestData['request_date'],
+                'CODIGO' => `CAJA CHICA $uniqueId`,
+                'DESCRIPCION' => $requestData['note'],
+                'SALDO' => $requestData['amount'],
+                'CENTRO COSTO' => $centroCosto,
+                'CUENTA' => $numeroCuenta,
+                'NOMBRE DE CUENTA' => $nombreCuenta,
+                'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
+                'EMPRESA' => 'SERSUPPORT',
+                'PROYECTO' => $proyecto,
+                'I_E' => 'EGRESO',
+                'MES SERVICIO' => $mesServicio,
+                'TIPO' => $requestData['type'] === "expense" ? "GASTO" : "DESCUENTO",
+                'ESTADO' => $requestData['status'],
+            ]);
+            Log::debug('Registro en CajaChica creado con éxito');
+        }
     }
 
     public function update(HttpRequest $request, $id)

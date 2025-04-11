@@ -158,18 +158,20 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             // Crear registro principal
             $newRequest = new Request($requestData);
 
-            // Crear registro en CajaChica (después de persistir el modelo)
-            DB::afterCommit(function () use ($requestData, $uniqueId) {
-                try {
-                    $this->createCajaChicaRecord($requestData, $uniqueId);
-                } catch (Exception $e) {
-                    Log::error('Error al crear registro en caja_chica durante importación:', [
-                        'row' => $this->rowNumber,
-                        'unique_id' => $uniqueId,
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            });
+            // Crear registro en CajaChica (después de persistir el modelo) si es que NO es ingreso
+            if (!$this->context === "income") {
+                DB::afterCommit(function () use ($requestData, $uniqueId) {
+                    try {
+                        $this->createCajaChicaRecord($requestData, $uniqueId);
+                    } catch (Exception $e) {
+                        Log::error('Error al crear registro en caja_chica durante importación:', [
+                            'row' => $this->rowNumber,
+                            'unique_id' => $uniqueId,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                });
+            }
 
             return $newRequest;
         } catch (Exception $e) {
@@ -226,9 +228,9 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 'PROVEEDOR' => $this->context === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
                 'EMPRESA' => 'SERSUPPORT',
                 'PROYECTO' => $proyecto,
-                'I_E' => $this->context === "income" ? 'INGRESO' : 'EGRESO',
+                'I_E' => 'EGRESO',
                 'MES SERVICIO' => $mesServicio,
-                'TIPO' => $this->context === "expense" ? "GASTO" : ($this->context === "discount" ? "DESCUENTO" : "INGRESO"),
+                'TIPO' => $this->context === "expense" ? "GASTO" : "DESCUENTO",
                 'ESTADO' => $requestData['status'],
             ]);
         } catch (Exception $e) {

@@ -248,7 +248,33 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
-            // Validación de duplicados
+            // Convertir project a nombre antes de la validación de duplicados
+            $projectValue = trim($validated['project']);
+            if (strlen($projectValue) > 7) {
+                // Posible UUID
+                $projectName = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->where('id', $projectValue)
+                    ->value('name');
+
+                if (!$projectName) {
+                    throw new Exception('Proyecto con ID ' . $projectValue . ' no encontrado.');
+                }
+                $validated['project'] = $projectName;
+            } else {
+                // Posible nombre
+                $exists = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->where('name', $projectValue)
+                    ->exists();
+
+                if (!$exists) {
+                    throw new Exception('Nombre de proyecto ' . $projectValue . ' no encontrado.');
+                }
+                $validated['project'] = $projectValue;
+            }
+
+            // Validación de duplicados (usando el nombre del proyecto)
             $duplicateCheck = DB::table('requests')
                 ->where('type', $validated['type'])
                 ->where('personnel_type', $validated['personnel_type'])
@@ -309,7 +335,7 @@ class RequestController extends Controller
             $requestData = [
                 'type' => $validated['type'],
                 'personnel_type' => $validated['personnel_type'],
-                'project' => $validated['project'], // Temporalmente mantenemos el valor recibido
+                'project' => $validated['project'], // Ya es el nombre
                 'request_date' => $validated['request_date'],
                 'invoice_number' => $validated['invoice_number'],
                 'account_id' => $validated['account_id'],
@@ -335,34 +361,6 @@ class RequestController extends Controller
             }
             if ($request->has('vehicle_number')) {
                 $requestData['vehicle_number'] = $request->input('vehicle_number');
-            }
-
-            // Manejar el campo project (UUID o nombre)
-            $projectValue = trim($requestData['project']);
-            $isUUID = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $projectValue);
-
-            if ($isUUID) {
-                // Si es UUID, buscar el nombre correspondiente
-                $projectName = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->where('id', $projectValue)
-                    ->value('name');
-
-                if (!$projectName) {
-                    throw new Exception('Proyecto con ID ' . $projectValue . ' no encontrado.');
-                }
-                $requestData['project'] = $projectName;
-            } else {
-                // Si no es UUID, asumir que es un nombre y verificar que exista
-                $exists = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->where('name', $projectValue)
-                    ->exists();
-
-                if (!$exists) {
-                    throw new Exception('Nombre de proyecto ' . $projectValue . ' no encontrado.');
-                }
-                $requestData['project'] = $projectValue; // Mantener el nombre recibido
             }
 
             // Convertir account_id a nombre si es numérico

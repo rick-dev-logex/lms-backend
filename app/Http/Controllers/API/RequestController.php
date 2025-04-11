@@ -248,25 +248,23 @@ class RequestController extends Controller
 
             $validated = $request->validate($baseRules);
 
-            // Verificar si ya existe un registro similar ANTES de generar un nuevo ID único
-            $existingRequestQuery = Request::query();
-            $existingRequestQuery->where('type', $validated['type']);
-            $existingRequestQuery->where('personnel_type', $validated['personnel_type']);
-            $existingRequestQuery->where('project', $validated['project']);
-            $existingRequestQuery->where('invoice_number', $validated['invoice_number']);
-            $existingRequestQuery->where('account_id', $validated['account_id']);
-            $existingRequestQuery->where('amount', $validated['amount']);
-            $existingRequestQuery->where('created_at', '>=', now()->subMinutes(5));
-            $existingRequest = $existingRequestQuery->first();
+            // Validación de duplicados
+            $duplicateCheck = DB::table('requests')
+                ->where('type', $validated['type'])
+                ->where('personnel_type', $validated['personnel_type'])
+                ->where('project', $validated['project'])
+                ->where('request_date', $validated['request_date'])
+                ->where('invoice_number', $validated['invoice_number'])
+                ->where('account_id', $validated['account_id'])
+                ->where('amount', $validated['amount'])
+                ->where('created_at', '>=', now()->subMinutes(5));
 
-            // Validador de duplicados
-            // if ($existingRequest) {
-            //     // Ya existe un registro similar creado recientemente
-            //     return response()->json([
-            //         'message' => 'Ya existe un registro con la información provista.',
-            //         'data' => $existingRequest
-            //     ], 200);
-            // }
+            if ($duplicateCheck->exists()) {
+                return response()->json([
+                    'message' => 'Ya existe un registro con la información provista.',
+                    'data' => $duplicateCheck->first()
+                ], 200);
+            }
 
             $prefix = match (strtolower($validated['type'])) {
                 'expense' => 'G-',
@@ -284,39 +282,34 @@ class RequestController extends Controller
 
             $nextNumber = ($maxIdQuery && $maxIdQuery->max_id) ? ($maxIdQuery->max_id + 1) : 1;
 
-            // Si el siguiente número es el problemático o está en un rango cercano, saltamos a un número seguro (300)
+            // Saltar rango problemático para descuentos
             if ($prefix === 'D-' && $nextNumber >= 220 && $nextNumber <= 230) {
                 Log::warning("Saltando rango problemático cerca de D-00226. Siguiente ID normal sería: {$prefix}{$nextNumber}");
-                $nextNumber = 300; // Saltar a un rango seguro
+                $nextNumber = 300;
             }
 
             // Formatear el ID con ceros a la izquierda
             $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
-            // VERIFICACIÓN DE SEGURIDAD: si aún así el ID existe, usamos un ID completamente diferente
+            // VERIFICACIÓN DE SEGURIDAD: si el ID existe, generar uno alternativo
             if (DB::table('requests')->where('unique_id', $uniqueId)->exists()) {
-                Log::error("ID duplicado detectado a pesar de las precauciones: {$uniqueId}. Cambiando a formato alternativo.");
-
-                // OPCIÓN 2: Generar un ID totalmente diferente basado en timestamp y aleatorio
-                $timestamp = now()->format('mdHis'); // formato: mes+día+hora+minuto+segundo
+                Log::error("ID duplicado detectado: {$uniqueId}. Cambiando a formato alternativo.");
+                $timestamp = now()->format('mdHis');
                 $randomPart = mt_rand(100, 999);
                 $uniqueId = $prefix . $timestamp . $randomPart;
 
-                // Verificar nuevamente (aunque es extremadamente improbable que colisione)
                 if (DB::table('requests')->where('unique_id', $uniqueId)->exists()) {
-                    // OPCIÓN 3: Si todo lo anterior falla, usar un UUID truncado como último recurso
                     Log::error("ID basado en timestamp también duplicado. Usando UUID como último recurso.");
                     $uuid = substr(str_replace('-', '', \Illuminate\Support\Str::uuid()), 0, 10);
                     $uniqueId = $prefix . $uuid;
                 }
             }
 
-
-            // Guardar datos raw como llegan
+            // Preparar datos para guardar
             $requestData = [
                 'type' => $validated['type'],
                 'personnel_type' => $validated['personnel_type'],
-                'project' => $validated['project'],
+                'project' => $validated['project'], // Temporalmente mantenemos el valor recibido
                 'request_date' => $validated['request_date'],
                 'invoice_number' => $validated['invoice_number'],
                 'account_id' => $validated['account_id'],
@@ -326,6 +319,7 @@ class RequestController extends Controller
                 'status' => 'pending'
             ];
 
+            // Manejar responsible_id y cédula
             if ($request->has('responsible_id')) {
                 $requestData['responsible_id'] = $request->input('responsible_id');
                 $cedula = DB::connection('sistema_onix')
@@ -334,6 +328,8 @@ class RequestController extends Controller
                     ->value('name');
                 $requestData['cedula_responsable'] = $cedula;
             }
+
+            // Manejar campos de transportista
             if ($request->has('vehicle_plate')) {
                 $requestData['vehicle_plate'] = $request->input('vehicle_plate');
             }
@@ -341,27 +337,50 @@ class RequestController extends Controller
                 $requestData['vehicle_number'] = $request->input('vehicle_number');
             }
 
-            $isUUID = is_string($requestData['project']) && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $requestData['project']);
+            // Manejar el campo project (UUID o nombre)
+            $projectValue = trim($requestData['project']);
+            $isUUID = preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $projectValue);
+
             if ($isUUID) {
-                $projectName = $requestData['project'];
-                $project = DB::connection('sistema_onix')
+                // Si es UUID, buscar el nombre correspondiente
+                $projectName = DB::connection('sistema_onix')
                     ->table('onix_proyectos')
-                    ->where('id', $projectName)
-                    ->pluck('name')
-                    ->first();
-                $requestData['project'] = $project;
+                    ->where('id', $projectValue)
+                    ->value('name');
+
+                if (!$projectName) {
+                    throw new Exception('Proyecto con ID ' . $projectValue . ' no encontrado.');
+                }
+                $requestData['project'] = $projectName;
+            } else {
+                // Si no es UUID, asumir que es un nombre y verificar que exista
+                $exists = DB::connection('sistema_onix')
+                    ->table('onix_proyectos')
+                    ->where('name', $projectValue)
+                    ->exists();
+
+                if (!$exists) {
+                    throw new Exception('Nombre de proyecto ' . $projectValue . ' no encontrado.');
+                }
+                $requestData['project'] = $projectValue; // Mantener el nombre recibido
             }
 
-            // Si es que es numero, buscar el id de account y obtener el nombre
+            // Convertir account_id a nombre si es numérico
             if (is_numeric($requestData['account_id'])) {
                 $accountName = Account::where('id', $requestData['account_id'])->pluck('name')->first();
+                if (!$accountName) {
+                    throw new Exception('Cuenta con ID ' . $requestData['account_id'] . ' no encontrada.');
+                }
                 $requestData['account_id'] = $accountName;
             }
 
+            // Crear el registro
             $newRequest = Request::create($requestData);
 
-            // Crear registro en CajaChica
-            $this->createCajaChicaRecord($requestData, $newRequest->unique_id);
+            // Crear registro en CajaChica si es que NO es income
+            if (!$requestData['type'] === "income") {
+                $this->createCajaChicaRecord($requestData, $newRequest->unique_id);
+            }
 
             return response()->json([
                 'message' => 'Request created successfully',
@@ -400,26 +419,23 @@ class RequestController extends Controller
 
         $fechaObj = Carbon::parse($requestData['request_date']);
         $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
-
-        if (!$requestData['type'] === "income") {
-            CajaChica::create([
-                'FECHA' => $requestData['request_date'],
-                'CODIGO' => `CAJA CHICA $uniqueId`,
-                'DESCRIPCION' => $requestData['note'],
-                'SALDO' => $requestData['amount'],
-                'CENTRO COSTO' => $centroCosto,
-                'CUENTA' => $numeroCuenta,
-                'NOMBRE DE CUENTA' => $nombreCuenta,
-                'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
-                'EMPRESA' => 'SERSUPPORT',
-                'PROYECTO' => $proyecto,
-                'I_E' => 'EGRESO',
-                'MES SERVICIO' => $mesServicio,
-                'TIPO' => $requestData['type'] === "expense" ? "GASTO" : "DESCUENTO",
-                'ESTADO' => $requestData['status'],
-            ]);
-            Log::debug('Registro en CajaChica creado con éxito');
-        }
+        CajaChica::create([
+            'FECHA' => $requestData['request_date'],
+            'CODIGO' => `CAJA CHICA $uniqueId`,
+            'DESCRIPCION' => $requestData['note'],
+            'SALDO' => $requestData['amount'],
+            'CENTRO COSTO' => $centroCosto,
+            'CUENTA' => $numeroCuenta,
+            'NOMBRE DE CUENTA' => $nombreCuenta,
+            'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
+            'EMPRESA' => 'SERSUPPORT',
+            'PROYECTO' => $proyecto,
+            'I_E' => 'EGRESO',
+            'MES SERVICIO' => $mesServicio,
+            'TIPO' => $requestData['type'] === "expense" ? "GASTO" : "DESCUENTO",
+            'ESTADO' => $requestData['status'],
+        ]);
+        Log::debug('Registro en CajaChica creado con éxito');
     }
 
     public function update(HttpRequest $request, $id)

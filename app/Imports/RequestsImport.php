@@ -223,7 +223,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 'CENTRO COSTO' => $centroCosto,
                 'CUENTA' => $numeroCuenta,
                 'NOMBRE DE CUENTA' => $nombreCuenta,
-                'PROVEEDOR' => $this->context === "expense" ? 'CAJA CHICA' : ($this->context === "discount" ? "DESCUENTOS" : "INGRESO"),
+                'PROVEEDOR' => $this->context === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
                 'EMPRESA' => 'SERSUPPORT',
                 'PROYECTO' => $proyecto,
                 'I_E' => $this->context === "income" ? 'INGRESO' : 'EGRESO',

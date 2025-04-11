@@ -409,7 +409,7 @@ class RequestController extends Controller
             'CENTRO COSTO' => $centroCosto,
             'CUENTA' => $numeroCuenta,
             'NOMBRE DE CUENTA' => $nombreCuenta,
-            'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : ($requestData['type'] === "discount" ? "DESCUENTOS" : "INGRESO"),
+            'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
             'EMPRESA' => 'SERSUPPORT',
             'PROYECTO' => $proyecto,
             'I_E' => $requestData['type'] === "income" ? 'INGRESO' : 'EGRESO',

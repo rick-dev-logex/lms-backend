@@ -15,7 +15,6 @@ class TemplateController extends Controller
 {
     public function downloadDiscountsTemplate(Request $request)
     {
-
         $projectNames = $this->getProjectNamesFromJwt($request);
 
         // Verificar si hay proyectos asignados
@@ -23,6 +22,10 @@ class TemplateController extends Controller
             return response()->json([
                 'message' => 'No tienes proyectos asignados aún. Por favor, pide que te asignen al menos un proyecto para poder continuar.'
             ], 403); // 403 Forbidden para indicar que no se permite la acción
+        }
+
+        if ($request->has('isIncome')) {
+            return Excel::download(new TemplateExport('income', $projectNames), 'plantilla_ingresos.xlsx');
         }
 
         return Excel::download(new TemplateExport('discounts', $projectNames), 'plantilla_descuentos.xlsx');

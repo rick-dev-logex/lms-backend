@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\DB;
 
 class MobileDataController extends Controller
 {
-    public function index(HttpRequest $httpRequest, $cedula = null)
+    public function index(HttpRequest $httpRequest)
     {
         $user = $httpRequest->attributes->get('endpoint_user');
+        $cedula = $httpRequest->input('cedula');
 
         // Check if cedula is provided
         if (!$cedula) {

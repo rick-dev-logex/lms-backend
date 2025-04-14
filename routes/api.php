@@ -25,7 +25,7 @@ Route::prefix('mobile')
     ->withoutMiddleware(['api']) // Remove todos los middlewares del grupo 'api'
     ->middleware(\App\Http\Middleware\VerifyEndpointJWT::class) // Aplica solo VerifyEndpointJWT
     ->group(function () {
-        Route::get('/data/{cedula?}', [MobileDataController::class, 'index']);
+        Route::get('/data', [MobileDataController::class, 'index']);
         // Route::post('/data', [MobileDataController::class, 'store']);
     });
 

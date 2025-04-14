@@ -15,8 +15,7 @@ class TransportController extends Controller
             $vehicles = DB::connection('tms1')->table('vehiculos')->where('status', 'ACTIVO')->get()->count();
             return response()->json($vehicles);
         } else {
-            $query = Transport::select('id', 'name')->where('deleted', '0');
-
+            $query = Transport::select('id', 'name')->where('status', 'ACTIVO');
             // Seleccionar campos específicos si se solicitan
             if ($request->filled('fields')) {
                 $query->select(explode(',', $request->fields));

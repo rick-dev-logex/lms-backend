@@ -14,6 +14,7 @@ use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTitle
 {
@@ -24,7 +25,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
     private $context;
     private $projectNames;
 
-    public function __construct(string $context = 'discounts', array $projectNames = ['Sin proyectos asignados'])
+    public function __construct(string $context, array $projectNames = ['Sin proyectos asignados'])
     {
         $this->context = $context;
         $this->projectNames = $projectNames;
@@ -32,7 +33,13 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
 
     public function title(): string
     {
-        return $this->context === 'discounts' ? 'Plantilla de Descuentos' : ($this->context === 'expenses' ? 'Plantilla de Gastos' : 'Plantilla de Ingresos');
+        Log::info('Incoming context:' . $this->context);
+        return match ($this->context) {
+            'expenses' => "Plantilla de Gastos",
+            "discounts" => "Plantilla de Descuentos",
+            "income" => "Plantilla de Ingresos",
+            default => `Plantilla de  . $this->context`,
+        };
     }
 
     public function headings(): array
@@ -210,9 +217,9 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
         if ($this->context === 'discounts') {
             $query->where('account_affects', 'discount')->orWhere('account_affects', 'both');
         } elseif ($this->context === 'expenses') {
-            $query->where('account_affects', 'expense')->orWhere('account _affects', 'both');
+            $query->where('account_affects', 'expense')->orWhere('account_affects', 'both');
         } elseif ($this->context === 'income') {
-            $query->where('account_affects', 'expense')->orWhere('account_affects', 'discount')->orWhere('account _affects', 'both');
+            $query->where('account_affects', 'expense')->orWhere('account_affects', 'discount')->orWhere('account_affects', 'both');
         }
 
         return $query->pluck('name')->toArray();

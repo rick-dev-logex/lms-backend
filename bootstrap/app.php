@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -31,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth' => \App\Http\Middleware\Authenticate::class,
             'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
             'verify.jwt' => \App\Http\Middleware\VerifyJWTToken::class,
+            'verify.endpoint.jwt' => \App\Http\Middleware\VerifyEndpointJWT::class, // Para API consumible fuera de la app LMS
             'role' => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
@@ -39,6 +41,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->render(function (\Exception $e, $request) {
             if ($request->is('api/*')) {
+                if ($e instanceof MethodNotAllowedHttpException) {
+                    return response()->json([
+                        'message' => 'Método no permitido para esta ruta.',
+                        'exception' => get_class($e),
+                    ], 405);
+                }
                 return response()->json([
                     'message' => $e->getMessage(),
                     'exception' => get_class($e),

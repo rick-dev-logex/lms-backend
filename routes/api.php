@@ -9,6 +9,7 @@ use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
 use App\Http\Controllers\API\LoanController;
+use App\Http\Controllers\API\MobileDataController;
 use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
@@ -19,6 +20,14 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['throttle:6,1'])->group(function () {
     // Rutas públicas con throttle para evitar brute force attacks
 });
+
+Route::prefix('mobile')
+    ->withoutMiddleware(['api']) // Remove todos los middlewares del grupo 'api'
+    ->middleware(\App\Http\Middleware\VerifyEndpointJWT::class) // Aplica solo VerifyEndpointJWT
+    ->group(function () {
+        Route::get('/data/{cedula?}', [MobileDataController::class, 'index']);
+        // Route::post('/data', [MobileDataController::class, 'store']);
+    });
 
 // Para actualizar la data subida previamente con UUIDs
 Route::get('/update-data', [RequestController::class, 'updateRequestsData']);
@@ -38,12 +47,12 @@ Route::get('/debug', function () {
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/login', [AuthController::class, 'login'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
+Route::post('/reset-password', [AuthController::class, 'resetPassword'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
 
 // Rutas protegidas por autenticación
-Route::middleware(['verify.jwt'])->group(function () {
+Route::middleware(['verify.jwt'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class])->group(function () {
     // Rutas generales para usuarios autenticados
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
@@ -132,4 +141,4 @@ Route::middleware(['verify.jwt'])->group(function () {
 // Al final de api.php, captura todas las peticiones OPTIONS
 Route::options('{any}', function () {
     return response('', 200);
-})->where('any', '.*');
+})->where('any', '.*')->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);

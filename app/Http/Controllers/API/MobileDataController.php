@@ -60,7 +60,7 @@ class MobileDataController extends Controller
 
 
             $data = [
-                'success' => 'true',
+                'success' => true,
                 'status' => 200,
                 'descuentos' => $descuentos,
             ];

@@ -418,7 +418,18 @@ class RequestController extends Controller
 
     public function update(HttpRequest $request, $id)
     {
-        $requestModel = Request::where('id', $id)->firstOrFail();
+        try {
+            if ($requestModel = Request::where('id', $id)->exists()) {
+                $requestModel = Request::where('id', $id)->first();
+            } else {
+                $requestModel = Request::where('unique_id', $id)->firstOrFail();
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => "Error al obtener el ID de la solicitud",
+                "error" => $e->getMessage()
+            ]);
+        }
 
         try {
             $baseRules = [

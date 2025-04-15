@@ -52,7 +52,7 @@ Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->with
 Route::post('/reset-password', [AuthController::class, 'resetPassword'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
 
 // Rutas protegidas por autenticación
-Route::middleware(['verify.jwt'])->group(function () {
+Route::middleware(['verify.jwt'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class])->group(function () {
     // Rutas generales para usuarios autenticados
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);

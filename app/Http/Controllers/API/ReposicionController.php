@@ -290,11 +290,16 @@ class ReposicionController extends Controller
 
             // Para caja chica
             foreach ($requestIds as $uniqueId) {
-                $codigo = "CAJA CHICA" . $reposicion->id . $uniqueId;
+                $codigo = "CAJA CHICA " . $reposicion->id . " " . $uniqueId;
 
-                CajaChica::where('codigo', 'LIKE', "CAJA CHICA%{$uniqueId}")->update([
+                CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$uniqueId}")->update([
                     'codigo' => $codigo,
                     'estado' => 'EN REPOSICIÓN',
+                ]);
+
+                CajaChica::where('CODIGO', 'LIKE', "CAJA CHICA %{$uniqueId}")->update([
+                    'CODIGO' => $codigo,
+                    'ESTADO' => 'EN REPOSICIÓN',
                 ]);
             }
 
@@ -363,7 +368,7 @@ class ReposicionController extends Controller
                         ]);
                 }
                 foreach ($reposicion->detail as $uniqueId) {
-                    CajaChica::where('codigo', 'LIKE', "CAJA CHICA%{$uniqueId}")
+                    CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$uniqueId}")
                         ->update(['estado' => $requestStatus]);
                 }
             }

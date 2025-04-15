@@ -9,7 +9,6 @@ use App\Models\CajaChica;
 use App\Models\Project;
 use App\Models\Request;
 use App\Models\User;
-use App\Services\PersonnelService;
 use Carbon\Carbon;
 use Exception;
 use Firebase\JWT\JWT;
@@ -22,13 +21,8 @@ use Maatwebsite\Excel\Excel;
 
 class RequestController extends Controller
 {
-    private $personnelService;
     private $uniqueIdService;
 
-    public function __construct(PersonnelService $personnelService)
-    {
-        $this->personnelService = $personnelService;
-    }
 
     public function import(HttpRequest $request, Excel $excel)
     {
@@ -495,7 +489,7 @@ class RequestController extends Controller
     private function updateCajaChicaRecord(Request $requestModel): void
     {
         try {
-            $cajaChica = CajaChica::where('CODIGO', 'CAJA CHICA' . $requestModel->unique_id)->first();
+            $cajaChica = CajaChica::where('CODIGO', 'CAJA CHICA ' . $requestModel->unique_id)->first();
 
             if ($cajaChica) {
                 $numeroCuenta = Account::where('name', $requestModel->account_id)->pluck('account_number')->first();

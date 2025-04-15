@@ -43,15 +43,15 @@ Route::get('/debug', function () {
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 
-Route::post('/login', [AuthController::class, 'login'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
-Route::post('/forgot-password', [AuthController::class, 'forgotPassword'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
-Route::post('/reset-password', [AuthController::class, 'resetPassword'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
 Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
 
 // Rutas protegidas por autenticación
-Route::middleware(['verify.jwt'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class])->group(function () {
+Route::middleware(['verify.jwt'])->group(function () {
     // Rutas generales para usuarios autenticados
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);
@@ -140,4 +140,4 @@ Route::middleware(['verify.jwt'])->withoutMiddleware([\App\Http\Middleware\Verif
 // Al final de api.php, captura todas las peticiones OPTIONS
 Route::options('{any}', function () {
     return response('', 200);
-})->where('any', '.*')->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]);
+})->where('any', '.*');

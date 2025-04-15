@@ -13,10 +13,6 @@ use Firebase\JWT\Key;
 
 class TemplateController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware([])->only(['downloadDiscountsTemplate', 'downloadExpensesTemplate']);
-    }
     public function downloadDiscountsTemplate(Request $request)
     {
         $projectNames = $this->getProjectNamesFromJwt($request);

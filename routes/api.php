@@ -47,8 +47,12 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
-Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
-Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
+Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate'])
+    ->withoutMiddleware([\App\Http\Middleware\ValidateApiToken::class]);
+// Descargar plantilla de excel descuentos y both
+Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate'])
+    ->withoutMiddleware([\App\Http\Middleware\ValidateApiToken::class]);
+// Descargar plantilla de excel con cuentas solo de discount
 
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->group(function () {

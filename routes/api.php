@@ -33,8 +33,6 @@ Route::prefix('mobile')
 Route::get('/update-data', [RequestController::class, 'updateRequestsData']);
 
 
-Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]); // Descargar plantilla de excel descuentos y both
-Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]); // Descargar plantilla de excel con cuentas solo de discount
 
 Route::get('/debug', function () {
     return response()->json([
@@ -53,6 +51,8 @@ Route::post('/reset-password', [AuthController::class, 'resetPassword'])->withou
 
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class])->group(function () {
+    Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
+    Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
     // Rutas generales para usuarios autenticados
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/change-password', [AuthController::class, 'changePassword']);

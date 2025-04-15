@@ -33,8 +33,8 @@ Route::prefix('mobile')
 Route::get('/update-data', [RequestController::class, 'updateRequestsData']);
 
 
-Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate']); // Descargar plantilla de excel descuentos y both
-Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate']); // Descargar plantilla de excel con cuentas solo de discount
+Route::get('/download-discounts-template', [TemplateController::class, 'downloadDiscountsTemplate'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]); // Descargar plantilla de excel descuentos y both
+Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate'])->withoutMiddleware([\App\Http\Middleware\VerifyEndpointJWT::class]); // Descargar plantilla de excel con cuentas solo de discount
 
 Route::get('/debug', function () {
     return response()->json([

@@ -26,9 +26,7 @@ Route::prefix('mobile')
     ->middleware(\App\Http\Middleware\VerifyEndpointJWT::class) // Aplica solo VerifyEndpointJWT
     ->group(function () {
         Route::get('/data', [MobileDataController::class, 'index']);
-        // Route::post('/data', [MobileDataController::class, 'store']);
     });
-
 // Para actualizar la data subida previamente con UUIDs
 Route::get('/update-data', [RequestController::class, 'updateRequestsData']);
 

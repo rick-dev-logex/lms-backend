@@ -32,7 +32,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth' => \App\Http\Middleware\Authenticate::class,
             'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
             'verify.jwt' => \App\Http\Middleware\VerifyJWTToken::class,
-            'verify.endpoint.jwt' => \App\Http\Middleware\VerifyEndpointJWT::class, // Para API consumible fuera de la app LMS
             'role' => \App\Http\Middleware\CheckRole::class,
             'permission' => \App\Http\Middleware\CheckPermission::class,
             'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,

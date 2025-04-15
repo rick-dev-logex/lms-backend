@@ -317,20 +317,6 @@ class RequestController extends Controller
             // Formatear el ID con ceros a la izquierda
             $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
-            // VERIFICACIÓN DE SEGURIDAD: si el ID existe, generar uno alternativo
-            if (DB::table('requests')->where('unique_id', $uniqueId)->exists()) {
-                Log::error("ID duplicado detectado: {$uniqueId}. Cambiando a formato alternativo.");
-                $timestamp = now()->format('mdHis');
-                $randomPart = mt_rand(100, 999);
-                $uniqueId = $prefix . $timestamp . $randomPart;
-
-                if (DB::table('requests')->where('unique_id', $uniqueId)->exists()) {
-                    Log::error("ID basado en timestamp también duplicado. Usando UUID como último recurso.");
-                    $uuid = substr(str_replace('-', '', \Illuminate\Support\Str::uuid()), 0, 10);
-                    $uniqueId = $prefix . $uuid;
-                }
-            }
-
             // Preparar datos para guardar
             $requestData = [
                 'type' => $validated['type'],
@@ -438,7 +424,7 @@ class RequestController extends Controller
 
     public function update(HttpRequest $request, $id)
     {
-        $requestModel = Request::where('unique_id', $id)->firstOrFail();
+        $requestModel = Request::where('id', $id)->firstOrFail();
 
         try {
             $baseRules = [

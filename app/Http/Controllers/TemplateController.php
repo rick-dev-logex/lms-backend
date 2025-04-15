@@ -25,10 +25,14 @@ class TemplateController extends Controller
         }
 
         if ($request->has('isIncome')) {
-            return Excel::download(new TemplateExport('income', $projectNames), 'plantilla_ingresos.xlsx');
+            $response = Excel::download(new TemplateExport('income', $projectNames), 'plantilla_ingresos.xlsx');
+        } else {
+            $response = Excel::download(new TemplateExport('discounts', $projectNames), 'plantilla_descuentos.xlsx');
         }
 
-        return Excel::download(new TemplateExport('discounts', $projectNames), 'plantilla_descuentos.xlsx');
+        $response->headers->set('Access-Control-Allow-Origin', '*');
+
+        return $response;
     }
 
     public function downloadExpensesTemplate(Request $request)

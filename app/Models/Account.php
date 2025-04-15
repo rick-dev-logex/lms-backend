@@ -11,7 +11,7 @@ class Account extends Model
     use HasFactory;
     use HasApiTokens;
 
-    protected $connection = 'lms_backend';
+    // protected $connection = 'lms_backend';
     protected $table = 'accounts';
     protected $fillable = [
         'name',

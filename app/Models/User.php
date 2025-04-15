@@ -13,7 +13,7 @@ class User extends Authenticatable implements JWTSubject
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected $connection = 'lms_backend';
+    // protected $connection = 'lms_backend';
     protected $table = 'users';
 
     protected $fillable = [

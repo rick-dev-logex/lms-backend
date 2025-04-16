@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Transport;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TransportController extends Controller
 {
@@ -15,13 +16,50 @@ class TransportController extends Controller
             $vehicles = DB::connection('tms1')->table('vehiculos')->where('status', 'ACTIVO')->get()->count();
             return response()->json($vehicles);
         } else {
-            $query = Transport::select('id', 'name')->where('status', 'ACTIVO');
-            // Seleccionar campos específicos si se solicitan
+            // Subconsulta para tms1.vehiculos
+            $tmsQuery = DB::connection('tms1')
+                ->table('vehiculos')
+                ->select('id', 'name')
+                ->selectRaw("REGEXP_REPLACE(UPPER(name), '[^A-Z0-9]', '') AS normalized_name")
+                ->where('status', 'ACTIVO');
+
+            // Subconsulta para sistema_onix.onix_vehiculos
+            $onixQuery = DB::connection('sistema_onix')
+                ->table('onix_vehiculos')
+                ->select('id', 'name')
+                ->selectRaw("REGEXP_REPLACE(UPPER(name), '[^A-Z0-9]', '') AS normalized_name")
+                ->where('deleted', 0);
+
+            // Ejecutar ambas consultas por separado
+            $tmsResults = $tmsQuery->get()->toArray();
+            $onixResults = $onixQuery->get()->toArray();
+
+            // Combinar resultados y eliminar duplicados basados en normalized_name
+            $combinedResults = collect(array_merge($tmsResults, $onixResults))
+                ->unique('normalized_name')
+                ->map(function ($item) {
+                    // Excluir normalized_name del resultado final
+                    return [
+                        'id' => $item->id,
+                        'name' => $item->name,
+                    ];
+                })
+                ->sortBy('name')
+                ->values()
+                ->all();
+
+            // Manejar campos específicos si se solicitan
             if ($request->filled('fields')) {
-                $query->select(explode(',', $request->fields));
+                $fields = explode(',', $request->fields);
+                $validFields = array_intersect($fields, ['id', 'name']);
+                if (!empty($validFields)) {
+                    $combinedResults = array_map(function ($item) use ($validFields) {
+                        return array_intersect_key($item, array_flip($validFields));
+                    }, $combinedResults);
+                }
             }
 
-            return response()->json($query->orderBy('name', 'asc')->get());
+            return response()->json($combinedResults);
         }
     }
 

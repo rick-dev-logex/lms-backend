@@ -322,7 +322,7 @@ class ReposicionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Error creando la reposición:' . $e->getMessage(),
+                'message' => 'No se pudo crear la reposición: ' . $e->getMessage(),
                 'error' => $e->getMessage()
             ], 422);
         }

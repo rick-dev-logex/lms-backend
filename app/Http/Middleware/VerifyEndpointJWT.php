@@ -13,17 +13,17 @@ class VerifyEndpointJWT
 {
     public function handle(Request $request, Closure $next)
     {
-        Log::debug('VerifyEndpointJWT: Middleware iniciado', [
-            'url' => $request->url(),
-            'method' => $request->method(),
-        ]);
+        // Log::debug('VerifyEndpointJWT: Middleware iniciado', [
+        //     'url' => $request->url(),
+        //     'method' => $request->method(),
+        // ]);
 
         try {
             $authHeader = $request->header('Authorization');
-            Log::debug('VerifyEndpointJWT: Authorization Header', ['header' => $authHeader]);
+            // Log::debug('VerifyEndpointJWT: Authorization Header', ['header' => $authHeader]);
 
             $token = $request->bearerToken();
-            Log::debug('VerifyEndpointJWT: Bearer Token', ['token' => $token]);
+            // Log::debug('VerifyEndpointJWT: Bearer Token', ['token' => $token]);
 
             if (!$token) {
                 Log::warning('VerifyEndpointJWT: Token no proporcionado');
@@ -39,7 +39,7 @@ class VerifyEndpointJWT
             }
 
             $request->attributes->add(['endpoint_user' => (array) $decoded]);
-            Log::debug('VerifyEndpointJWT: Token válido', ['sub' => $decoded->sub]);
+            // Log::debug('VerifyEndpointJWT: Token válido', ['sub' => $decoded->sub]);
 
             return $next($request);
         } catch (Exception $e) {

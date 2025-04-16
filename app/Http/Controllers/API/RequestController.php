@@ -382,12 +382,12 @@ class RequestController extends Controller
      */
     private function createCajaChicaRecord(array $requestData, string $uniqueId): void
     {
-        Log::debug('Intentando crear registro en CajaChica:', [
-            'uniqueId' => $uniqueId,
-            'request_date' => $requestData['request_date'],
-            'type' => $requestData['type'],
-            'requestData' => $requestData // Registra todo el requestData para ver si hay algo raro
-        ]);
+        // Log::debug('Intentando crear registro en CajaChica:', [
+        //     'uniqueId' => $uniqueId,
+        //     'request_date' => $requestData['request_date'],
+        //     'type' => $requestData['type'],
+        //     'requestData' => $requestData // Registra todo el requestData para ver si hay algo raro
+        // ]);
 
         try {
             $numeroCuenta = Account::where('name', $requestData['account_id'])->pluck('account_number')->first();
@@ -419,7 +419,7 @@ class RequestController extends Controller
                 'ESTADO' => $requestData['status'],
             ]);
 
-            Log::debug('Registro en CajaChica creado con éxito');
+            // Log::debug('Registro en CajaChica creado con éxito');
         } catch (Exception $e) {
             Log::error('Error al crear registro en CajaChica:', [
                 'uniqueId' => $uniqueId,
@@ -551,12 +551,12 @@ class RequestController extends Controller
             $cajaChica = CajaChica::where('CODIGO', "LIKE", 'CAJA CHICA ' . "%" . $requestModel->unique_id . "%")->first();
 
             if ($cajaChica) {
-                Log::debug('Actualizando registro en CajaChica:', [
-                    'uniqueId' => $requestModel->unique_id,
-                    'request_date' => $requestModel->request_date,
-                    'type' => $requestModel->type,
-                    'amount' => $requestModel->amount
-                ]);
+                // Log::debug('Actualizando registro en CajaChica:', [
+                //     'uniqueId' => $requestModel->unique_id,
+                //     'request_date' => $requestModel->request_date,
+                //     'type' => $requestModel->type,
+                //     'amount' => $requestModel->amount
+                // ]);
 
                 $numeroCuenta = Account::where('name', $requestModel->account_id)->pluck('account_number')->first();
                 $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestModel->account_id)); // sin tildes
@@ -587,7 +587,7 @@ class RequestController extends Controller
                     'ESTADO' => $requestModel->status,
                 ]);
 
-                Log::debug('Registro en CajaChica actualizado con éxito');
+                // Log::debug('Registro en CajaChica actualizado con éxito');
             } else {
                 Log::warning('No se encontró registro en CajaChica para el ID:', [
                     'uniqueId' => $requestModel->unique_id

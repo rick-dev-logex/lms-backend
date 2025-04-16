@@ -38,7 +38,7 @@ class ValidateApiToken
             $request->attributes->add(['user' => $decoded]); // Opcional: agregar datos del usuario al request
             return $next($request);
         } catch (\Exception $e) {
-            Log::error("Exception thrown @ ValidateApiToken:", [$e]);
+            Log::error("Exception thrown @ValidateApiToken:", [$e]);
             return response()->json(['message' => 'Token inválido. Por favor, Inicia sesión nuevamente. Si el problema persiste, contacta a soporte.'], 401);
         }
     }

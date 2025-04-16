@@ -356,7 +356,7 @@ class RequestController extends Controller
             // Crear el registro
             $newRequest = Request::create($requestData);
 
-            // Crear registro en CajaChica si es que NO es income
+            // Crear registro en CajaChica si es que NO es ingreso
             if ($requestData['type'] !== "income") {
                 $this->createCajaChicaRecord($requestData, $newRequest->unique_id);
             }

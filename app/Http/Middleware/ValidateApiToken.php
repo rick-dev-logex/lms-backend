@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Illuminate\Support\Facades\Log;
 
 class ValidateApiToken
 {
@@ -37,7 +38,8 @@ class ValidateApiToken
             $request->attributes->add(['user' => $decoded]); // Opcional: agregar datos del usuario al request
             return $next($request);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Invalid token'], 401);
+            Log::error("Exception thrown @ ValidateApiToken:", [$e]);
+            return response()->json(['message' => 'Token inválido. Por favor, Inicia sesión nuevamente. Si el problema persiste, contacta a soporte.'], 401);
         }
     }
 }

@@ -37,7 +37,7 @@ class TemplateController extends Controller
 
     public function downloadExpensesTemplate(Request $request)
     {
-        Log::info("Request recibido en downloadExpensesTemplate: " . json_encode($request->all()));
+        // Log::info("Request recibido en downloadExpensesTemplate: " . json_encode($request->all()));
 
         $projectNames = $this->getProjectNamesFromJwt($request);
 

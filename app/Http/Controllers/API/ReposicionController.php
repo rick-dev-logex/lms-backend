@@ -194,7 +194,7 @@ class ReposicionController extends Controller
             $maxFileSize = 20 * 1024 * 1024; // 20MB en bytes
             if ($file->getSize() > $maxFileSize) {
                 throw ValidationException::withMessages([
-                    'attachment' => ['El archivo es demasiado grande. El tamaño máximo permitido es 20MB. Reduce el tamaño e intenta de nuevo.'],
+                    'attachment' => ['El archivo es demasiado grande. El tamaño máximo permitido es 20MB. Reduce el tamaño e inténtalo de nuevo.'],
                 ]);
             }
 
@@ -208,7 +208,7 @@ class ReposicionController extends Controller
             $project = $requests->first()->project;
 
             if ($requests->pluck('project')->unique()->count() > 1) {
-                throw new \Exception('All requests must belong to the same project');
+                throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
             }
 
             // Procesar y subir el archivo a Google Cloud Storage
@@ -309,7 +309,7 @@ class ReposicionController extends Controller
             $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
 
             return response()->json([
-                'message' => 'Reposición created successfully',
+                'message' => 'Reposición creada exitosamente',
                 'data' => $reposicion
             ], 201);
         } catch (ValidationException $e) {
@@ -322,7 +322,7 @@ class ReposicionController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Error creating reposición',
+                'message' => 'Error creando la reposición:' . $e->getMessage(),
                 'error' => $e->getMessage()
             ], 422);
         }

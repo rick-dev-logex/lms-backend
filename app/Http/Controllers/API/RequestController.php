@@ -536,7 +536,7 @@ class RequestController extends Controller
             'updated_at' => Carbon::now(),
         ]);
 
-        Log::info("Reposición #$id actualizada con total: $sum");
+        // Log::info("Reposición #$id actualizada con total: $sum");
     }
 
     /**

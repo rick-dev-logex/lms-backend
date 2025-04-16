@@ -33,7 +33,7 @@ class TemplateExport implements FromCollection, WithHeadings, WithEvents, WithTi
 
     public function title(): string
     {
-        Log::info('Incoming context:' . $this->context);
+        // Log::info('Incoming context:' . $this->context);
         return match ($this->context) {
             'expenses' => "Plantilla de Gastos",
             "discounts" => "Plantilla de Descuentos",

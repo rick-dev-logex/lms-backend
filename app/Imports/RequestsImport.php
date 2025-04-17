@@ -30,9 +30,9 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
      * @param string|null $userId ID del usuario que realiza la importación
      * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
      */
-    public function __construct(string $context = 'discounts', $userId = null, UniqueIdService $uniqueIdService = null)
+    public function __construct(string $context = 'discount', $userId = null, UniqueIdService $uniqueIdService = null)
     {
-        $this->context = in_array(strtolower($context), ['expense', 'discount', 'income']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : ('discount' ? 'discount' : 'income'));
+        $this->context = in_array(strtolower($context), ['expense', 'discount', 'income']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : 'discount');
         $this->userId = $userId;
         $this->uniqueIdService = $uniqueIdService ?: new UniqueIdService();
         $this->rowNumber = 0;

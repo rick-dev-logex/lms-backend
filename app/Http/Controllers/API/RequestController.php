@@ -29,7 +29,7 @@ class RequestController extends Controller
     {
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv',
-            'context' => 'required|in:discounts,expenses',
+            'context' => 'required|in:discounts,expenses,income',
         ]);
 
         try {

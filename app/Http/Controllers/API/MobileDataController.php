@@ -12,66 +12,63 @@ class MobileDataController extends Controller
 {
     public function index(HttpRequest $httpRequest)
     {
-        $user = $httpRequest->attributes->get('endpoint_user');
         $cedula = $httpRequest->input('cedula');
 
-        // Check if cedula is provided
         if (!$cedula) {
             return response()->json([
                 'error' => 'Necesitas mandar como parámetro un número de cédula válido registrado en Sistema Onix.'
             ], 400);
         }
 
-        // Query the database
         try {
-            $user = DB::connection('sistema_onix')
+            $usuarioOnix = DB::connection('sistema_onix')
                 ->table('onix_personal')
                 ->where('name', $cedula)
                 ->first();
 
-            if (!$user) {
+            if (!$usuarioOnix) {
                 return response()->json([
                     'error' => 'El número de identificación está incorrecto o no existe en la base de datos.'
                 ], 404);
             }
 
-            // Obtener los descuentos asignados a este usuario
-            $requestResponsable = Request::where('responsible_id', $user->nombre_completo)->get();
+            $solicitudes = Request::where('responsible_id', $usuarioOnix->nombre_completo)->get();
 
-            $descuentos = $requestResponsable->map(function ($item) {
-                $reposition = Reposicion::where('id', $item->reposicion_id)->first();
+            $descuentos = $solicitudes->map(function ($item) {
+                $reposition = Reposicion::find($item->reposicion_id);
 
-                if (!$reposition) {
-                    return null; // omite si no encuentra reposición
+                if (!$reposition || empty($reposition->month)) {
+                    return null; // Omite si no hay reposición o si no tiene mes
                 }
 
                 return [
-                    'tipo' => $item->personnel_type,
-                    'fechaRegistro' => $item->created_at,
-                    'valor' => $item->amount,
-                    'numTransporte' => $item->vehicle_number,
-                    'proyecto' => $item->project,
-                    'observacion' => $item->note,
-                    'estado' => $reposition->status,
-                    'placa' => $item->vehicle_plate,
-                    'mesRol' => $item->month,
+                    'tipo' => $item->personnel_type ?? "",
+                    'fechaRegistro' => $item->created_at ?? "",
+                    'valor' => $item->amount ?? "",
+                    'numTransporte' => $item->vehicle_number ?? "",
+                    'proyecto' => $item->project ?? "",
+                    'observacion' => $item->note ?? "",
+                    'estado' => $reposition->status ?? "",
+                    'placa' => $item->vehicle_plate ?? "",
+                    'mesRol' => $reposition->month ?? "",
                 ];
             })->filter()->values(); // Limpia nulos y reindexa
 
-
-            $data = [
-                'success' => true,
-                'status' => 200,
-                'descuentos' => $descuentos,
-            ];
-
-            return response()->json(['data' => $data]);
+            return response()->json([
+                'data' => [
+                    'success' => true,
+                    'status' => 200,
+                    'descuentos' => $descuentos,
+                ]
+            ]);
         } catch (\Exception $error) {
             return response()->json([
-                'error' => 'El número de identificación está incorrecto o no existe en la base de datos.'
+                'error' => 'Error al consultar la información. Intenta nuevamente más tarde.',
+                'detalle' => $error->getMessage(), // opcional en desarrollo
             ], 500);
         }
     }
+
 
     // public function store(Request $request)
     // {

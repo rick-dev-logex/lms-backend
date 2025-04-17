@@ -81,7 +81,11 @@ class ReposicionController extends Controller
                     ->whereIn('id', $assignedProjectIds)
                     ->pluck('name')
                     ->toArray();
-                $query->whereIn('project', $projectNames);
+                $query->where(function ($q) use ($projectNames) {
+                    foreach ($projectNames as $projectName) {
+                        $q->orWhere('project', 'LIKE', "%$projectName%");
+                    }
+                });
             }
 
             if ($period === 'last_3_months') {
@@ -207,9 +211,40 @@ class ReposicionController extends Controller
 
             $project = $requests->first()->project;
 
-            if ($requests->pluck('project')->unique()->count() > 1) {
-                throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
+            // AQUI SE LE PERMITE A MICHELLE CREAR LA REPOSICION MASIVA
+            $token = $request->cookie('jwt-token');
+            try {
+                $decoded = JWT::decode($token, new Key(env('JWT_SECRET'), 'HS256'));
+
+                // Acceder a datos del usuario
+                $userId = $decoded->user_id ?? null;
+                $userName = $decoded->name ?? null;
+                $userEmail = $decoded->email ?? null;
+                $permissions = $decoded->permissions ?? [];
+
+                Log::info("Usuario del request entrante: " . $userEmail);
+
+                $project = $requests->first()->project;
+
+                if ($requests->pluck('project')->unique()->count() > 1) {
+                    if (
+                        $userEmail !== "michelle.quintana@logex.ec" &&
+                        $userEmail !== "nicolas.iza@logex.ec" &&
+                        $userEmail !== "ricardo.estrella@logex.ec"
+                    ) {
+                        throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
+                    }
+
+                    // Si tiene permiso, guardar los proyectos como arreglo separado por coma
+                    $project = $requests->pluck('project')->unique()->join(',');
+                }
+            } catch (\Exception $e) {
+                Log::error("No se pudo obtener el token para esta solicitud. " . $e->getMessage());
             }
+
+            // if ($requests->pluck('project')->unique()->count() > 1) {
+            //     throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
+            // }
 
             // Procesar y subir el archivo a Google Cloud Storage
             $fileName = null;

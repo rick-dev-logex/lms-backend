@@ -43,7 +43,7 @@ class MobileDataController extends Controller
 
                 return [
                     'tipo' => $item->personnel_type ?? "",
-                    'fechaRegistro' => $item->created_at ?? "",
+                    'fechaRegistro' => $item->request_date instanceof \DateTime ? $item->request_date->format('Y-m-d') : "",
                     'valor' => $item->amount ?? "",
                     'numTransporte' => $item->vehicle_number ?? "",
                     'proyecto' => $item->project ?? "",

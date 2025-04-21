@@ -82,7 +82,7 @@
                 <strong>{{ $startTime }}</strong> hasta las <strong>{{ $endTime }}</strong> por mantenimiento programado.
             </p>
             <p>
-                Durante ese periodo no podrá acceder al sistema. Se mostrará una pantalla informativa para evitar la pérdida de información.
+                Durante ese periodo no podrás acceder al sistema. Se mostrará una pantalla informativa para evitar la pérdida de información.
             </p>
             <p>
                 Si el mantenimiento concluye antes de lo previsto, el acceso será restablecido de inmediato.

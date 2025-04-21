@@ -14,7 +14,6 @@ use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\TemplateController;
-use App\Http\Controllers\TestMailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1'])->group(function () {
@@ -41,7 +40,6 @@ Route::get('/debug', function () {
 });
 
 
-Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
 Route::get('/serverstatus', function () {
     if (app()->isDownForMaintenance()) {
         return response()->json(["under_maintenance" => "true", "responseText" => "¡Estamos en mantenimiento!"], 503);

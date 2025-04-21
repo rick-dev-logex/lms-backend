@@ -30,6 +30,14 @@
             border: 1px solid #dddddd;
         }
 
+        .content h1 {
+            color: #0a0a0a;
+        }
+
+        .content p {
+            color: #909090;
+        }
+
         .button {
             display: inline-block;
             padding: 12px 24px;
@@ -57,7 +65,7 @@
 <body style="margin: 0; padding: 0; background-color: #f5f5f5;">
     <div class="email-container">
         <div class="header">
-            <img src="{{ $message->embed(public_path('images/logo_white.png')) }}" alt="Logo">
+            <img src="{{ $message->embed(public_path('images/logo_white.png')) }}" alt="Logo" style="max-width: 50%;">
         </div>
 
         <div class="content">

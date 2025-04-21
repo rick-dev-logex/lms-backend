@@ -42,6 +42,12 @@ Route::get('/debug', function () {
 
 
 Route::get('/test-email', [TestMailController::class, 'sendTestEmail']);
+Route::get('/serverstatus', function () {
+    if (app()->isDownForMaintenance()) {
+        return response()->json(["under_maintenance" => "true", "responseText" => "¡Estamos en mantenimiento!"], 503);
+    }
+    return response()->json(["under_maintenance" => "false"], 200);
+});
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);

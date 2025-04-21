@@ -34,16 +34,6 @@ class MaintenanceNotification extends Notification
     /**
      * Get the mail representation of the notification.
      */
-    // public function toMail($notifiable)
-    // {
-    //     return (new MailMessage)
-    //         ->subject('Mantenimiento programado del sistema LMS')
-    //         ->greeting('Estimado usuario,')
-    //         ->line("El sistema LMS estará fuera de servicio el día {$this->date} desde las {$this->startTime} hasta las {$this->endTime} por mantenimiento programado en las bases de datos.")
-    //         ->line('Durante ese periodo no podrá acceder al sistema. Se mostrará una pantalla informativa para evitar la pérdida de información.')
-    //         ->line('Si el mantenimiento concluye antes de lo previsto, el acceso será restablecido de inmediato.')
-    //         ->salutation('Saludos cordiales,');
-    // }
     public function toMail($notifiable)
     {
         return (new MailMessage)
@@ -54,11 +44,12 @@ class MaintenanceNotification extends Notification
                 'startTime' => $this->startTime,
                 'endTime' => $this->endTime,
             ])
+            ->priority(1)
             ->withSymfonyMessage(function ($message) {
                 $headers = $message->getHeaders();
                 $headers->addTextHeader('X-Priority', '1');
-                $headers->addTextHeader('X-MSMail-Priority', 'High');
-                $headers->addTextHeader('Importance', 'High');
+                $headers->addTextHeader('X-MSMail-Priority', 'Highest');
+                $headers->addTextHeader('Importance', 'Highest');
             });
     }
 

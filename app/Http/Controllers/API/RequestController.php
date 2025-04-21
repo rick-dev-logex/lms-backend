@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Reposicion;
 use App\Models\Request;
 use App\Models\User;
+use App\Services\UniqueIdService;
 use Carbon\Carbon;
 use Exception;
 use Firebase\JWT\JWT;
@@ -24,6 +25,15 @@ class RequestController extends Controller
 {
     private $uniqueIdService;
 
+    /**
+     * Constructor del controlador
+     * 
+     * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
+     */
+    public function __construct(UniqueIdService $uniqueIdService)
+    {
+        $this->uniqueIdService = $uniqueIdService;
+    }
 
     public function import(HttpRequest $request, Excel $excel)
     {
@@ -287,30 +297,8 @@ class RequestController extends Controller
                 ], 200);
             }
 
-            $prefix = match (strtolower($validated['type'])) {
-                'expense' => 'G-',
-                'income' => 'I-',
-                'discount' => 'D-',
-                'loan' => 'P-',
-                default => 'S-',
-            };
-
-            // Obtener el máximo ID actual y saltar a un rango seguro
-            $maxIdQuery = DB::table('requests')
-                ->where('unique_id', 'like', $prefix . '%')
-                ->selectRaw('MAX(CAST(SUBSTRING(unique_id, ' . (strlen($prefix) + 1) . ') AS UNSIGNED)) as max_id')
-                ->first();
-
-            $nextNumber = ($maxIdQuery && $maxIdQuery->max_id) ? ($maxIdQuery->max_id + 1) : 1;
-
-            // Saltar rango problemático para descuentos
-            if ($prefix === 'D-' && $nextNumber >= 220 && $nextNumber <= 230) {
-                Log::warning("Saltando rango problemático cerca de D-00226. Siguiente ID normal sería: {$prefix}{$nextNumber}");
-                $nextNumber = 300;
-            }
-
-            // Formatear el ID con ceros a la izquierda
-            $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+            // Generar un ID único usando el servicio
+            $uniqueId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
 
             // Preparar datos para guardar
             $requestData = [

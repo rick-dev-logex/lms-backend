@@ -26,16 +26,40 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     /**
      * Constructor de la clase
      * 
-     * @param string $context Contexto de la importación ('discounts', 'expenses')
+     * @param string $context Contexto de la importación ('discounts', 'expenses', 'income')
      * @param string|null $userId ID del usuario que realiza la importación
      * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
      */
     public function __construct(string $context = 'discounts', $userId = null, UniqueIdService $uniqueIdService = null)
     {
-        $this->context = in_array(strtolower($context), ['expense', 'discount', 'income']) ? strtolower($context) : ($context === 'expenses' ? 'expense' : 'discount');
+        $this->context = $this->normalizeContext($context);
         $this->userId = $userId;
-        $this->uniqueIdService = $uniqueIdService ?: new UniqueIdService();
+        $this->uniqueIdService = $uniqueIdService ?: app(UniqueIdService::class);
         $this->rowNumber = 0;
+    }
+
+    /**
+     * Normaliza el contexto para asegurar que sea uno de los valores permitidos
+     * 
+     * @param string $context Contexto original
+     * @return string Contexto normalizado
+     */
+    private function normalizeContext(string $context): string
+    {
+        $allowedContexts = ['expense', 'discount', 'income'];
+        $normalized = strtolower($context);
+
+        // Manejar caso especial: 'expenses' → 'expense'
+        if ($normalized === 'expenses') {
+            return 'expense';
+        }
+
+        // Manejar caso especial: 'discounts' → 'discount'
+        if ($normalized === 'discounts') {
+            return 'discount';
+        }
+
+        return in_array($normalized, $allowedContexts) ? $normalized : 'discount';
     }
 
     public function startRow(): int
@@ -159,7 +183,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $newRequest = new Request($requestData);
 
             // Crear registro en CajaChica (después de persistir el modelo) si es que NO es ingreso
-            if (!$this->context === "income") {
+            if ($this->context !== "income") {
                 DB::afterCommit(function () use ($requestData, $uniqueId) {
                     try {
                         $this->createCajaChicaRecord($requestData, $uniqueId);
@@ -211,15 +235,13 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             $fechaObj = Carbon::parse($fechaFormateada);
             $centroCosto = $meses[$fechaObj->month - 1] . ' ' . $fechaObj->year;
 
-            // mes_servicio: 1/1/2025, 1/2/2025, etc.
-            // mes_servicio: 01/01/2025, etc., usando d/m/Y correctamente
+            // mes_servicio: primer día del mes
             $fechaObj = Carbon::parse($requestData['request_date']);
             $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
 
-
             CajaChica::create([
                 'FECHA' => $fechaFormateada, // Usar la fecha formateada
-                'CODIGO' => "CAJA CHICA" . $uniqueId,
+                'CODIGO' => "CAJA CHICA " . $uniqueId,
                 'DESCRIPCION' => $requestData['note'],
                 'SALDO' => $requestData['amount'],
                 'CENTRO COSTO' => $centroCosto,
@@ -239,6 +261,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 'unique_id' => $uniqueId,
                 'error' => $e->getMessage()
             ]);
+            throw $e; // Re-lanzar la excepción para que sea manejada por el código que llama
         }
     }
 }

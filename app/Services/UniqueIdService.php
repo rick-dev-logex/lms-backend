@@ -5,9 +5,20 @@ namespace App\Services;
 use App\Models\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class UniqueIdService
 {
+    // Definir constantes para los prefijos
+    private const PREFIX_EXPENSE = 'G-';
+    private const PREFIX_INCOME = 'I-';
+    private const PREFIX_DISCOUNT = 'D-';
+    private const PREFIX_LOAN = 'P-';
+    private const PREFIX_DEFAULT = 'S-';
+
+    // Cache TTL en segundos (1 hora)
+    private const CACHE_TTL = 3600;
+
     /**
      * Genera un ID único para solicitudes que no exista en la base de datos
      * 
@@ -17,35 +28,61 @@ class UniqueIdService
     public function generateUniqueRequestId($type)
     {
         $prefix = $this->getPrefixForType($type);
-        $prefixLength = strlen($prefix);
 
-        // Consultar directamente el número más alto usado
-        $maxIdQuery = DB::table('requests')
-            ->where('unique_id', 'like', $prefix . '%')
-            ->selectRaw('MAX(CAST(SUBSTRING(unique_id, ' . ($prefixLength + 1) . ') AS UNSIGNED)) as max_id')
-            ->first();
+        // Obtener el último ID generado directamente de la base de datos
+        // No usamos caché para garantizar que siempre obtenemos el valor más actualizado
+        $nextNumber = $this->getLastIdNumberFromDB($prefix) + 1;
 
-        $nextNumber = ($maxIdQuery && $maxIdQuery->max_id) ? ($maxIdQuery->max_id + 1) : 1;
-
-        // Saltar el rango problemático
-        if ($nextNumber >= 470 && $nextNumber <= 480) {
-            Log::warning("Saltando rango problemático cerca de {$prefix}00471. Siguiente ID normal sería: {$prefix}" . str_pad($nextNumber, 5, '0', STR_PAD_LEFT));
-            $nextNumber = 500;
-        }
-
-        // Generar el ID
+        // Generar el ID con ceros a la izquierda
         $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
-        // Seguridad adicional: asegurarse de que no exista en la base de datos
-        while (Request::where('unique_id', $uniqueId)->exists()) {
-            Log::warning("ID duplicado detectado: {$uniqueId}. Intentando con el siguiente valor.");
-            $nextNumber++;
+        // Verificar si existe (por seguridad, aunque no debería pasar)
+        if ($this->idExists($uniqueId)) {
+            Log::warning("ID duplicado detectado: {$uniqueId}. Recalculando último ID desde la base de datos.");
+
+            // Si existe, volvemos a consultar la base de datos (posible inserción concurrente)
+            $nextNumber = $this->getLastIdNumberFromDB($prefix) + 1;
             $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+
+            // Si aún existe, incrementamos hasta encontrar uno disponible
+            while ($this->idExists($uniqueId)) {
+                $nextNumber++;
+                $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+                Log::info("Probando ID siguiente: {$uniqueId}");
+            }
         }
 
         return $uniqueId;
     }
 
+    /**
+     * Obtiene el último número usado para un prefijo específico directamente de la base de datos
+     * 
+     * @param string $prefix Prefijo del ID
+     * @return int Último número usado
+     */
+    private function getLastIdNumberFromDB(string $prefix): int
+    {
+        $prefixLength = strlen($prefix);
+
+        $maxIdQuery = DB::table('requests')
+            ->where('unique_id', 'like', $prefix . '%')
+            ->selectRaw('MAX(CAST(SUBSTRING(unique_id, ' . ($prefixLength + 1) . ') AS UNSIGNED)) as max_id')
+            ->first();
+
+        return ($maxIdQuery && $maxIdQuery->max_id) ? $maxIdQuery->max_id : 0;
+    }
+
+    /**
+     * Verifica si un ID ya existe en la base de datos
+     * 
+     * @param string $uniqueId ID a verificar
+     * @return bool True si existe, False si no
+     */
+    private function idExists(string $uniqueId): bool
+    {
+        return Request::where('unique_id', $uniqueId)->exists();
+    }
 
     /**
      * Obtiene el prefijo correspondiente al tipo de solicitud
@@ -57,15 +94,15 @@ class UniqueIdService
     {
         switch (strtolower($type)) {
             case 'expense':
-                return 'G-';
+                return self::PREFIX_EXPENSE;
             case 'income':
-                return 'I-';
+                return self::PREFIX_INCOME;
             case 'discount':
-                return 'D-';
+                return self::PREFIX_DISCOUNT;
             case 'loan':
-                return 'P-';
+                return self::PREFIX_LOAN;
             default:
-                return 'S-'; // Genérico para otros casos | S de solicitud
+                return self::PREFIX_DEFAULT;
         }
     }
 }

@@ -20,25 +20,26 @@ class TransportController extends Controller
             $tmsQuery = DB::connection('tms1')
                 ->table('vehiculos')
                 ->select('id', 'name')
-                ->selectRaw("REGEXP_REPLACE(UPPER(name), '[^A-Z0-9]', '') AS normalized_name")
+                ->selectRaw("REGEXP_REPLACE(UPPER(TRIM(name)), '[^A-Z0-9]', '') AS normalized_name")
                 ->where('status', 'ACTIVO');
 
             // Subconsulta para sistema_onix.onix_vehiculos
             $onixQuery = DB::connection('sistema_onix')
                 ->table('onix_vehiculos')
                 ->select('id', 'name')
-                ->selectRaw("REGEXP_REPLACE(UPPER(name), '[^A-Z0-9]', '') AS normalized_name")
+                ->selectRaw("REGEXP_REPLACE(UPPER(TRIM(name)), '[^A-Z0-9]', '') AS normalized_name")
                 ->where('deleted', 0);
 
             // Ejecutar ambas consultas por separado
             $tmsResults = $tmsQuery->get()->toArray();
             $onixResults = $onixQuery->get()->toArray();
 
-            // Combinar resultados y eliminar duplicados basados en normalized_name
             $combinedResults = collect(array_merge($tmsResults, $onixResults))
+                ->filter(function ($item) {
+                    return !empty($item->name);
+                })
                 ->unique('normalized_name')
                 ->map(function ($item) {
-                    // Excluir normalized_name del resultado final
                     return [
                         'id' => $item->id,
                         'name' => $item->name,
@@ -50,13 +51,14 @@ class TransportController extends Controller
 
             // Manejar campos específicos si se solicitan
             if ($request->filled('fields')) {
-                $fields = explode(',', $request->fields);
+                $fields = explode(',', $request->input('fields'));
                 $validFields = array_intersect($fields, ['id', 'name']);
-                if (!empty($validFields)) {
-                    $combinedResults = array_map(function ($item) use ($validFields) {
-                        return array_intersect_key($item, array_flip($validFields));
-                    }, $combinedResults);
+                if (empty($validFields)) {
+                    return response()->json(['error' => 'Campos inválidos'], 400);
                 }
+                $combinedResults = array_map(function ($item) use ($validFields) {
+                    return array_intersect_key($item, array_flip($validFields));
+                }, $combinedResults);
             }
 
             return response()->json($combinedResults);

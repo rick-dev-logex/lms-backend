@@ -204,7 +204,7 @@ class LoanController extends Controller
                 'status' => 'pending',
             ];
 
-            Log::info('Loan data:', $loanData);
+            // Log::info('Loan data:', $loanData);
 
             $loan = Loan::create($loanData);
 

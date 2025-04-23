@@ -12,7 +12,7 @@ class CreateAccountsTable extends Migration
             $table->id();
             $table->string('name');
             $table->string('account_number');
-            $table->enum('account_type', ['nomina', 'transportista'])->default('nomina');
+            $table->enum('account_type', ['nomina', 'transportista', 'ambos'])->default('nomina');
             $table->enum('account_status', ['active', 'inactive'])->default('active');
             $table->enum('account_affects', ['discount', 'expense', 'both'])->default('discount');
             $table->timestamps();

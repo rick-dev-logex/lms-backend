@@ -17,18 +17,29 @@ class AccountController extends Controller
 
         // Filtro por tipo de cuenta, si se pasa el parámetro
         if ($request->has('account_type')) {
-            $query->where('account_type', $request->account_type);
+            // $query->where('account_type', $request->account_type);
+            if ($request->account_type === "nomina") {
+                $query->whereIn('account_type', ['nomina', 'ambos']);
+            } else if ($request->account_type === "transportista") {
+                $query->whereIn('account_type', ['transportista', 'ambos']);
+            } else {
+                $query->where('account_type', $request->account_type);
+            }
         }
 
         // Filtro para account_affects: si se busca "expense" o "discount", se incluyen también las que tienen "both"
         if ($request->has('account_affects')) {
             $affects = $request->account_affects;
             if ($affects === 'expense') {
+                // Retorna cuentas de gastos y que se repiten en descuentos
                 $query->whereIn('account_affects', ['expense', 'both']);
-            } elseif ($affects === 'discount') {
+            } elseif ($affects === 'discount' || $affects === 'income') {
+                // Retorna cuentas de descuentos y que se repiten en gastos
                 $query->whereIn('account_affects', ['discount', 'both']);
             } else {
-                // En caso de que se envíe otro valor (por ejemplo "both"), se filtra de manera exacta
+                // En caso de que se envíe otro valor (por ejemplo "both"),
+                // se filtra de manera exacta:
+                // Solo gastos, solo descuentos o ambos
                 $query->where('account_affects', $affects);
             }
         }

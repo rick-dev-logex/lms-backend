@@ -32,7 +32,7 @@ class MobileDataController extends Controller
                 ], 404);
             }
 
-            $solicitudes = Request::where('responsible_id', $usuarioOnix->nombre_completo)->get();
+            $solicitudes = Request::where('responsible_id', $usuarioOnix->nombre_completo)->where('type', 'discount')->get();
 
             $descuentos = $solicitudes->map(function ($item) {
                 $reposition = Reposicion::find($item->reposicion_id);

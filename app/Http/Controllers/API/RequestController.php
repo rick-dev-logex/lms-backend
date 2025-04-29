@@ -83,7 +83,7 @@ class RequestController extends Controller
     public function index(HttpRequest $request)
     {
         try {
-            $period = $request->input('period', 'last_3_months');
+            $period = $request->input('period', 'last_month');
 
             // Extract user and assigned projects from JWT
             $jwtToken = $request->cookie('jwt-token');
@@ -142,8 +142,8 @@ class RequestController extends Controller
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
             }
-            if ($period === 'last_3_months') {
-                $query->where('created_at', '>=', now()->subMonths(3));
+            if ($period === 'last_month') {
+                $query->where('created_at', '>=', now()->subMonth());
             }
             $query->with(['account:id,name']);
             $sortField = $request->input('sort_by', 'created_at');
@@ -263,7 +263,7 @@ class RequestController extends Controller
                     ->value('name');
 
                 if (!$projectName) {
-                    throw new Exception('Proyecto con ID ' . $projectValue . ' no encontrado.');
+                    throw new Exception('El proyecto con ID ' . $projectValue . ' no ha sido encontrado.');
                 }
                 $validated['project'] = $projectName;
             } else {

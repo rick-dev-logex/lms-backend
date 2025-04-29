@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\API\AccountController;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\LoanImportController;
 use App\Http\Controllers\API\ProjectController;
 use App\Http\Controllers\API\RequestController;
 use App\Http\Controllers\API\ResponsibleController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\TemplateController;
+use App\Imports\OldRecordsImport;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1'])->group(function () {
@@ -73,12 +75,33 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::get('/vehicles', [TransportController::class, 'index']);
 
 
-
     Route::prefix('projects')->group(function () {
         Route::apiResource('/', ProjectController::class);
         Route::get('/{id}/users', [ProjectController::class, 'getProjectUsers']);
         Route::post('/{id}/users', [ProjectController::class, 'assignUsers']);
     });
+
+    // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
+    Route::apiResource('/areas', AreaController::class);
+
+    Route::apiResource('/requests', RequestController::class);
+    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
+
+    // Generar reposiciones
+    Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
+    Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
+
+    // Importar desde Excel
+    Route::post('/requests/import', [RequestController::class, 'import']);
+
+    // Rutas para importación de préstamos
+    Route::post('/loans/import', [LoanImportController::class, 'import']);
+
+    // Importar desde excel (registros del modulo de caja chica antiguo)
+    Route::post('/old/import', [OldRecordsImport::class, 'import']);
+
+    // Préstamos
+    Route::apiResource('/loans', LoanController::class);
 
     // Rutas solo para administradores
     Route::middleware(['role:admin,developer'])->group(function () {
@@ -121,21 +144,6 @@ Route::middleware(['verify.jwt'])->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
     });
 
-    // Route::get('/download-excel-template', [TemplateController::class, 'downloadTemplate']);
-    Route::apiResource('/areas', AreaController::class);
-
-    Route::apiResource('/requests', RequestController::class);
-    Route::post('/requests/upload-discounts', [RequestController::class, 'uploadDiscounts']);
-
-    // Generar reposiciones
-    Route::apiResource('/reposiciones', ReposicionController::class)->except('file');
-    Route::get('/reposiciones/{id}/file', [ReposicionController::class, 'file']);
-
-    // Importar desde Excel
-    Route::post('/requests/import', [RequestController::class, 'import']);
-
-    // Préstamos
-    Route::apiResource('/loans', LoanController::class);
     // Rutas que requieren múltiples permisos
     Route::middleware(['permission:view_reports,generate_reports'])->group(function () {});
 

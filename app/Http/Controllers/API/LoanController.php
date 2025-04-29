@@ -118,10 +118,6 @@ class LoanController extends Controller
                 $rules['vehicle_id'] = 'required|uuid';
             }
 
-            // $messages = [
-            //     'attachment.mimes' => 'El archivo debe ser un documento PDF o una imagen JPG/PNG.',
-            // ];
-
             $validated = $request->validate($rules);
 
             $jwtToken = $request->cookie('jwt-token');

@@ -15,7 +15,6 @@ use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\TemplateController;
-use App\Imports\OldRecordsImport;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1'])->group(function () {
@@ -96,9 +95,6 @@ Route::middleware(['verify.jwt'])->group(function () {
 
     // Rutas para importación de préstamos
     Route::post('/loans/import', [LoanImportController::class, 'import']);
-
-    // Importar desde excel (registros del modulo de caja chica antiguo)
-    Route::post('/old/import', [OldRecordsImport::class, 'import']);
 
     // Préstamos
     Route::apiResource('/loans', LoanController::class);

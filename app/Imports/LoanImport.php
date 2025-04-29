@@ -29,15 +29,57 @@ class LoanImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyR
     protected $reposicionData = []; // Para organizar las reposiciones
     public $errors = []; // Para acumular errores
 
+    // Propiedades adicionales para el archivo
+    protected $filePath;
+    protected $fileName;
+
     /**
      * Constructor de la clase
      * 
-     * @param object $excelFile Archivo Excel subido
+     * @param \Illuminate\Http\UploadedFile|null $excelFile Archivo Excel subido
      * @param string|null $userId ID del usuario que realiza la importación
-     * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
+     * @param UniqueIdService|null $uniqueIdService Servicio para generar IDs únicos
+     * @throws \Exception Si no se proporciona un archivo válido
      */
-    public function __construct($excelFile, $userId = null, UniqueIdService $uniqueIdService = null)
+    public function __construct($excelFile = null, $userId = null, UniqueIdService $uniqueIdService = null)
     {
+        // Validación más estricta del archivo
+        if (!$excelFile) {
+            Log::error('Error en constructor LoanImport: No se proporcionó archivo');
+            throw new \Exception('No se proporcionó ningún archivo para importar');
+        }
+
+        if (!is_object($excelFile)) {
+            Log::error('Error en constructor LoanImport: El archivo no es un objeto', [
+                'type' => gettype($excelFile)
+            ]);
+            throw new \Exception('El archivo proporcionado no es válido (no es un objeto)');
+        }
+
+        if (!method_exists($excelFile, 'getClientOriginalName')) {
+            Log::error('Error en constructor LoanImport: El archivo no tiene el método getClientOriginalName', [
+                'class' => get_class($excelFile),
+                'methods' => get_class_methods($excelFile)
+            ]);
+            throw new \Exception('El archivo proporcionado no es un archivo válido (no implementa getClientOriginalName)');
+        }
+
+        if (!$excelFile->isValid()) {
+            Log::error('Error en constructor LoanImport: El archivo no es válido', [
+                'error_code' => $excelFile->getError()
+            ]);
+            throw new \Exception('El archivo subido no es válido: código de error ' . $excelFile->getError());
+        }
+
+        // Registrar información del archivo
+        Log::info('Iniciando importación de préstamos', [
+            'file_name' => $excelFile->getClientOriginalName(),
+            'file_size' => $excelFile->getSize(),
+            'file_extension' => $excelFile->getClientOriginalExtension(),
+            'mime_type' => $excelFile->getMimeType(),
+            'user_id' => $userId
+        ]);
+
         $this->excelFile = $excelFile;
         $this->userId = $userId;
         $this->uniqueIdService = $uniqueIdService ?: app(UniqueIdService::class);
@@ -251,16 +293,38 @@ class LoanImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyR
     {
         DB::beginTransaction();
         try {
+            // Verificar que tenemos datos para procesar
+            if (empty($this->loanGroups)) {
+                Log::warning('No hay datos de préstamos para procesar. Verifica el formato del archivo Excel.');
+                throw new Exception("No se encontraron datos válidos para importar en el archivo Excel. Verifica el formato.");
+            }
+
+            Log::info('Finalizando importación de préstamos', [
+                'grupos_prestamos' => count($this->loanGroups),
+                'grupos_reposicion' => count($this->reposicionData),
+                'file_name' => $this->fileName,
+                'file_path' => $this->filePath
+            ]);
+
             // Subir el archivo de Excel a Google Cloud Storage
-            $fileName = $this->excelFile->getClientOriginalName();
             $bucket = $this->storage->bucket($this->bucketName);
             if (!$bucket->exists()) {
                 throw new Exception("El bucket '{$this->bucketName}' no existe o no es accesible");
             }
 
+            Log::info('Subiendo archivo a Google Cloud Storage', [
+                'bucket' => $this->bucketName,
+                'file' => $this->fileName
+            ]);
+
+            // Asegurarnos de que podemos acceder al archivo real
+            if (!file_exists($this->filePath)) {
+                throw new Exception("No se puede acceder al archivo en la ruta: " . $this->filePath);
+            }
+
             $object = $bucket->upload(
-                fopen($this->excelFile->getRealPath(), 'r'),
-                ['name' => $fileName]
+                fopen($this->filePath, 'r'),
+                ['name' => $this->fileName]
             );
 
             $fileUrl = $object->signedUrl(new \DateTime('+10 years'));
@@ -277,7 +341,7 @@ class LoanImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyR
                     'account_name' => $groupData['metadata']['account_name'],
                     'amount' => $groupData['total'],
                     'project' => $groupData['metadata']['project'],
-                    'file_path' => $fileName,  // Nombre del archivo Excel
+                    'file_path' => $this->fileName,  // Nombre del archivo Excel
                     'note' => $groupData['metadata']['note'],
                     'installments' => $installments,
                     'responsible_id' => $groupData['metadata']['responsible_id'],
@@ -299,7 +363,7 @@ class LoanImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyR
                     'project' => $repoData['project'],
                     'detail' => $repoData['requests'],
                     'attachment_url' => $fileUrl,
-                    'attachment_name' => $fileName,
+                    'attachment_name' => $this->fileName,
                     'note' => "Importación masiva de préstamos - " . now()->format('Y-m-d H:i:s'),
                 ]);
 

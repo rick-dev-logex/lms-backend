@@ -88,8 +88,8 @@ class ReposicionController extends Controller
                 });
             }
 
-            if ($period === 'last_3_months') {
-                $query->where('created_at', '>=', now()->subMonths(3));
+            if ($period === 'last_month') {
+                $query->where('created_at', '>=', now()->subMonth());
             }
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));
@@ -241,10 +241,6 @@ class ReposicionController extends Controller
             } catch (\Exception $e) {
                 Log::error("No se pudo obtener el token para esta solicitud. " . $e->getMessage());
             }
-
-            // if ($requests->pluck('project')->unique()->count() > 1) {
-            //     throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
-            // }
 
             // Procesar y subir el archivo a Google Cloud Storage
             $fileName = null;

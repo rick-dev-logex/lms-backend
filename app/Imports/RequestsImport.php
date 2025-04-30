@@ -179,6 +179,13 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 'updated_at' => now()->toDateTimeString(),
             ];
 
+            $cedulaOnix = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('nombre_completo');
+
+            if ($cedulaOnix !== $mappedRow['responsable']) {
+                Log::warning("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".");
+                throw new Exception("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".", 422);
+            }
+
             // Crear registro principal
             $newRequest = new Request($requestData);
 

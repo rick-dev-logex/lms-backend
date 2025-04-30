@@ -54,7 +54,7 @@ class MobileDataController extends Controller
                     'observacion' => $item->note ?? "",
                     'estado' => $reposition->status ?? "",
                     'placa' => $item->vehicle_plate ?? "",
-                    'mesRol' => $reposition->month ?? "",
+                    'mesRol' => $item->month ?? "",
                 ];
             })->filter()->values(); // Limpia nulos y reindexa
 

@@ -325,6 +325,12 @@ class LoanImportController extends Controller
                         $vehicleId = $mappedRow['vehicle_plate']; // ID o placa del vehículo
                     }
 
+                    if (!empty($responsibleId)) {
+                        $cedulaResponsable = DB::connection('sistema_onix')->table('onix_personal')->where('nombre_completo', $responsibleId)->value('name');
+                    } else {
+                        $cedulaResponsable = null;
+                    }
+
                     // Crear la solicitud (Request)
                     $requestData = [
                         'unique_id' => $uniqueId,
@@ -337,6 +343,7 @@ class LoanImportController extends Controller
                         'amount' => floatval($mappedRow['valor']),
                         'project' => $mappedRow['proyecto'],
                         'responsible_id' => $responsibleId,
+                        'cedula_responsable' => $cedulaResponsable,
                         'transport_id' => $vehicleId,
                         'note' => $mappedRow['note'] ?? "—",
                         'created_at' => now()->toDateTimeString(),

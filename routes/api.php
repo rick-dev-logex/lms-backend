@@ -9,6 +9,7 @@ use App\Http\Controllers\API\ResponsibleController;
 use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
+use App\Http\Controllers\API\DocumentGenerationController;
 use App\Http\Controllers\API\LoanController;
 use App\Http\Controllers\API\MobileDataController;
 use App\Http\Controllers\API\PermissionController;
@@ -67,6 +68,9 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
     Route::patch('/users/{user}', [UserController::class, 'patch']);
 
+    // Facturación
+    Route::post('/generate-documents', [DocumentGenerationController::class, 'generate']);
+
 
     Route::apiResource('/accounts', AccountController::class);
     Route::apiResource('/transports', TransportController::class);
@@ -93,8 +97,12 @@ Route::middleware(['verify.jwt'])->group(function () {
     // Importar desde Excel
     Route::post('/requests/import', [RequestController::class, 'import']);
 
+    // Eliminar mútiples
+    Route::post('/requests/batch-delete', [RequestController::class, 'batchDelete']);
+
     // Rutas para importación de préstamos
     Route::post('/loans/import', [LoanImportController::class, 'import']);
+
 
     // Préstamos
     Route::apiResource('/loans', LoanController::class);

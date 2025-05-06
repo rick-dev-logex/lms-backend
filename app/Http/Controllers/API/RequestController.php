@@ -83,7 +83,7 @@ class RequestController extends Controller
     public function index(HttpRequest $request)
     {
         try {
-            $period = $request->input('period', 'last_month');
+            $period = $request->input('period', 'last_week');
 
             // Extract user and assigned projects from JWT
             $jwtToken = $request->cookie('jwt-token');
@@ -143,7 +143,10 @@ class RequestController extends Controller
                 $query->where('status', $request->status);
             }
             if ($period === 'last_month') {
-                $query->where('created_at', '>=', now()->subMonth());
+                $query->where('created_at', '>=', Carbon::now()->subMonth()->startOfMonth());
+            }
+            if ($period === 'last_week') {
+                $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek());
             }
             $query->with(['account:id,name']);
             $sortField = $request->input('sort_by', 'created_at');
@@ -614,6 +617,73 @@ class RequestController extends Controller
             ]);
             return response()->json([
                 'message' => 'Error al eliminar el registro',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Eliminar múltiples solicitudes por lotes
+     *
+     * @param  HttpRequest  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function batchDelete(HttpRequest $request)
+    {
+        try {
+            DB::beginTransaction();
+
+            $requestIds = $request->input('request_ids', []);
+
+            if (empty($requestIds)) {
+                return response()->json([
+                    'message' => 'No se proporcionaron IDs para eliminar',
+                    'errors' => ['request_ids' => ['El campo request_ids es requerido y debe ser un array.']]
+                ], 422);
+            }
+
+            // Obtener todos los registros a eliminar
+            $requests = Request::whereIn('unique_id', $requestIds)->get();
+
+            // Verificar que todos los IDs proporcionados existan
+            if ($requests->count() !== count($requestIds)) {
+                $foundIds = $requests->pluck('unique_id')->toArray();
+                $missingIds = array_diff($requestIds, $foundIds);
+
+                return response()->json([
+                    'message' => 'Algunas solicitudes no fueron encontradas',
+                    'errors' => ['missing_ids' => $missingIds]
+                ], 422);
+            }
+
+            // Eliminar registros relacionados en CajaChica
+            foreach ($requestIds as $id) {
+                CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$id}")
+                    ->orWhere('CODIGO', 'LIKE', "CAJA CHICA %{$id}")
+                    ->delete();
+            }
+
+            // Eliminar solicitudes
+            Request::whereIn('unique_id', $requestIds)->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'message' => count($requestIds) . ' registros eliminados exitosamente',
+                'deleted_count' => count($requestIds),
+                'deleted_ids' => $requestIds
+            ]);
+        } catch (Exception $e) {
+            DB::rollBack();
+
+            Log::error('Error al eliminar solicitudes por lotes:', [
+                'request_ids' => $requestIds ?? [],
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al eliminar los registros',
                 'error' => $e->getMessage()
             ], 500);
         }

@@ -88,8 +88,11 @@ class ReposicionController extends Controller
                 });
             }
 
+            if ($period === 'last_month') {
+                $query->where('created_at', '>=', Carbon::now()->subMonth()->startOfMonth());
+            }
             if ($period === 'last_week') {
-                $query->where('created_at', '<=', now()->subMonth()->subDays(7));
+                $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek());
             }
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));

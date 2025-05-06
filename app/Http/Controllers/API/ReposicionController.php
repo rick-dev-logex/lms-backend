@@ -88,8 +88,8 @@ class ReposicionController extends Controller
                 });
             }
 
-            if ($period === 'last_month') {
-                $query->where('created_at', '>=', now()->subMonth());
+            if ($period === 'last_week') {
+                $query->where('created_at', '<=', now()->subMonth()->subDays(7));
             }
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));
@@ -245,8 +245,14 @@ class ReposicionController extends Controller
             // Procesar y subir el archivo a Google Cloud Storage
             $fileName = null;
             $shortUrl = null;
-            if ($request->hasFile('attachment')) {
-                $file = $request->file('attachment');
+            if (!$request->hasFile('attachment') && !$request->hasFile('file')) {
+                throw ValidationException::withMessages([
+                    'attachment' => ['The attachment field is required.'],
+                ]);
+            }
+            $file = $request->hasFile('attachment') ? $request->file('attachment') : $request->file('file');
+
+            if ($request->file('attachment') || $request->file('file')) {
                 $fileName = $file->getClientOriginalName();
 
                 try {

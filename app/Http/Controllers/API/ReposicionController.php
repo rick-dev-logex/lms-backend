@@ -71,7 +71,7 @@ class ReposicionController extends Controller
 
             $query = Reposicion::query();
 
-            $period = $request->input('period', 'last_3_months');
+            $period = $request->input('period', 'last_month');
 
             // Fetch project names for the user's assigned UUIDs
             $projectNames = [];
@@ -88,6 +88,9 @@ class ReposicionController extends Controller
                 });
             }
 
+            if ($period === 'last_3_months') {
+                $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth());
+            }
             if ($period === 'last_month') {
                 $query->where('created_at', '>=', Carbon::now()->subMonth()->startOfMonth());
             }

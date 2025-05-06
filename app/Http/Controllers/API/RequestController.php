@@ -83,7 +83,7 @@ class RequestController extends Controller
     public function index(HttpRequest $request)
     {
         try {
-            $period = $request->input('period', 'last_week');
+            $period = $request->input('period', 'last_month');
 
             // Extract user and assigned projects from JWT
             $jwtToken = $request->cookie('jwt-token');
@@ -141,6 +141,9 @@ class RequestController extends Controller
 
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
+            }
+            if ($period === 'last_3_months') {
+                $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth());
             }
             if ($period === 'last_month') {
                 $query->where('created_at', '>=', Carbon::now()->subMonth()->startOfMonth());

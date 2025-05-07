@@ -170,38 +170,34 @@ class ReposicionController extends Controller
             DB::beginTransaction();
 
             // Obtener request_ids
-            $requestIds = $request->input('request_ids', $request->input('request_ids', []));
+            $requestIds = $request->input('request_ids', []);
 
             if (empty($requestIds)) {
                 throw ValidationException::withMessages(['request_ids' => ['Los request_ids son requeridos.']]);
             }
 
-            // Asegurar que RequestIds es un array
-            $requestIds = is_array($requestIds) ? $requestIds : [$requestIds];
-
             // Fetch de requests existentes
             $existingRequests = Request::whereIn('unique_id', $requestIds)->get();
 
             // Validación manual
-            if (!$requestIds || !is_array($requestIds)) {
-                throw ValidationException::withMessages([
-                    'request_ids' => ['The request_ids field is required and must be an array.'],
-                ]);
+            if (!is_array($requestIds) || empty($requestIds)) {
+                throw ValidationException::withMessages(['request_ids' => ['Debes mandar al menos un ID.']]);
             }
+
             if ($existingRequests->count() !== count($requestIds)) {
                 throw ValidationException::withMessages([
                     'request_ids' => ['One or more request_ids do not exist in the requests table.'],
-                ]);
-            }
-            if (!$request->hasFile('attachment')) {
-                throw ValidationException::withMessages([
-                    'attachment' => ['The attachment field is required.'],
                 ]);
             }
 
             // Validar tamaño del archivo (límite de 20MB como ejemplo)
             $file = $request->file('attachment');
             $maxFileSize = 20 * 1024 * 1024; // 20MB en bytes
+
+            if (!$file) {
+                throw ValidationException::withMessages(['attachment' => ['El archivo es requerido.']]);
+            }
+
             if ($file->getSize() > $maxFileSize) {
                 throw ValidationException::withMessages([
                     'attachment' => ['El archivo es demasiado grande. El tamaño máximo permitido es 20MB. Reduce el tamaño e inténtalo de nuevo.'],
@@ -223,10 +219,10 @@ class ReposicionController extends Controller
                 $decoded = JWT::decode($token, new Key(env('JWT_SECRET'), 'HS256'));
 
                 // Acceder a datos del usuario
-                $userId = $decoded->user_id ?? null;
-                $userName = $decoded->name ?? null;
+                // $userId = $decoded->user_id ?? null;
+                // $userName = $decoded->name ?? null;
                 $userEmail = $decoded->email ?? null;
-                $permissions = $decoded->permissions ?? [];
+                // $permissions = $decoded->permissions ?? [];
 
                 Log::info("Usuario del request entrante: " . $userEmail);
 
@@ -295,7 +291,7 @@ class ReposicionController extends Controller
 
                 // Subir el archivo
                 try {
-                    $object = $bucket->upload(
+                    $bucket->upload(
                         fopen($file->getRealPath(), 'r'),
                         [
                             'name' => $fileName,

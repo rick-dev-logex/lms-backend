@@ -162,6 +162,12 @@ class ReposicionController extends Controller
 
     public function store(HttpRequest $request)
     {
+        Log::debug('Request files:', [
+            'has_attachment' => $request->hasFile('attachment'),
+            'has_file' => $request->hasFile('file'),
+            'files' => $request->allFiles(),
+            'all' => $request->all()
+        ]);
         try {
             if (!env('GOOGLE_CLOUD_KEY_BASE64')) {
                 $dotenv = \Dotenv\Dotenv::createImmutable(base_path());

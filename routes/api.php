@@ -6,6 +6,7 @@ use App\Http\Controllers\API\LoanImportController;
 use App\Http\Controllers\API\ProjectController;
 use App\Http\Controllers\API\RequestController;
 use App\Http\Controllers\API\ResponsibleController;
+use App\Http\Controllers\API\SriDocumentController;
 use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\TemplateController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1'])->group(function () {
@@ -68,8 +70,17 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
     Route::patch('/users/{user}', [UserController::class, 'patch']);
 
-    // Facturación
+    // Facturación | SRI
     Route::post('/generate-documents', [DocumentGenerationController::class, 'generate']);
+    Route::post('/upload-documents', [SriDocumentController::class, 'upload']);
+    Route::get('/sri-documents', [SriDocumentController::class, 'index']);
+
+
+    Route::get('/load-xmls', function (Request $request) {
+        // temporal: si vas a migrar a GCS, este solo sirve de ejemplo
+        return response()->json(['message' => 'endpoint temporal OK']);
+    });
+
 
 
     Route::apiResource('/accounts', AccountController::class);

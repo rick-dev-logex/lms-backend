@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Helpers\PdfHelper;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -37,8 +38,9 @@ class DocumentGenerationController extends Controller
             file_put_contents("{$xmlDir}/{$clave}.xml", $xml->asXML());
 
             // PDF: generar con DomPDF a partir de HTML dinámico (sin blade)
-            $html = view('pdf.invoice', ['item' => $item])->render(); // solo si usas blade
-            // como alternativa en API pura, renderiza con Twig o plantilla HTML literal
+            $html = PdfHelper::generateHtmlFromItem($item);
+
+
             $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
             file_put_contents("{$pdfDir}/{$clave}.pdf", $pdf->output());
         }

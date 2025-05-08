@@ -45,12 +45,22 @@ return [
         'gcs' => [
             'driver' => 'gcs',
             'project_id' => env('GOOGLE_CLOUD_PROJECT_ID', 'logex-alfresco-180118'),
-            'key_file' => env('GOOGLE_CLOUD_KEY_FILE', '/var/www/html/storage/app/google-cloud-key.json'),
+            'key_file' => base64_decode(env('GOOGLE_CLOUD_KEY_BASE64')),
             'bucket' => env('GOOGLE_CLOUD_BUCKET'),
             'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', null),
             'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI', null),
             'visibility' => 'public',
             'throw' => false,
+        ],
+
+        'gcs_invoices' => [
+            'driver' => 'gcs',
+            'project_id' => env('GOOGLE_CLOUD_PROJECT_ID', 'logex-alfresco-180118'),
+            'key_file' => base64_decode(env('GOOGLE_CLOUD_INVOICE_KEY_BASE64')),
+            'bucket' => env('GOOGLE_CLOUD_INVOICE_BUCKET', 'lms-facturacion'),
+            'path_prefix' => env('GOOGLE_CLOUD_STORAGE_PATH_PREFIX', null),
+            'storage_api_uri' => env('GOOGLE_CLOUD_STORAGE_API_URI', null),
+            'visibility' => 'public',
         ],
     ],
 

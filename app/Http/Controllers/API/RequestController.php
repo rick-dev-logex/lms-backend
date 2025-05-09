@@ -376,13 +376,6 @@ class RequestController extends Controller
      */
     private function createCajaChicaRecord(array $requestData, string $uniqueId): void
     {
-        // Log::debug('Intentando crear registro en CajaChica:', [
-        //     'uniqueId' => $uniqueId,
-        //     'request_date' => $requestData['request_date'],
-        //     'type' => $requestData['type'],
-        //     'requestData' => $requestData // Registra todo el requestData para ver si hay algo raro
-        // ]);
-
         try {
             $numeroCuenta = Account::where('name', $requestData['account_id'])->pluck('account_number')->first();
             $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestData['account_id'])); // sin tildes

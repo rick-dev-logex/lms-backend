@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('requests', function (Blueprint $table) {
-            $table->string('updated_by')->after('created_by');
+            $table->string('updated_by')->after('created_by')->nullable();
         });
     }
 

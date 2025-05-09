@@ -238,7 +238,8 @@ class ReposicionController extends Controller
                     if (
                         $userEmail !== "michelle.quintana@logex.ec" &&
                         $userEmail !== "nicolas.iza@logex.ec" &&
-                        $userEmail !== "ricardo.estrella@logex.ec"
+                        $userEmail !== "ricardo.estrella@logex.ec" &&
+                        $userEmail !== "diego.merisalde@logex.ec"
                     ) {
                         throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
                     }

@@ -9,6 +9,8 @@ use App\Models\Project;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\UserAssignedProjects;
+use Firebase\JWT\JWT;
+use Firebase\JWT\Key;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;

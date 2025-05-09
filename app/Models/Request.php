@@ -13,9 +13,7 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
-    protected $connection = 'lms_backend';
     // protected $connection = 'lms_local';
-
     protected $dates = ['deleted_at'];
     protected $fillable = [
         'type',
@@ -33,7 +31,9 @@ class Request extends Model
         'cedula_responsable',
         'vehicle_plate',
         'vehicle_number',
-        'status'
+        'status',
+        'created_by',
+        'updated_by'
     ];
 
     protected $casts = [
@@ -122,5 +122,10 @@ class Request extends Model
                     $q->where('name', 'like', "%{$term}%");
                 });
         });
+    }
+
+    public function createdBy()
+    {
+        $this->belongsTo(User::class);
     }
 }

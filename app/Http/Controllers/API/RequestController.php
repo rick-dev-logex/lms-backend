@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Reposicion;
 use App\Models\Request;
 use App\Models\User;
+use App\Services\AuthService;
 use App\Services\UniqueIdService;
 use Carbon\Carbon;
 use Exception;
@@ -24,15 +25,17 @@ use Maatwebsite\Excel\Excel;
 class RequestController extends Controller
 {
     private $uniqueIdService;
+    protected $authService;
 
     /**
      * Constructor del controlador
      * 
      * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
      */
-    public function __construct(UniqueIdService $uniqueIdService)
+    public function __construct(UniqueIdService $uniqueIdService, AuthService $authService)
     {
         $this->uniqueIdService = $uniqueIdService;
+        $this->authService = $authService;
     }
 
     public function import(HttpRequest $request, Excel $excel)
@@ -236,6 +239,7 @@ class RequestController extends Controller
     public function store(HttpRequest $request)
     {
         try {
+            $user = $this->authService->getUser($request);
             $baseRules = [
                 'type' => 'required|in:expense,discount,income',
                 'personnel_type' => 'required|in:nomina,transportista',
@@ -317,7 +321,8 @@ class RequestController extends Controller
                 'amount' => $validated['amount'],
                 'note' => $validated['note'],
                 'unique_id' => $uniqueId,
-                'status' => 'pending'
+                'status' => 'pending',
+                'created_by' => $user->name,
             ];
 
             // Manejar responsible_id y cédula
@@ -419,6 +424,7 @@ class RequestController extends Controller
     public function update(HttpRequest $request, $id)
     {
         try {
+            $user = $this->authService->getUser($request);
             // Obtener el modelo completo de la solicitud
             $requestModel = is_numeric($id) ? Request::where('id', $id)->first() : Request::where('unique_id', $id)->first();
 
@@ -478,8 +484,10 @@ class RequestController extends Controller
                 }
             }
 
+
             $validated = $request->validate($baseRules);
 
+            $validated['updated_by'] = $user->name;
             // Primero actualizamos la solicitud
             $requestModel->update($validated);
 

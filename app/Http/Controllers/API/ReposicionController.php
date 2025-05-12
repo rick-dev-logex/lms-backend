@@ -7,6 +7,7 @@ use App\Models\CajaChica;
 use App\Models\Reposicion;
 use App\Models\Request;
 use App\Models\User;
+use App\Services\AuthService;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -21,13 +22,15 @@ class ReposicionController extends Controller
 {
     private $storage;
     private $bucketName;
+    protected $authService;
 
-    public function __construct()
+    public function __construct(AuthService $authService)
     {
         $this->storage = new StorageClient([
             'keyFilePath' => env('GOOGLE_CLOUD_KEY_FILE')
         ]);
         $this->bucketName = env('GOOGLE_CLOUD_STORAGE_BUCKET');
+        $this->authService = $authService;
     }
 
     public function index(HttpRequest $request)
@@ -178,12 +181,6 @@ class ReposicionController extends Controller
 
     public function store(HttpRequest $request)
     {
-        Log::debug('Request files:', [
-            'has_attachment' => $request->hasFile('attachment'),
-            'has_file' => $request->hasFile('file'),
-            'files' => $request->allFiles(),
-            'all' => $request->all()
-        ]);
         try {
             if (!env('GOOGLE_CLOUD_KEY_BASE64')) {
                 $dotenv = \Dotenv\Dotenv::createImmutable(base_path());
@@ -236,14 +233,13 @@ class ReposicionController extends Controller
             $project = $requests->first()->project;
 
             // AQUI SE LE PERMITE A MICHELLE CREAR LA REPOSICION MASIVA
-            $token = $request->cookie('jwt-token');
-            try {
-                $decoded = JWT::decode($token, new Key(env('JWT_SECRET'), 'HS256'));
 
+            try {
+                $user = $this->authService->getUser($request);
                 // Acceder a datos del usuario
                 // $userId = $decoded->user_id ?? null;
                 // $userName = $decoded->name ?? null;
-                $userEmail = $decoded->email ?? null;
+                $userEmail = $user->email ?? null;
                 // $permissions = $decoded->permissions ?? [];
 
                 Log::info("Usuario del request entrante: " . $userEmail);
@@ -264,7 +260,7 @@ class ReposicionController extends Controller
                     $project = $requests->pluck('project')->unique()->join(',');
                 }
             } catch (\Exception $e) {
-                Log::error("No se pudo obtener el token para esta solicitud. " . $e->getMessage());
+                Log::error("No se pudo obtener el usuario para esta solicitud. " . $e->getMessage());
             }
 
             // Procesar y subir el archivo a Google Cloud Storage
@@ -450,6 +446,12 @@ class ReposicionController extends Controller
                         'month' => $validated['month']
                     ]);
             }
+
+            $user = $this->authService->getUser($request);
+            Request::whereIn('unique_id', $reposicion->detail)
+                ->update([
+                    'updated_by' => $user->name
+                ]);
 
             $reposicion->update($validated);
             $reposicion = $reposicion->fresh();

@@ -72,6 +72,7 @@ class ReposicionController extends Controller
             $query = Reposicion::query();
 
             $period = $request->input('period', 'last_month');
+            $status = $request->input('status', 'pending');
 
             // Fetch project names for the user's assigned UUIDs
             $projectNames = [];
@@ -88,6 +89,7 @@ class ReposicionController extends Controller
                 });
             }
 
+            // Period
             if ($period === 'last_3_months') {
                 $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth());
             }
@@ -97,6 +99,17 @@ class ReposicionController extends Controller
             if ($period === 'last_week') {
                 $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek());
             }
+            // Status
+            if ($period === 'pending') {
+                $query->where('status', 'pending');
+            }
+            if ($period === 'paid') {
+                $query->where('status', 'paid');
+            }
+            if ($period === 'rejected') {
+                $query->where('status', 'rejected');
+            }
+
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));
             }

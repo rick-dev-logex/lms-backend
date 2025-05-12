@@ -103,6 +103,9 @@ class ReposicionController extends Controller
             if ($period === 'last_week') {
                 $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek());
             }
+            if ($period === 'all') {
+                $query->where('created_at', '<=', Carbon::now());
+            }
             // Status
             if ($status === 'pending') {
                 $query->where('status', 'pending');
@@ -114,14 +117,11 @@ class ReposicionController extends Controller
                 $query->where('status', 'rejected');
             }
             if ($status === 'all') {
-                return;
+                $query->where('status', "!=", 'in_reposition');
             }
 
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));
-            }
-            if ($request->filled('status')) {
-                $query->where('status', $request->input('status'));
             }
             if ($request->filled('month')) {
                 $query->where('month', $request->input('month'));

@@ -109,6 +109,9 @@ class ReposicionController extends Controller
             if ($period === 'rejected') {
                 $query->where('status', 'rejected');
             }
+            if ($period === 'all') {
+                return;
+            }
 
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));

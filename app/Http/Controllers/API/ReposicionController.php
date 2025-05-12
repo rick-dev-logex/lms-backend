@@ -73,6 +73,7 @@ class ReposicionController extends Controller
 
             $period = $request->input('period', 'last_month');
             $status = $request->input('status', 'pending');
+            $mode = $request->input('mode', 'all');
 
             // Fetch project names for the user's assigned UUIDs
             $projectNames = [];
@@ -100,16 +101,16 @@ class ReposicionController extends Controller
                 $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek());
             }
             // Status
-            if ($period === 'pending') {
+            if ($status === 'pending') {
                 $query->where('status', 'pending');
             }
-            if ($period === 'paid') {
+            if ($status === 'paid') {
                 $query->where('status', 'paid');
             }
-            if ($period === 'rejected') {
+            if ($status === 'rejected') {
                 $query->where('status', 'rejected');
             }
-            if ($period === 'all') {
+            if ($status === 'all') {
                 return;
             }
 
@@ -130,8 +131,7 @@ class ReposicionController extends Controller
             });
 
             // Filtrar según el parámetro type
-            $type = $request->input('type');
-            if ($type === 'income') {
+            if ($mode === 'income') {
                 // Mostrar solo ingresos (todas las solicitudes son I-XXXX)
                 $reposiciones = $reposiciones->filter(function ($reposicion) {
                     $requestIds = $reposicion->requests->pluck('unique_id')->all();

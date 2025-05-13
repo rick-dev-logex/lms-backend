@@ -20,11 +20,10 @@ class DocumentGenerationController extends Controller
 
     public function generate(Request $request)
     {
-        $folder = $request->input('folder');
         $rows = $request->input('data');
 
-        if (!$folder || empty($rows)) {
-            return response()->json(['message' => 'Faltan datos o carpeta'], 400);
+        if (empty($rows)) {
+            return response()->json(['message' => 'Faltan datos para procesar'], 400);
         }
 
         $created = [];

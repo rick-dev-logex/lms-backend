@@ -73,10 +73,8 @@ Route::middleware(['verify.jwt'])->group(function () {
 
     // Rutas para documentos SRI
     Route::get('/sri-documents', [SriDocumentController::class, 'index']);
-    Route::get('/sri-documents/{id}', [SriDocumentController::class, 'show']);
-    Route::patch('/sri-documents/{id}', [SriDocumentController::class, 'update']);
+    Route::post('/generate-documents', [DocumentGenerationController::class, 'generate']);
     Route::patch('/sri-documents/batch', [SriDocumentController::class, 'batchUpdate']);
-    Route::delete('/sri-documents/{id}', [SriDocumentController::class, 'destroy']);
 
     // Rutas para generación dinámica de documentos
     Route::get('/sri-documents/{id}/generate-xml', [SriDocumentController::class, 'generateXml']);
@@ -84,6 +82,9 @@ Route::middleware(['verify.jwt'])->group(function () {
 
     // Ruta para estadísticas
     Route::get('/sri-documents/stats', [SriDocumentController::class, 'getStats']);
+
+    // Ruta para reportes
+    Route::post('/reports/generate', [ReportController::class, 'generate']);
 
 
 

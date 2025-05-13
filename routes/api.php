@@ -13,6 +13,7 @@ use App\Http\Controllers\API\DocumentGenerationController;
 use App\Http\Controllers\API\LoanController;
 use App\Http\Controllers\API\MobileDataController;
 use App\Http\Controllers\API\PermissionController;
+use App\Http\Controllers\API\ReportController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
 use App\Http\Controllers\API\SriDocumentController;
@@ -70,16 +71,19 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
     Route::patch('/users/{user}', [UserController::class, 'patch']);
 
-    // Facturación | SRI
-    Route::post('/generate-documents', [DocumentGenerationController::class, 'generate']);
-    Route::post('/upload-documents', [SriDocumentController::class, 'upload']);
+    // Rutas para documentos SRI
     Route::get('/sri-documents', [SriDocumentController::class, 'index']);
+    Route::get('/sri-documents/{id}', [SriDocumentController::class, 'show']);
+    Route::patch('/sri-documents/{id}', [SriDocumentController::class, 'update']);
+    Route::patch('/sri-documents/batch', [SriDocumentController::class, 'batchUpdate']);
+    Route::delete('/sri-documents/{id}', [SriDocumentController::class, 'destroy']);
 
+    // Rutas para generación dinámica de documentos
+    Route::get('/sri-documents/{id}/generate-xml', [SriDocumentController::class, 'generateXml']);
+    Route::get('/sri-documents/{id}/generate-pdf', [SriDocumentController::class, 'generatePdf']);
 
-    Route::get('/load-xmls', function (Request $request) {
-        // temporal: si vas a migrar a GCS, este solo sirve de ejemplo
-        return response()->json(['message' => 'endpoint temporal OK']);
-    });
+    // Ruta para estadísticas
+    Route::get('/sri-documents/stats', [SriDocumentController::class, 'getStats']);
 
 
 

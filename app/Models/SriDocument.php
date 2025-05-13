@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class SriDocument extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'clave_acceso',
         'ruc_emisor',
@@ -14,9 +17,13 @@ class SriDocument extends Model
         'serie_comprobante',
         'nombre_xml',
         'nombre_pdf',
-        'gcs_path_xml',
-        'gcs_path_pdf',
+        'xml_path_identifier', // Actualizado
+        'pdf_path_identifier', // Actualizado
         'fecha_autorizacion',
         'fecha_emision',
+        'valor_sin_impuestos',
+        'iva',
+        'importe_total',
+        'identificacion_receptor',
     ];
 }

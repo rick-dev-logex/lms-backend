@@ -16,8 +16,8 @@ return new class extends Migration {
             $table->string('serie_comprobante');
             $table->string('nombre_xml');
             $table->string('nombre_pdf');
-            $table->string('gcs_path_xml');
-            $table->string('gcs_path_pdf');
+            $table->string('gcs_path_xml')->nullable();
+            $table->string('gcs_path_pdf')->nullable();
             $table->timestamp('fecha_autorizacion')->nullable();
             $table->timestamp('fecha_emision')->nullable();
             $table->timestamps();

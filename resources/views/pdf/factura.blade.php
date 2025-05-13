@@ -207,7 +207,7 @@
         </div>
 
         <div class="footer">
-            <p>DOCUMENTO GENERADO AUTOMÁTICAMENTE POR EL SISTEMA</p>
+            <p>DOCUMENTO GENERADO AUTOMÁTICAMENTE POR EL SISTEMA LMS</p>
             <p>Clave de Acceso: {{ $claveAcceso }}</p>
         </div>
     </div>

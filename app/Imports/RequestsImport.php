@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Exception;
+use Str;
 
 class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows
 {
@@ -186,6 +187,20 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
                 throw new Exception("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".", 422);
             }
 
+            $normalizedInput = $this->normalize($requestData['account_id']);
+
+            $cuenta = Account::all()->first(function ($account) use ($normalizedInput) {
+                return $this->normalize($account->name) === $normalizedInput;
+            });
+
+            if (!$cuenta) {
+                Log::warning("La cuenta '" . $requestData['account_id'] . "' no existe en el sistema.");
+                throw new Exception("La cuenta '" . $requestData['account_id'] . "' no existe en el sistema. Asegúrate de escribirla correctamente.", 422);
+            }
+
+            // Usar el nombre oficial tal como está en la BD
+            $requestData['account_id'] = $cuenta->name;
+
             // Crear registro principal
             $newRequest = new Request($requestData);
 
@@ -211,6 +226,17 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             Log::error($error);
             return null;
         }
+    }
+
+    /**
+     * Normaliza el texto eliminando tildes, caracteres especiales y no es case-sensitive
+     * 
+     * @param string $text nombre de la cuenta
+     * @return void
+     */
+    private function normalize(string $text): string
+    {
+        return mb_strtolower(\Illuminate\Support\Str::ascii(trim($text)));
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services\Sri;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 
 class SriPdfGeneratorService
@@ -81,40 +82,29 @@ class SriPdfGeneratorService
         $puntoEmision = $seriePartes[1] ?? '000';
         $secuencial = $seriePartes[2] ?? '000000000';
 
-        // Calcular el ambiente y tipo de emisión desde la clave de acceso
-        $ambiente = '2'; // Por defecto ambiente de producción
-        $tipoEmision = '1'; // Por defecto emisión normal
+        // Preparar valores numéricos - asegurándonos de convertir a float y usar valores por defecto en caso de nulos
+        $subtotal = isset($data['VALOR_SIN_IMPUESTOS']) ? (float)$data['VALOR_SIN_IMPUESTOS'] : 0;
+        $iva = isset($data['IVA']) ? (float)$data['IVA'] : 0;
+        $total = isset($data['IMPORTE_TOTAL']) ? (float)$data['IMPORTE_TOTAL'] : 0;
 
-        if (!empty($data['CLAVE_ACCESO']) && strlen($data['CLAVE_ACCESO']) >= 49) {
-            $ambiente = substr($data['CLAVE_ACCESO'], 23, 1);
-            $tipoEmision = substr($data['CLAVE_ACCESO'], 24, 1);
-        }
-
-        // Preparar valores numéricos
-        $subtotal = floatval($data['VALOR_SIN_IMPUESTOS'] ?? 0);
-        $iva = floatval($data['IVA'] ?? 0);
-        $total = floatval($data['IMPORTE_TOTAL'] ?? 0);
+        // Log para debugging
+        Log::debug('Valores numéricos en prepareDataForTemplate', [
+            'subtotal' => $subtotal,
+            'iva' => $iva,
+            'total' => $total,
+            'datos_originales' => [
+                'VALOR_SIN_IMPUESTOS' => $data['VALOR_SIN_IMPUESTOS'],
+                'IVA' => $data['IVA'],
+                'IMPORTE_TOTAL' => $data['IMPORTE_TOTAL'],
+            ]
+        ]);
 
         // Si no hay total pero hay subtotal + IVA, calcularlo
         if ($total == 0 && ($subtotal > 0 || $iva > 0)) {
             $total = $subtotal + $iva;
         }
 
-        // Determinar qué tipo de documento es y su código
-        $tipoComprobante = $data['TIPO_COMPROBANTE'] ?? 'Factura';
-        $codigoDocumento = '01'; // Factura por defecto
-
-        if (stripos($tipoComprobante, 'nota crédito') !== false) {
-            $codigoDocumento = '04';
-        } elseif (stripos($tipoComprobante, 'nota débito') !== false) {
-            $codigoDocumento = '05';
-        } elseif (stripos($tipoComprobante, 'guía') !== false) {
-            $codigoDocumento = '06';
-        } elseif (stripos($tipoComprobante, 'retención') !== false) {
-            $codigoDocumento = '07';
-        }
-
-        // Crear un detalle genérico si no hay datos específicos
+        // Crear un detalle con los valores correctos
         $detalles = [
             [
                 'descripcion' => 'Producto/Servicio según factura',
@@ -131,9 +121,10 @@ class SriPdfGeneratorService
         return [
             // Datos del documento
             'claveAcceso' => $data['CLAVE_ACCESO'] ?? '',
-            'ambiente' => $ambiente,
-            'tipoEmision' => $tipoEmision,
+            'ambiente' => '2', // Por defecto ambiente de producción
+            'tipoEmision' => '1', // Por defecto emisión normal
             'razonSocial' => $data['RAZON_SOCIAL_EMISOR'] ?? '',
+            'nombreComercial' => $data['RAZON_SOCIAL_EMISOR'] ?? '',
             'ruc' => $data['RUC_EMISOR'] ?? '',
             'estab' => $establecimiento,
             'ptoEmi' => $puntoEmision,
@@ -141,8 +132,8 @@ class SriPdfGeneratorService
             'dirMatriz' => 'Dirección registrada en el SRI',
             'fechaEmision' => $fechaEmision,
             'fechaAutorizacion' => $fechaAutorizacion,
-            'tipoComprobante' => $tipoComprobante,
-            'codDoc' => $codigoDocumento,
+            'tipoComprobante' => $data['TIPO_COMPROBANTE'] ?? 'Factura',
+            'codDoc' => '01', // Factura por defecto
 
             // Datos del cliente
             'razonSocialComprador' => 'PREBAM S.A.',
@@ -151,6 +142,8 @@ class SriPdfGeneratorService
 
             // Valores
             'subtotal' => $subtotal,
+            'subtotal0' => $iva > 0 ? 0 : $subtotal,
+            'subtotal12' => $iva > 0 ? $subtotal : 0,
             'iva' => $iva,
             'total' => $total,
             'detalles' => $detalles,

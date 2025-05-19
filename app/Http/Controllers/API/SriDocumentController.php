@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Facades\DB;
 
 class SriDocumentController extends Controller
 {
@@ -93,46 +94,54 @@ class SriDocumentController extends Controller
         $updated = [];
         $errors = [];
 
-        foreach ($data['documents'] as $docData) {
-            try {
-                $document = SriDocument::find($docData['id']);
+        DB::beginTransaction();
 
-                if (!$document) {
-                    $errors[] = [
-                        'id' => $docData['id'],
-                        'error' => 'Documento no encontrado'
-                    ];
-                    continue;
-                }
+        try {
+            foreach ($data['documents'] as $docData) {
+                $document = SriDocument::findOrFail($docData['id']);
 
+                // Convertir explícitamente a float los valores numéricos
                 $updateData = [
-                    'valor_sin_impuestos' => $docData['valor_sin_impuestos'] ?? $document->valor_sin_impuestos,
-                    'iva' => $docData['iva'] ?? $document->iva,
-                    'importe_total' => $docData['importe_total'] ?? $document->importe_total,
+                    'valor_sin_impuestos' => isset($docData['valor_sin_impuestos']) ? (float)$docData['valor_sin_impuestos'] : $document->valor_sin_impuestos,
+                    'iva' => isset($docData['iva']) ? (float)$docData['iva'] : $document->iva,
+                    'importe_total' => isset($docData['importe_total']) ? (float)$docData['importe_total'] : $document->importe_total,
                     'identificacion_receptor' => $docData['identificacion_receptor'] ?? $document->identificacion_receptor,
                 ];
 
-                $document->update($updateData);
-                $updated[] = $document;
-            } catch (Exception $e) {
-                Log::error('Error al actualizar documento', [
-                    'id' => $docData['id'],
-                    'error' => $e->getMessage()
+                // Log para debugging (eliminar en producción)
+                Log::debug('Actualizando documento', [
+                    'id' => $document->id,
+                    'antes' => [
+                        'valor_sin_impuestos' => $document->valor_sin_impuestos,
+                        'iva' => $document->iva,
+                        'importe_total' => $document->importe_total,
+                    ],
+                    'después' => $updateData
                 ]);
 
-                $errors[] = [
-                    'id' => $docData['id'],
-                    'error' => 'Error al actualizar: ' . $e->getMessage()
-                ];
+                $document->update($updateData);
+                $updated[] = $document->fresh();  // Obtener la versión recién actualizada
             }
-        }
 
-        return response()->json([
-            'message' => 'Documentos actualizados',
-            'updated_count' => count($updated),
-            'errors_count' => count($errors),
-            'errors' => $errors
-        ]);
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Documentos actualizados correctamente',
+                'updated' => $updated
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Error al actualizar documentos', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Error al actualizar documentos',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -214,9 +223,26 @@ class SriDocumentController extends Controller
     public function generatePdf($id)
     {
         try {
-            $document = SriDocument::findOrFail($id);
+            // Usar DB::table directamente para evitar problemas de caché de modelo
+            $document = DB::table('sri_documents')->where('id', $id)->first();
 
-            // Preparar datos para generar el PDF
+            if (!$document) {
+                return response()->json(['error' => 'Documento no encontrado'], 404);
+            }
+
+            // Log para comprobar los valores reales en la base de datos
+            Log::debug('Valores del documento para PDF', [
+                'id' => $document->id,
+                'valor_sin_impuestos' => $document->valor_sin_impuestos,
+                'iva' => $document->iva,
+                'importe_total' => $document->importe_total,
+            ]);
+
+            // Crear servicio de PDF
+            $pdfGenerator = new SriPdfGeneratorService();
+
+            // Preparar datos para generar el PDF, usando los valores actualizados
+            // Convertir explícitamente todos los números a float
             $data = [
                 'CLAVE_ACCESO' => $document->clave_acceso,
                 'RUC_EMISOR' => $document->ruc_emisor,
@@ -225,14 +251,17 @@ class SriDocumentController extends Controller
                 'SERIE_COMPROBANTE' => $document->serie_comprobante,
                 'FECHA_EMISION' => $document->fecha_emision ? Carbon::parse($document->fecha_emision)->format('d/m/Y') : null,
                 'FECHA_AUTORIZACION' => $document->fecha_autorizacion ? Carbon::parse($document->fecha_autorizacion)->format('d/m/Y H:i:s') : null,
-                'VALOR_SIN_IMPUESTOS' => $document->valor_sin_impuestos,
-                'IVA' => $document->iva,
-                'IMPORTE_TOTAL' => $document->importe_total,
+                'VALOR_SIN_IMPUESTOS' => (float)$document->valor_sin_impuestos,
+                'IVA' => (float)$document->iva,
+                'IMPORTE_TOTAL' => (float)$document->importe_total,
                 'IDENTIFICACION_RECEPTOR' => $document->identificacion_receptor,
             ];
 
+            // Log para verificar los datos que se envían al generador de PDF
+            Log::debug('Datos enviados para generar PDF', $data);
+
             // Generar el PDF
-            $pdfContent = $this->pdfGenerator->generateFromData($data);
+            $pdfContent = $pdfGenerator->generateFromData($data);
 
             if (!$pdfContent) {
                 return response()->json(['error' => 'No se pudo generar el PDF'], 500);

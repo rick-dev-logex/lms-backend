@@ -6,9 +6,11 @@ use App\Http\Controllers\API\LoanImportController;
 use App\Http\Controllers\API\ProjectController;
 use App\Http\Controllers\API\RequestController;
 use App\Http\Controllers\API\ResponsibleController;
+use App\Http\Controllers\API\StatsController;
 use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
+use App\Http\Controllers\API\ComprobanteController;
 use App\Http\Controllers\API\DocumentGenerationController;
 use App\Http\Controllers\API\LoanController;
 use App\Http\Controllers\API\MobileDataController;
@@ -16,9 +18,10 @@ use App\Http\Controllers\API\PermissionController;
 use App\Http\Controllers\API\ReportController;
 use App\Http\Controllers\API\ReposicionController;
 use App\Http\Controllers\API\RoleController;
+use App\Http\Controllers\API\SriConsultaController;
+use App\Http\Controllers\API\SriContribuyenteController;
 use App\Http\Controllers\API\SriDocumentController;
 use App\Http\Controllers\TemplateController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['throttle:6,1'])->group(function () {
@@ -71,20 +74,51 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
     Route::patch('/users/{user}', [UserController::class, 'patch']);
 
+
     // Rutas para documentos SRI
     Route::get('/sri-documents', [SriDocumentController::class, 'index']);
     Route::post('/generate-documents', [DocumentGenerationController::class, 'generate']);
     Route::patch('/sri-documents/batch', [SriDocumentController::class, 'batchUpdate']);
-
-    // Rutas para generación dinámica de documentos
+    Route::patch('/sri-documents/{id}', [SriDocumentController::class, 'update']);
+    Route::get('/sri-documents/{id}', [SriDocumentController::class, 'show']);
     Route::get('/sri-documents/{id}/generate-xml', [SriDocumentController::class, 'generateXml']);
     Route::get('/sri-documents/{id}/generate-pdf', [SriDocumentController::class, 'generatePdf']);
-
-    // Ruta para estadísticas
-    Route::get('/sri-documents/stats', [SriDocumentController::class, 'getStats']);
-
-    // Ruta para reportes
+    Route::get('/sri-documents-stats', [StatsController::class, 'index']);
     Route::post('/reports/generate', [ReportController::class, 'generate']);
+
+    // Nuevas rutas para la integración con el SRI
+    Route::prefix('sri')->group(function () {
+        // Consultas de contribuyentes y comprobantes
+        Route::post('/consultar-contribuyente', [SriConsultaController::class, 'consultarContribuyente']);
+        Route::post('/consultar-comprobante', [SriConsultaController::class, 'consultarComprobante']);
+        Route::post('/validar-comprobante', [SriConsultaController::class, 'validarComprobante']);
+        Route::post('/obtener-info-desde-clave', [SriConsultaController::class, 'obtenerInfoDesdeClaveAcceso']);
+
+        // Actualización de documentos con datos del SRI
+        Route::post('/actualizar-documento-desde-ruc', [SriConsultaController::class, 'actualizarDocumentoDesdeRuc']);
+        Route::post('/actualizar-documento-desde-clave', [SriConsultaController::class, 'actualizarDocumentoDesdeClaveAcceso']);
+        Route::post('/actualizar-todos-documentos', [SriConsultaController::class, 'actualizarTodosDocumentos']);
+
+        // Información específica para reportes
+        // Route::get('/reportes/iva/{periodo}', [SriReporteController::class, 'reporteIva']);
+        // Route::get('/reportes/retenciones/{periodo}', [SriReporteController::class, 'reporteRetenciones']);
+        // Route::get('/reportes/contribuyentes/{periodo}', [SriReporteController::class, 'reporteContribuyentes']);
+        // Route::get('/reportes/generar-ats/{periodo}', [SriReporteController::class, 'generarAts']);
+    });
+    Route::prefix('comprobantes')->group(function () {
+        Route::post('/consultar', [ComprobanteController::class, 'consultarComprobante']);
+        Route::post('/guardar', [ComprobanteController::class, 'guardarComprobante']);
+        Route::post('/guardar-varios', [ComprobanteController::class, 'guardarVariosComprobantes']);
+    });
+
+
+    // Rutas para administración de contribuyentes
+    Route::prefix('contribuyentes')->group(function () {
+        Route::get('/', [SriContribuyenteController::class, 'getResumenContribuyentes']);
+        Route::post('/actualizar', [SriContribuyenteController::class, 'actualizarContribuyentes']);
+        Route::post('/validar-ruc', [SriContribuyenteController::class, 'validarRuc']);
+        Route::post('/validar-autorizacion', [SriContribuyenteController::class, 'validarAutorizacion']);
+    });
 
 
 

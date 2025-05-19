@@ -17,13 +17,17 @@ class SriDocument extends Model
         'serie_comprobante',
         'nombre_xml',
         'nombre_pdf',
-        'xml_path_identifier', // Actualizado
-        'pdf_path_identifier', // Actualizado
+        'xml_path_identifier',
+        'pdf_path_identifier',
         'fecha_autorizacion',
         'fecha_emision',
         'valor_sin_impuestos',
         'iva',
         'importe_total',
         'identificacion_receptor',
+    ];
+    protected $dates = [
+        'fecha_autorizacion',
+        'fecha_emision',
     ];
 }

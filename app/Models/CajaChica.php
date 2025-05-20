@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class CajaChica extends Model
 {
+    use SoftDeletes;
     protected $table = 'caja_chica';
     protected $fillable = [
         'FECHA',
@@ -29,5 +31,9 @@ class CajaChica extends Model
         'FECHA' => 'date',
         'MES SERVICIO' => 'date',
         'SALDO' => 'decimal:2',
+    ];
+
+    protected $hidden = [
+        'deleted_at'
     ];
 }

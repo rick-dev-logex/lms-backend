@@ -224,8 +224,8 @@ class RequestController extends Controller
                     ->first();
             }
 
-            $requestRecord->responsible = $responsible;
-            $requestRecord->transport = $transport;
+            $requestRecord->responsible_id = $responsible;
+            $requestRecord->vehicle_plate = $transport;
 
             return response()->json($requestRecord);
         } catch (Exception $e) {
@@ -606,9 +606,16 @@ class RequestController extends Controller
             $requestRecord = Request::where('unique_id', $id)->firstOrFail();
 
             // Eliminar registro relacionado en CajaChica
+            CajaChica::where('codigo', 'CAJA CHICA ' . $requestRecord->unique_id)->update([
+                'ESTADO' => 'deleted',
+            ]);
             CajaChica::where('codigo', 'CAJA CHICA ' . $requestRecord->unique_id)->delete();
 
             // Eliminar solicitud
+
+            $requestRecord->update([
+                'status' => 'deleted',
+            ]);
             $requestRecord->delete();
 
             DB::commit();
@@ -662,6 +669,14 @@ class RequestController extends Controller
 
             // Eliminar registros relacionados en CajaChica
             foreach ($requestIds as $id) {
+                Request::find($id)->update([
+                    'status' => 'deleted',
+                ]);
+                CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$id}")
+                    ->orWhere('CODIGO', 'LIKE', "CAJA CHICA %{$id}")
+                    ->update([
+                        'ESTADO' => 'deleted',
+                    ]);
                 CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$id}")
                     ->orWhere('CODIGO', 'LIKE', "CAJA CHICA %{$id}")
                     ->delete();

@@ -556,7 +556,7 @@ class ReposicionController extends Controller
 
             // Usar la relación requests para actualizar las solicitudes
             Request::whereIn('unique_id', $reposicion->detail)
-                ->update(['status' => 'pending']);
+                ->update(['status' => 'deleted']);
 
             $reposicion->delete();
 

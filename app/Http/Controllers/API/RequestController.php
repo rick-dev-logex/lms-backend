@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\AuthService;
 use App\Services\UniqueIdService;
 use Carbon\Carbon;
+use Error;
 use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -596,26 +597,19 @@ class RequestController extends Controller
         }
     }
 
-
     public function destroy(HttpRequest $request, $id)
     {
         try {
             DB::beginTransaction();
 
-            // Buscar explícitamente por unique_id
             $requestRecord = Request::where('unique_id', $id)->firstOrFail();
 
-            // Eliminar registro relacionado en CajaChica
-            CajaChica::where('codigo', 'CAJA CHICA ' . $requestRecord->unique_id)->update([
-                'ESTADO' => 'deleted',
-            ]);
-            CajaChica::where('codigo', 'CAJA CHICA ' . $requestRecord->unique_id)->delete();
+            // Marcar y eliminar CajaChica relacionada
+            CajaChica::where('codigo', 'CAJA CHICA ' . $id)->update(['ESTADO' => 'deleted']);
+            CajaChica::where('codigo', 'CAJA CHICA ' . $id)->delete();
 
-            // Eliminar solicitud
-
-            $requestRecord->update([
-                'status' => 'deleted',
-            ]);
+            // Marcar la solicitud como deleted antes del soft delete
+            $requestRecord->update(['status' => 'deleted']);
             $requestRecord->delete();
 
             DB::commit();
@@ -632,6 +626,7 @@ class RequestController extends Controller
             ], 500);
         }
     }
+
 
     /**
      * Eliminar múltiples solicitudes por lotes

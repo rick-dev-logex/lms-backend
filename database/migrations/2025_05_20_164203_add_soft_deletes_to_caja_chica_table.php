@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('caja_chica', function (Blueprint $table) {
-            $table->timestamps('deleted_at');
+            $table->timestamp('deleted_at');
         });
     }
 

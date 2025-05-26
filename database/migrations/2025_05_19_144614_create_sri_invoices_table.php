@@ -18,9 +18,6 @@ return new class extends Migration
             $table->string('provider_id_type')->nullable();
             $table->string('ruc')->nullable();
             $table->string('invoice_type')->nullable();
-            $table->string('invoice_type')->nullable();
-            $table->string('invoice_type')->nullable();
-            $table->string('invoice_type')->nullable();
             $table->timestamps();
         });
     }

@@ -5,7 +5,6 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Imports\RequestsImport;
 use App\Models\Account;
-use App\Models\CajaChica;
 use App\Models\Project;
 use App\Models\Reposicion;
 use App\Models\Request;
@@ -13,7 +12,6 @@ use App\Models\User;
 use App\Services\AuthService;
 use App\Services\UniqueIdService;
 use Carbon\Carbon;
-use Error;
 use Exception;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -356,11 +354,6 @@ class RequestController extends Controller
             // Crear el registro
             $newRequest = Request::create($requestData);
 
-            // Crear registro en CajaChica si es que NO es ingreso
-            if ($requestData['type'] !== "income") {
-                $this->createCajaChicaRecord($requestData, $newRequest->unique_id);
-            }
-
             return response()->json([
                 'message' => 'Request created successfully',
                 'data' => $newRequest
@@ -370,54 +363,6 @@ class RequestController extends Controller
                 'message' => 'No se pudo crear el registro',
                 'error' => $e->getMessage()
             ], 422);
-        }
-    }
-
-    /**
-     * Crea un registro en la tabla CajaChica
-     * 
-     * @param array $requestData Datos de la solicitud
-     * @param string $uniqueId ID único de la solicitud
-     * @return void
-     */
-    private function createCajaChicaRecord(array $requestData, string $uniqueId): void
-    {
-        try {
-            $numeroCuenta = Account::where('name', $requestData['account_id'])->pluck('account_number')->first();
-            $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestData['account_id'])); // sin tildes
-            $proyecto = strtoupper($requestData['project']);
-
-            // Formatear centro_costo: ENE 2025, ABR 2025, etc.
-            $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-            $fecha = Carbon::parse($requestData['request_date']);
-            $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
-
-            $fechaObj = Carbon::parse($requestData['request_date']);
-            $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
-
-            CajaChica::create([
-                'FECHA' => $requestData['request_date'],
-                'CODIGO' => 'CAJA CHICA ' . $uniqueId,
-                'DESCRIPCION' => $requestData['note'],
-                'SALDO' => $requestData['amount'],
-                'CENTRO COSTO' => $centroCosto,
-                'CUENTA' => $numeroCuenta,
-                'NOMBRE DE CUENTA' => $nombreCuenta,
-                'PROVEEDOR' => $requestData['type'] === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
-                'EMPRESA' => 'SERSUPPORT',
-                'PROYECTO' => $proyecto,
-                'I_E' => 'EGRESO',
-                'MES SERVICIO' => $mesServicio,
-                'TIPO' => $requestData['type'] === "expense" ? "GASTO" : "DESCUENTO",
-                'ESTADO' => $requestData['status'],
-            ]);
-
-            // Log::debug('Registro en CajaChica creado con éxito');
-        } catch (Exception $e) {
-            Log::error('Error al crear registro en CajaChica:', [
-                'uniqueId' => $uniqueId,
-                'error' => $e->getMessage()
-            ]);
         }
     }
 
@@ -434,7 +379,7 @@ class RequestController extends Controller
                 return response()->json(['message' => 'La solicitud seleccionada no fue encontrada o fue eliminada del sistema.'], 404);
             }
 
-            $reposicionId = $requestModel->reposicion_id;
+            $reposicionId = $requestModel->reposicion_id; // Cambio aquí
         } catch (\Exception $e) {
             return response()->json([
                 'message' => "Error al obtener el ID de la solicitud",
@@ -485,15 +430,16 @@ class RequestController extends Controller
                 }
             }
 
-
             $validated = $request->validate($baseRules);
-
             $validated['updated_by'] = $user->name;
+
             // Primero actualizamos la solicitud
             $requestModel->update($validated);
 
-            // Luego recalculamos el total de la reposición asociada
-            $this->updateReposicion($reposicionId);
+            // Luego recalculamos el total de la reposición asociada si existe
+            if ($reposicionId) {
+                $this->updateReposicion($reposicionId);
+            }
 
             // Refrescar para obtener los nuevos datos
             $requestModel->refresh();
@@ -510,91 +456,28 @@ class RequestController extends Controller
         }
     }
 
-
     /**
      * Actualiza el registro correspondiente en Reposiciones
      * 
-     * @param $id El id de la rposición a la que corresponde el registro para actualizar el valor total
-     * @param $request_value El valor del registro a sumar al total
+     * @param $id El id de la reposición a la que corresponde el registro para actualizar el valor total
      * @return void
      */
     private function updateReposicion($id)
     {
-        $requests = Request::where('reposicion_id', $id)->get();
+        if (!$id) return;
 
-        $sum = 0;
-        foreach ($requests as $request) {
-            $sum += floatval($request->amount);
-        }
+        $reposicion = Reposicion::find($id);
+        if (!$reposicion) return;
 
-        Reposicion::where('id', $id)->update([
+        // Usar la nueva relación para calcular el total
+        $sum = $reposicion->calculateTotal();
+
+        $reposicion->update([
             'total_reposicion' => $sum,
             'updated_at' => Carbon::now(),
         ]);
 
-        // Log::info("Reposición #$id actualizada con total: $sum");
-    }
-
-    /**
-     * Actualiza el registro correspondiente en CajaChica
-     * 
-     * @param Request $requestModel El modelo de solicitud actualizado
-     * @return void
-     */
-    private function updateCajaChicaRecord(Request $requestModel): void
-    {
-        try {
-            $cajaChica = CajaChica::where('CODIGO', "LIKE", 'CAJA CHICA ' . "%" . $requestModel->unique_id . "%")->first();
-
-            if ($cajaChica) {
-                // Log::debug('Actualizando registro en CajaChica:', [
-                //     'uniqueId' => $requestModel->unique_id,
-                //     'request_date' => $requestModel->request_date,
-                //     'type' => $requestModel->type,
-                //     'amount' => $requestModel->amount
-                // ]);
-
-                $numeroCuenta = Account::where('name', $requestModel->account_id)->pluck('account_number')->first();
-                $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestModel->account_id)); // sin tildes
-                $proyecto = strtoupper($requestModel->project);
-
-                // Formatear centro_costo: ENE 2025, ABR 2025, etc.
-                $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-                $fecha = Carbon::parse($requestModel->request_date);
-                $centroCosto = $meses[$fecha->month - 1] . ' ' . $fecha->year;
-
-                $fechaObj = Carbon::parse($requestModel['request_date']);
-                $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
-
-                // Actualizar el registro en CajaChica
-                $cajaChica->update([
-                    'FECHA' => $requestModel->request_date,
-                    'DESCRIPCION' => $requestModel->note,
-                    'SALDO' => $requestModel->amount,
-                    'CENTRO COSTO' => $centroCosto,
-                    'CUENTA' => $numeroCuenta,
-                    'NOMBRE DE CUENTA' => $nombreCuenta,
-                    'PROVEEDOR' => $requestModel->type === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
-                    'EMPRESA' => 'SERSUPPORT',
-                    'PROYECTO' => $proyecto,
-                    'I_E' => 'EGRESO',
-                    'MES SERVICIO' => $mesServicio,
-                    'TIPO' => $requestModel->type === "expense" ? "GASTO" : "DESCUENTO",
-                    'ESTADO' => $requestModel->status,
-                ]);
-
-                // Log::debug('Registro en CajaChica actualizado con éxito');
-            } else {
-                Log::warning('No se encontró registro en CajaChica para el ID:', [
-                    'uniqueId' => $requestModel->unique_id
-                ]);
-            }
-        } catch (Exception $e) {
-            Log::error('Error al actualizar registro en CajaChica:', [
-                'uniqueId' => $requestModel->unique_id,
-                'error' => $e->getMessage()
-            ]);
-        }
+        Log::info("Reposición #{$id} actualizada con total: {$sum}");
     }
 
     public function destroy(HttpRequest $request, $id)
@@ -603,10 +486,6 @@ class RequestController extends Controller
             DB::beginTransaction();
 
             $requestRecord = Request::where('unique_id', $id)->firstOrFail();
-
-            // Marcar y eliminar CajaChica relacionada
-            CajaChica::where('codigo', 'CAJA CHICA ' . $id)->update(['ESTADO' => 'deleted']);
-            CajaChica::where('codigo', 'CAJA CHICA ' . $id)->delete();
 
             // Marcar la solicitud como deleted antes del soft delete
             $requestRecord->update(['status' => 'deleted']);
@@ -662,20 +541,6 @@ class RequestController extends Controller
                 ], 422);
             }
 
-            // Eliminar registros relacionados en CajaChica
-            foreach ($requestIds as $id) {
-                Request::find($id)->update([
-                    'status' => 'deleted',
-                ]);
-                CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$id}")
-                    ->orWhere('CODIGO', 'LIKE', "CAJA CHICA %{$id}")
-                    ->update([
-                        'ESTADO' => 'deleted',
-                    ]);
-                CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$id}")
-                    ->orWhere('CODIGO', 'LIKE', "CAJA CHICA %{$id}")
-                    ->delete();
-            }
 
             // Eliminar solicitudes
             Request::whereIn('unique_id', $requestIds)->delete();
@@ -773,9 +638,6 @@ class RequestController extends Controller
                     $mappedData['unique_id'] = $this->uniqueIdService->generateUniqueRequestId('discount');
 
                     $newRequest = Request::create($mappedData);
-
-                    // Crear registro en CajaChica
-                    $this->createCajaChicaRecord($mappedData, $newRequest->unique_id);
 
                     $processedCount++;
                 } catch (Exception $e) {

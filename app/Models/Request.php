@@ -13,7 +13,6 @@ class Request extends Model
 {
     use HasFactory, HasApiTokens, Notifiable, SoftDeletes;
 
-    // protected $connection = 'lms_local';
     protected $dates = ['deleted_at'];
     protected $fillable = [
         'type',
@@ -32,6 +31,7 @@ class Request extends Model
         'vehicle_plate',
         'vehicle_number',
         'status',
+        'reposicion_id',
         'created_by',
         'updated_by'
     ];
@@ -43,15 +43,13 @@ class Request extends Model
         'updated_at' => 'datetime'
     ];
 
-    // Define las relaciones que siempre necesitas cargar
     protected $with = ['account:id,name'];
-
-    // Define los campos que quieres ocultar en las respuestas JSON
     protected $hidden = ['deleted_at'];
 
+    // Relación muchos a uno con reposicion
     public function reposicion()
     {
-        return $this->belongsTo(Reposicion::class, 'unique_id', 'detail');
+        return $this->belongsTo(Reposicion::class, 'reposicion_id');
     }
 
     public function account()
@@ -126,6 +124,6 @@ class Request extends Model
 
     public function createdBy()
     {
-        $this->belongsTo(User::class);
+        return $this->belongsTo(User::class);
     }
 }

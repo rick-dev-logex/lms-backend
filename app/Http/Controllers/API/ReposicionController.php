@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use App\Models\CajaChica;
 use App\Models\Reposicion;
 use App\Models\Request;
 use App\Models\User;
@@ -209,6 +208,15 @@ class ReposicionController extends Controller
                 ]);
             }
 
+            // Validar que ninguna request ya esté en una reposición
+            $requestsInReposition = $existingRequests->whereNotNull('reposition_id');
+            if ($requestsInReposition->count() > 0) {
+                $duplicateIds = $requestsInReposition->pluck('unique_id')->toArray();
+                throw ValidationException::withMessages([
+                    'request_ids' => ['Las siguientes solicitudes ya están en una reposición: ' . implode(', ', $duplicateIds)],
+                ]);
+            }
+
             // Validar tamaño del archivo (límite de 20MB como ejemplo)
             $file = $request->file('attachment');
             $maxFileSize = 20 * 1024 * 1024; // 20MB en bytes
@@ -232,19 +240,12 @@ class ReposicionController extends Controller
 
             $project = $requests->first()->project;
 
-            // AQUI SE LE PERMITE A MICHELLE CREAR LA REPOSICION MASIVA
-
+            // Validación de permisos para reposición masiva
             try {
                 $user = $this->authService->getUser($request);
-                // Acceder a datos del usuario
-                // $userId = $decoded->user_id ?? null;
-                // $userName = $decoded->name ?? null;
                 $userEmail = $user->email ?? null;
-                // $permissions = $decoded->permissions ?? [];
 
                 Log::info("Usuario del request entrante: " . $userEmail);
-
-                $project = $requests->first()->project;
 
                 if ($requests->pluck('project')->unique()->count() > 1) {
                     if (
@@ -329,42 +330,27 @@ class ReposicionController extends Controller
                 }
             }
 
-            // Crear la reposición con la URL acortada
+            // Crear la reposición SIN el campo detail
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => Carbon::now(),
                 'total_reposicion' => $requests->sum('amount'),
                 'status' => 'pending',
                 'project' => $project,
-                'detail' => $requestIds,
-                'attachment_url' => $shortUrl ?? null, // URL acortada
-                'attachment_name' => $fileName ?? null, // Nombre completo del archivo
+                'attachment_url' => $shortUrl ?? null,
+                'attachment_name' => $fileName ?? null,
             ]);
 
-            $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
-
-            // Actualizar el estado de las solicitudes relacionadas
+            // Actualizar las requests para asociarlas con la reposición
             Request::whereIn('unique_id', $requestIds)
-                ->update(['reposicion_id' => $reposicion->id, 'status' => 'in_reposition']);
-
-            // Para caja chica
-            foreach ($requestIds as $uniqueId) {
-                $codigo = "CAJA CHICA " . $reposicion->id . " " . $uniqueId;
-
-                CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$uniqueId}")->update([
-                    'codigo' => $codigo,
-                    'estado' => 'EN REPOSICIÓN',
+                ->update([
+                    'reposicion_id' => $reposicion->id,
+                    'status' => 'in_reposition'
                 ]);
-
-                CajaChica::where('CODIGO', 'LIKE', "CAJA CHICA %{$uniqueId}")->update([
-                    'CODIGO' => $codigo,
-                    'ESTADO' => 'EN REPOSICIÓN',
-                ]);
-            }
 
             DB::commit();
 
-            // Cargar las solicitudes para la respuesta
-            $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+            // Cargar las solicitudes para la respuesta usando la nueva relación
+            $reposicion->load('requests.account');
 
             return response()->json([
                 'message' => 'Reposición creada exitosamente',
@@ -424,10 +410,6 @@ class ReposicionController extends Controller
                         ->update([
                             'status' => $requestStatus
                         ]);
-                }
-                foreach ($reposicion->detail as $uniqueId) {
-                    CajaChica::where('codigo', 'LIKE', "CAJA CHICA %{$uniqueId}")
-                        ->update(['estado' => $requestStatus]);
                 }
             }
 

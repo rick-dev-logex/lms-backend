@@ -14,7 +14,6 @@ class Reposicion extends Model
 {
     use HasApiTokens, Notifiable, SoftDeletes;
 
-    // protected $connection = 'lms_local';
     protected $table = 'reposiciones';
 
     protected $fillable = [
@@ -22,7 +21,6 @@ class Reposicion extends Model
         'total_reposicion',
         'status',
         'project',
-        'detail',
         'month',
         'when',
         'note',
@@ -31,38 +29,38 @@ class Reposicion extends Model
     ];
 
     protected $casts = [
-        'detail' => 'array',
         'fecha_reposicion' => 'datetime',
         'total_reposicion' => 'decimal:2',
         'created_at' => 'datetime',
         'updated_at' => 'datetime'
     ];
 
-    // Atributos que siempre deben ocultarse en la serialización
     protected $hidden = [
         'updated_at'
     ];
 
+    // Relación uno a muchos con requests
     public function requests()
     {
-        return Request::whereIn('unique_id', $this->getDetailIds());
+        return $this->hasMany(Request::class, 'reposicion_id');
     }
 
+    // Relación con eager loading para optimizar consultas
     public function requestsWithRelations()
     {
-        return $this->requests()->with(['account:id,name']);
+        return $this->hasMany(Request::class, 'reposicion_id')->with(['account:id,name']);
     }
 
-    protected function getDetailIds(): array
-    {
-        return is_array($this->detail)
-            ? collect($this->detail)->flatten()->unique()->values()->toArray()
-            : json_decode($this->detail) ?? [];
-    }
-
+    // Calcular total basado en la suma de requests relacionados
     public function calculateTotal(): float
     {
         return (float) $this->requests()->sum('amount');
+    }
+
+    // Obtener los unique_ids de las requests (para compatibilidad con código existente)
+    public function getDetailAttribute()
+    {
+        return $this->requests()->pluck('unique_id')->toArray();
     }
 
     // Scopes optimizados
@@ -101,13 +99,6 @@ class Reposicion extends Model
     protected static function boot()
     {
         parent::boot();
-
-        // Antes de guardar, asegurarse de que el total sea correcto
-        static::saving(function ($reposicion) {
-            if ($reposicion->isDirty('detail')) {
-                $reposicion->total_reposicion = $reposicion->calculateTotal();
-            }
-        });
 
         // Antes de eliminar, eliminar el archivo de Google Cloud Storage si existe
         static::deleting(function ($reposicion) {

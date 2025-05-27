@@ -180,14 +180,18 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             ];
 
             $cedulaOnix = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('nombre_completo');
-
             if ($cedulaOnix !== $mappedRow['responsable']) {
                 Log::warning("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".");
                 throw new Exception("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".", 422);
             }
+            
+            $estado = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('estado_personal');
+            if ($estado !== "activo") {
+                Log::warning($mappedRow['responsable'] . "' corresponde a un personal cesante; no se puede asignar a esta persona.");
+                throw new Exception("No puedes realizar operaciones con personal cesante.", 422);
+            }
 
             $normalizedInput = $this->normalize($requestData['account_id']);
-
             $cuenta = Account::all()->first(function ($account) use ($normalizedInput) {
                 return $this->normalize($account->name) === $normalizedInput;
             });

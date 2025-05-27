@@ -19,6 +19,7 @@ use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Excel;
 
 class RequestController extends Controller
@@ -239,130 +240,122 @@ class RequestController extends Controller
     {
         try {
             $user = $this->authService->getUser($request);
+
             $baseRules = [
                 'type' => 'required|in:expense,discount,income',
                 'personnel_type' => 'required|in:nomina,transportista',
                 'request_date' => 'required|date',
-                'invoice_number' => 'required|string',
-                'account_id' => 'required|string',
-                'amount' => 'required|numeric|min:0',
-                'project' => 'required|string',
-                'note' => 'required|string',
+                'invoice_number' => 'required|string|max:100',
+                'account_id' => 'required|string|max:255',
+                'amount' => 'required|numeric|min:0.01|max:999999.99',
+                'project' => 'required|string|max:4', // Validar tamaño correcto
+                'note' => 'required|string|max:1000',
             ];
 
-            if ($request->input('personnel_type') === 'nomina') {
-                $baseRules['responsible_id'] = 'required|string';
-            } else {
-                $baseRules['vehicle_plate'] = 'required|string';
+            // Validación condicional para when basado en tipo
+            if (in_array($request->input('type'), ['discount', 'income'])) {
+                $baseRules['when'] = 'required|in:liquidacion,decimo_tercero,decimo_cuarto,rol,utilidades';
+                $baseRules['month'] = 'required|regex:/^\d{4}-\d{2}$/'; // Formato YYYY-MM
             }
 
-            if ($request->has('vehicle_number')) {
-                $baseRules['vehicle_number'] = 'nullable|string';
+            if ($request->input('personnel_type') === 'nomina') {
+                $baseRules['responsible_id'] = 'required|string|max:255';
+            } else {
+                $baseRules['vehicle_plate'] = 'required|string|max:20';
+                $baseRules['vehicle_number'] = 'nullable|string|max:50';
             }
 
             $validated = $request->validate($baseRules);
 
-            // Convertir project a nombre antes de la validación de duplicados
-            $projectValue = trim($validated['project']);
-            if (strlen($projectValue) > 7) {
-                // Posible UUID
-                $projectName = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->where('id', $projectValue)
-                    ->value('name');
+            DB::beginTransaction();
 
-                if (!$projectName) {
-                    throw new Exception('El proyecto con ID ' . $projectValue . ' no ha sido encontrado.');
-                }
-                $validated['project'] = $projectName;
-            } else {
-                // Posible nombre
-                $exists = DB::connection('sistema_onix')
-                    ->table('onix_proyectos')
-                    ->where('name', $projectValue)
-                    ->exists();
-
-                if (!$exists) {
-                    throw new Exception('Nombre de proyecto ' . $projectValue . ' no encontrado.');
-                }
-                $validated['project'] = $projectValue;
-            }
-
-            // Validación de duplicados (usando el nombre del proyecto)
-            $duplicateCheck = DB::table('requests')
-                ->where('type', $validated['type'])
-                ->where('personnel_type', $validated['personnel_type'])
-                ->where('project', $validated['project'])
-                ->where('request_date', $validated['request_date'])
-                ->where('invoice_number', $validated['invoice_number'])
-                ->where('account_id', $validated['account_id'])
-                ->where('amount', $validated['amount'])
-                ->where('created_at', '>=', now()->subMinutes(5));
-
-            if ($duplicateCheck->exists()) {
-                return response()->json([
-                    'message' => 'Ya existe un registro con la información provista.',
-                    'data' => $duplicateCheck->first()
-                ], 200);
-            }
-
-            // Generar un ID único usando el servicio
-            $uniqueId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
-
-            // Preparar datos para guardar
-            $requestData = [
+            // **VALIDACIÓN DE DUPLICADOS MEJORADA**
+            $duplicateQuery = Request::where([
                 'type' => $validated['type'],
-                'personnel_type' => $validated['personnel_type'],
-                'project' => $validated['project'], // Ya es el nombre
+                'project' => $validated['project'],
                 'request_date' => $validated['request_date'],
                 'invoice_number' => $validated['invoice_number'],
                 'account_id' => $validated['account_id'],
-                'amount' => $validated['amount'],
-                'note' => $validated['note'],
+                'amount' => $validated['amount']
+            ])->where('created_at', '>=', now()->subMinutes(5)); // Ventana de 5 minutos
+
+            // Validación más específica por tipo de personal
+            if ($validated['personnel_type'] === 'nomina') {
+                $duplicateQuery->where('responsible_id', $validated['responsible_id']);
+            } else {
+                $duplicateQuery->where('vehicle_plate', $validated['vehicle_plate']);
+            }
+
+            if ($duplicateQuery->exists()) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Ya existe una solicitud idéntica creada recientemente.',
+                    'error' => 'DUPLICATE_REQUEST'
+                ], 422);
+            }
+
+            // Generar unique_id con retry en caso de colisión
+            $maxRetries = 5;
+            $uniqueId = null;
+
+            for ($i = 0; $i < $maxRetries; $i++) {
+                $tempId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
+                if (!Request::where('unique_id', $tempId)->exists()) {
+                    $uniqueId = $tempId;
+                    break;
+                }
+            }
+
+            if (!$uniqueId) {
+                throw new \Exception('No se pudo generar un ID único después de varios intentos');
+            }
+
+            // Preparar datos con validaciones adicionales
+            $requestData = [
+                'type' => $validated['type'],
+                'personnel_type' => $validated['personnel_type'],
+                'project' => strtoupper($validated['project']), // Normalizar
+                'request_date' => $validated['request_date'],
+                'month' => $validated['month'] ?? Carbon::parse($validated['request_date'])->format('Y-m'),
+                'when' => $validated['when'] ?? null,
+                'invoice_number' => trim($validated['invoice_number']),
+                'account_id' => trim($validated['account_id']),
+                'amount' => round($validated['amount'], 2), // Normalizar decimales
+                'note' => trim($validated['note']),
                 'unique_id' => $uniqueId,
                 'status' => 'pending',
                 'created_by' => $user->name,
+                'responsible_id' => $validated['responsible_id'] ?? null,
+                'vehicle_plate' => $validated['vehicle_plate'] ?? null,
+                'vehicle_number' => $validated['vehicle_number'] ?? null,
             ];
 
-            // Manejar responsible_id y cédula
-            if ($request->has('responsible_id')) {
-                $requestData['responsible_id'] = $request->input('responsible_id');
-                $cedula = DB::connection('sistema_onix')
-                    ->table('onix_personal')
-                    ->where('nombre_completo', $requestData['responsible_id'])
-                    ->value('name');
-                $requestData['cedula_responsable'] = $cedula;
-            }
-
-            // Manejar campos de transportista
-            if ($request->has('vehicle_plate')) {
-                $requestData['vehicle_plate'] = $request->input('vehicle_plate');
-            }
-            if ($request->has('vehicle_number')) {
-                $requestData['vehicle_number'] = $request->input('vehicle_number');
-            }
-
-            // Convertir account_id a nombre si es numérico
-            if (is_numeric($requestData['account_id'])) {
-                $accountName = Account::where('id', $requestData['account_id'])->pluck('name')->first();
-                if (!$accountName) {
-                    throw new Exception('Cuenta con ID ' . $requestData['account_id'] . ' no encontrada.');
-                }
-                $requestData['account_id'] = $accountName;
-            }
-
-            // Crear el registro
             $newRequest = Request::create($requestData);
 
+            DB::commit();
+
             return response()->json([
-                'message' => 'Request created successfully',
+                'message' => 'Solicitud creada exitosamente',
                 'data' => $newRequest
             ], 201);
-        } catch (Exception $e) {
+        } catch (ValidationException $e) {
+            DB::rollBack();
             return response()->json([
-                'message' => 'No se pudo crear el registro',
-                'error' => $e->getMessage()
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
             ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating request', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user' => $user->email ?? 'unknown'
+            ]);
+
+            return response()->json([
+                'message' => 'No se pudo crear la solicitud',
+                'error' => 'INTERNAL_ERROR'
+            ], 500);
         }
     }
 
@@ -443,9 +436,6 @@ class RequestController extends Controller
 
             // Refrescar para obtener los nuevos datos
             $requestModel->refresh();
-
-            // Actualizar caja chica
-            $this->updateCajaChicaRecord($requestModel);
 
             return response()->json($requestModel);
         } catch (\Exception $e) {

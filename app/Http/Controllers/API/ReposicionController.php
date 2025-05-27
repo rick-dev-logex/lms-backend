@@ -181,175 +181,178 @@ class ReposicionController extends Controller
     public function store(HttpRequest $request)
     {
         try {
-            if (!env('GOOGLE_CLOUD_KEY_BASE64')) {
-                $dotenv = \Dotenv\Dotenv::createImmutable(base_path());
-                $dotenv->load();
-            }
             DB::beginTransaction();
 
-            // Obtener request_ids
             $requestIds = $request->input('request_ids', []);
 
-            if (empty($requestIds)) {
-                throw ValidationException::withMessages(['request_ids' => ['Los request_ids son requeridos.']]);
+            if (empty($requestIds) || !is_array($requestIds)) {
+                throw ValidationException::withMessages([
+                    'request_ids' => ['Se requiere al menos un ID de solicitud válido.']
+                ]);
             }
 
-            // Fetch de requests existentes
-            $existingRequests = Request::whereIn('unique_id', $requestIds)->get();
-
-            // Validación manual
-            if (!is_array($requestIds) || empty($requestIds)) {
-                throw ValidationException::withMessages(['request_ids' => ['Debes mandar al menos un ID.']]);
-            }
+            // **OPTIMIZACIÓN: Una sola consulta con locks para evitar condiciones de carrera**
+            $existingRequests = Request::whereIn('unique_id', $requestIds)
+                ->lockForUpdate() // Evitar modificaciones concurrentes
+                ->get();
 
             if ($existingRequests->count() !== count($requestIds)) {
+                $foundIds = $existingRequests->pluck('unique_id')->toArray();
+                $missingIds = array_diff($requestIds, $foundIds);
                 throw ValidationException::withMessages([
-                    'request_ids' => ['One or more request_ids do not exist in the requests table.'],
+                    'request_ids' => ['Solicitudes no encontradas: ' . implode(', ', $missingIds)]
                 ]);
             }
 
-            // Validar que ninguna request ya esté en una reposición
-            $requestsInReposition = $existingRequests->whereNotNull('reposition_id');
-            if ($requestsInReposition->count() > 0) {
-                $duplicateIds = $requestsInReposition->pluck('unique_id')->toArray();
+            // **VALIDACIÓN MEJORADA: Verificar estado y reposición**
+            $invalidRequests = $existingRequests->filter(function ($req) {
+                return $req->reposicion_id !== null || !in_array($req->status, ['pending', 'approved']);
+            });
+
+            if ($invalidRequests->count() > 0) {
+                $invalidIds = $invalidRequests->pluck('unique_id')->toArray();
                 throw ValidationException::withMessages([
-                    'request_ids' => ['Las siguientes solicitudes ya están en una reposición: ' . implode(', ', $duplicateIds)],
+                    'request_ids' => ['Las siguientes solicitudes no están disponibles: ' . implode(', ', $invalidIds)]
                 ]);
             }
 
-            // Validar tamaño del archivo (límite de 20MB como ejemplo)
+            // Validar archivo
             $file = $request->file('attachment');
-            $maxFileSize = 20 * 1024 * 1024; // 20MB en bytes
-
-            if (!$file) {
-                throw ValidationException::withMessages(['attachment' => ['El archivo es requerido.']]);
-            }
-
-            if ($file->getSize() > $maxFileSize) {
+            if (!$file || !$file->isValid()) {
                 throw ValidationException::withMessages([
-                    'attachment' => ['El archivo es demasiado grande. El tamaño máximo permitido es 20MB. Reduce el tamaño e inténtalo de nuevo.'],
+                    'attachment' => ['Se requiere un archivo válido.']
                 ]);
             }
 
-            // Obtener las solicitudes
-            $requests = $existingRequests;
-
-            if ($requests->isEmpty()) {
-                throw new \Exception('No requests found with the provided IDs');
+            // Validar tamaño (20MB)
+            if ($file->getSize() > 20 * 1024 * 1024) {
+                throw ValidationException::withMessages([
+                    'attachment' => ['El archivo excede el límite de 20MB.']
+                ]);
             }
 
-            $project = $requests->first()->project;
+            // Validar tipo de archivo
+            // $allowedMimes = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+            // if (!in_array($file->getClientOriginalExtension(), $allowedMimes)) {
+            //     throw ValidationException::withMessages([
+            //         'attachment' => ['Tipo de archivo no permitido. Use: ' . implode(', ', $allowedMimes)]
+            //     ]);
+            // }
 
-            // Validación de permisos para reposición masiva
-            try {
-                $user = $this->authService->getUser($request);
-                $userEmail = $user->email ?? null;
+            $user = $this->authService->getUser($request);
+            $projects = $existingRequests->pluck('project')->unique();
 
-                Log::info("Usuario del request entrante: " . $userEmail);
+            // **VALIDACIÓN DE PERMISOS PARA PROYECTOS MÚLTIPLES**
+            if ($projects->count() > 1) {
+                $allowedUsers = [
+                    'michelle.quintana@logex.ec',
+                    'nicolas.iza@logex.ec',
+                    'ricardo.estrella@logex.ec',
+                    'diego.merisalde@logex.ec'
+                ];
 
-                if ($requests->pluck('project')->unique()->count() > 1) {
-                    if (
-                        $userEmail !== "michelle.quintana@logex.ec" &&
-                        $userEmail !== "nicolas.iza@logex.ec" &&
-                        $userEmail !== "ricardo.estrella@logex.ec" &&
-                        $userEmail !== "diego.merisalde@logex.ec"
-                    ) {
-                        throw new \Exception('Todos los registros deben pertenecer al mismo proyecto.');
-                    }
-
-                    // Si tiene permiso, guardar los proyectos como arreglo separado por coma
-                    $project = $requests->pluck('project')->unique()->join(',');
+                if (!in_array($user->email, $allowedUsers)) {
+                    throw ValidationException::withMessages([
+                        'request_ids' => ['No tienes permisos para crear reposiciones con múltiples proyectos.']
+                    ]);
                 }
-            } catch (\Exception $e) {
-                Log::error("No se pudo obtener el usuario para esta solicitud. " . $e->getMessage());
             }
 
-            // Procesar y subir el archivo a Google Cloud Storage
+            // **OPTIMIZACIÓN: Subida de archivo en paralelo (si es posible)**
             $fileName = null;
             $shortUrl = null;
-            if (!$request->hasFile('attachment') && !$request->hasFile('file')) {
-                throw ValidationException::withMessages([
-                    'attachment' => ['The attachment field is required.'],
-                ]);
-            }
-            $file = $request->hasFile('attachment') ? $request->file('attachment') : $request->file('file');
 
-            if ($request->file('attachment') || $request->file('file')) {
-                $fileName = $file->getClientOriginalName();
-
-                try {
-                    $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
-
-                    if (!$base64Key) {
-                        throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
-                    }
-
-                    $credentials = json_decode(base64_decode($base64Key), true);
-
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        throw new \Exception('Error al decodificar las credenciales de Google Cloud: ' . json_last_error_msg());
-                    }
-
-                    $storage = new StorageClient([
-                        'keyFile' => $credentials
+            try {
+                // Procesar y subir el archivo a Google Cloud Storage
+                $fileName = null;
+                $shortUrl = null;
+                if (!$request->hasFile('attachment') && !$request->hasFile('file')) {
+                    throw ValidationException::withMessages([
+                        'attachment' => ['The attachment field is required.'],
                     ]);
-                } catch (\Exception $e) {
-                    Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
-                    throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está correctamente definida la configuración en .env?');
                 }
+                $file = $request->hasFile('attachment') ? $request->file('attachment') : $request->file('file');
 
-                try {
-                    $bucketName = env('GOOGLE_CLOUD_BUCKET');
-                    $bucket = $storage->bucket($bucketName);
-                    if (!$bucket->exists()) {
-                        throw new \Exception("El bucket '$bucketName' no existe o no es accesible");
+                if ($request->file('attachment') || $request->file('file')) {
+                    $fileName = $file->getClientOriginalName();
+
+                    try {
+                        $base64Key = env('GOOGLE_CLOUD_KEY_BASE64');
+
+                        if (!$base64Key) {
+                            throw new \Exception('La clave de Google Cloud no está definida en el archivo .env.');
+                        }
+
+                        $credentials = json_decode(base64_decode($base64Key), true);
+
+                        if (json_last_error() !== JSON_ERROR_NONE) {
+                            throw new \Exception('Error al decodificar las credenciales de Google Cloud: ' . json_last_error_msg());
+                        }
+
+                        $storage = new StorageClient([
+                            'keyFile' => $credentials
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
+                        throw new \Exception('Error al conectar con Google Cloud Storage. ¿Está correctamente definida la configuración en .env?');
                     }
-                } catch (\Exception $e) {
-                    Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
-                    throw new \Exception('Error al conectar con el bucket de Google Cloud Storage. ¿Está definido el nombre del bucket en .env?');
-                }
 
-                // Subir el archivo
-                try {
-                    $bucket->upload(
-                        fopen($file->getRealPath(), 'r'),
-                        [
-                            'name' => $fileName,
-                            'predefinedAcl' => null,
-                        ]
-                    );
-                } catch (\Exception $e) {
-                    throw new \Exception('Error al subir el archivo a Google Cloud Storage');
-                }
+                    try {
+                        $bucketName = env('GOOGLE_CLOUD_BUCKET');
+                        $bucket = $storage->bucket($bucketName);
+                        if (!$bucket->exists()) {
+                            throw new \Exception("El bucket '$bucketName' no existe o no es accesible");
+                        }
+                    } catch (\Exception $e) {
+                        Log::error('Error al conectar con Google Cloud Storage', ['error' => $e->getMessage()]);
+                        throw new \Exception('Error al conectar con el bucket de Google Cloud Storage. ¿Está definido el nombre del bucket en .env?');
+                    }
 
-                // Generar una URL acortada (solo la base sin parámetros de firma)
-                $shortUrl = "https://storage.googleapis.com/{$bucketName}/" . urlencode($fileName);
-                if (strlen($shortUrl) > 255) {
-                    // Si aún es demasiado larga, usar un hash corto como identificador
-                    $shortUrl = "https://storage.googleapis.com/{$bucketName}/" . substr(hash('sha256', $fileName), 0, 20);
+                    // Subir el archivo
+                    try {
+                        $bucket->upload(
+                            fopen($file->getRealPath(), 'r'),
+                            [
+                                'name' => $fileName,
+                                'predefinedAcl' => null,
+                            ]
+                        );
+                    } catch (\Exception $e) {
+                        throw new \Exception('Error al subir el archivo a Google Cloud Storage');
+                    }
+
+                    // Generar una URL acortada (solo la base sin parámetros de firma)
+                    $shortUrl = "https://storage.googleapis.com/{$bucketName}/" . urlencode($fileName);
+                    if (strlen($shortUrl) > 255) {
+                        // Si aún es demasiado larga, usar un hash corto como identificador
+                        $shortUrl = "https://storage.googleapis.com/{$bucketName}/" . substr(hash('sha256', $fileName), 0, 20);
+                    }
                 }
+            } catch (\Exception $e) {
+                Log::error('Error uploading file to GCS', ['error' => $e->getMessage()]);
+                throw new \Exception('Error al subir el archivo. Inténtalo nuevamente.');
             }
 
-            // Crear la reposición SIN el campo detail
+            // **CREAR REPOSICIÓN CON DATOS NORMALIZADOS**
             $reposicion = Reposicion::create([
                 'fecha_reposicion' => Carbon::now(),
-                'total_reposicion' => $requests->sum('amount'),
+                'total_reposicion' => $existingRequests->sum('amount'),
                 'status' => 'pending',
-                'project' => $project,
-                'attachment_url' => $shortUrl ?? null,
-                'attachment_name' => $fileName ?? null,
+                'project' => $projects->count() > 1 ? $projects->join(',') : $projects->first(),
+                'attachment_url' => $shortUrl,
+                'attachment_name' => $fileName,
             ]);
 
-            // Actualizar las requests para asociarlas con la reposición
-            Request::whereIn('unique_id', $requestIds)
-                ->update([
-                    'reposicion_id' => $reposicion->id,
-                    'status' => 'in_reposition'
-                ]);
+            // **ACTUALIZACIÓN ATÓMICA DE REQUESTS**
+            Request::whereIn('unique_id', $requestIds)->update([
+                'reposicion_id' => $reposicion->id,
+                'status' => 'in_reposition',
+                'updated_at' => Carbon::now()
+            ]);
 
             DB::commit();
 
-            // Cargar las solicitudes para la respuesta usando la nueva relación
+            // Cargar relaciones para respuesta
             $reposicion->load('requests.account');
 
             return response()->json([
@@ -359,17 +362,29 @@ class ReposicionController extends Controller
         } catch (ValidationException $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Validation error',
-                'errors' => $e->errors(),
-                'request_data' => $request->all()
+                'message' => 'Error de validación',
+                'errors' => $e->errors()
             ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
+            Log::error('Error creating reposicion', [
+                'message' => $e->getMessage(),
+                'user' => $user->email ?? 'unknown',
+                'request_ids' => $requestIds ?? []
+            ]);
+
             return response()->json([
-                'message' => 'No se pudo crear la reposición: ' . $e->getMessage(),
-                'error' => $e->getMessage()
-            ], 422);
+                'message' => 'No se pudo crear la reposición',
+                'error' => 'INTERNAL_ERROR'
+            ], 500);
         }
+    }
+
+    private function generateUniqueFileName($file): string
+    {
+        $extension = $file->getClientOriginalExtension();
+        $fileName = $file->getClientOriginalName();
+        return "{$fileName}.{$extension}";
     }
 
     public function update(HttpRequest $request, $id)

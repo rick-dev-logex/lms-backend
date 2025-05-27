@@ -4,7 +4,6 @@ namespace App\Imports;
 
 use App\Models\Account;
 use App\Models\Request;
-use App\Models\CajaChica;
 use App\Services\UniqueIdService;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithStartRow;
@@ -204,21 +203,6 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             // Crear registro principal
             $newRequest = new Request($requestData);
 
-            // Crear registro en CajaChica (después de persistir el modelo) si es que NO es ingreso
-            if ($this->context !== "income") {
-                DB::afterCommit(function () use ($requestData, $uniqueId) {
-                    try {
-                        $this->createCajaChicaRecord($requestData, $uniqueId);
-                    } catch (Exception $e) {
-                        Log::error('Error al crear registro en caja_chica durante importación:', [
-                            'row' => $this->rowNumber,
-                            'unique_id' => $uniqueId,
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                });
-            }
-
             return $newRequest;
         } catch (Exception $e) {
             $error = "Error en fila {$this->rowNumber}: " . $e->getMessage();
@@ -237,64 +221,5 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     private function normalize(string $text): string
     {
         return mb_strtolower(\Illuminate\Support\Str::ascii(trim($text)));
-    }
-
-    /**
-     * Crea un registro en caja_chica a partir de los datos importados
-     * 
-     * @param array $requestData Datos de la solicitud
-     * @param string $uniqueId ID único de la solicitud
-     * @return void
-     */
-    private function createCajaChicaRecord(array $requestData, string $uniqueId): void
-    {
-        try {
-            // Formatear correctamente la fecha
-            $fecha = $requestData['request_date'];
-            if (is_string($fecha)) {
-                // Intentar convertir la fecha a un formato compatible
-                $fechaObj = Carbon::parse($fecha);
-                $fechaFormateada = $fechaObj->format('Y-m-d'); // Formato YYYY-MM-DD
-            } else {
-                $fechaFormateada = $fecha;
-            }
-
-            $numeroCuenta = Account::where('name', $requestData['account_id'])->pluck('account_number')->first();
-            $nombreCuenta = strtoupper(\Illuminate\Support\Str::ascii($requestData['account_id'])); // sin tildes
-            $proyecto = strtoupper($requestData['project']);
-
-            // Formatear centro_costo: ENE 2025, ABR 2025, etc.
-            $meses = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-            $fechaObj = Carbon::parse($fechaFormateada);
-            $centroCosto = $meses[$fechaObj->month - 1] . ' ' . $fechaObj->year;
-
-            // mes_servicio: primer día del mes
-            $fechaObj = Carbon::parse($requestData['request_date']);
-            $mesServicio = $fechaObj->format('Y-m') . '-01'; // Formato: YYYY-MM-01 (primer día del mes)
-
-            CajaChica::create([
-                'FECHA' => $fechaFormateada, // Usar la fecha formateada
-                'CODIGO' => "CAJA CHICA " . $uniqueId,
-                'DESCRIPCION' => $requestData['note'],
-                'SALDO' => $requestData['amount'],
-                'CENTRO COSTO' => $centroCosto,
-                'CUENTA' => $numeroCuenta,
-                'NOMBRE DE CUENTA' => $nombreCuenta,
-                'PROVEEDOR' => $this->context === "expense" ? 'CAJA CHICA' : "DESCUENTOS",
-                'EMPRESA' => 'SERSUPPORT',
-                'PROYECTO' => $proyecto,
-                'I_E' => 'EGRESO',
-                'MES SERVICIO' => $mesServicio,
-                'TIPO' => $this->context === "expense" ? "GASTO" : "DESCUENTO",
-                'ESTADO' => $requestData['status'],
-            ]);
-        } catch (Exception $e) {
-            Log::error('Error al crear registro en caja_chica durante importación:', [
-                'row' => $this->rowNumber,
-                'unique_id' => $uniqueId,
-                'error' => $e->getMessage()
-            ]);
-            throw $e; // Re-lanzar la excepción para que sea manejada por el código que llama
-        }
     }
 }

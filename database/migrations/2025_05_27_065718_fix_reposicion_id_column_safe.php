@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('caja_chica', function (Blueprint $table) {
-            $table->timestamp('deleted_at');
+        Schema::table('requests', function (Blueprint $table) {
+            //
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('caja_chica', function (Blueprint $table) {
-            $table->dropColumn('deleted_at');
+        Schema::table('requests', function (Blueprint $table) {
+            //
         });
     }
 };

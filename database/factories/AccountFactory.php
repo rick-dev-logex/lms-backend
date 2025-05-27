@@ -12,7 +12,7 @@ class AccountFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => $this->faker->words(3, true),
+            'name' => 'Test Account',
             'account_number' => $this->faker->numerify('####.####.####'),
         ];
     }

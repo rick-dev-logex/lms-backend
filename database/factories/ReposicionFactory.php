@@ -12,11 +12,13 @@ class ReposicionFactory extends Factory
 
     public function definition(): array
     {
+        // Valores válidos para project (4 caracteres)
+        $validProjects = ['ADNN', 'CNQT', 'CNGY', 'TONI', 'ARCA', 'MABE'];
         return [
             'fecha_reposicion' => Carbon::now(),
             'total_reposicion' => $this->faker->randomFloat(2, 100, 5000),
             'status' => 'pending',
-            'project' => $this->faker->company(),
+            'project' => $this->faker->randomElement($validProjects),
             'month' => null,
             'when' => null,
             'note' => null,

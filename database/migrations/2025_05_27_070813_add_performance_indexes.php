@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -16,19 +17,25 @@ return new class extends Migration
             $table->index(['reposicion_id', 'status'], 'idx_requests_repo_status');
             $table->index(['unique_id', 'status'], 'idx_requests_unique_status');
             $table->index(['request_date', 'project'], 'idx_requests_date_project');
-            
+
             // Índice para evitar duplicados en validaciones
             $table->index([
-                'type', 'project', 'request_date', 'invoice_number', 
-                'account_id', 'amount'
+                'type',
+                'project',
+                'request_date',
+                'invoice_number',
+                'account_id',
+                'amount'
             ], 'idx_requests_duplicate_check');
         });
 
         Schema::table('reposiciones', function (Blueprint $table) {
             $table->index(['status', 'created_at'], 'idx_reposiciones_status_created');
-            $table->index(['project', 'status'], 'idx_reposiciones_project_status');
             $table->index(['fecha_reposicion', 'status'], 'idx_reposiciones_fecha_status');
         });
+
+        // Luego fuera del `Schema::table`, en la misma migración:
+        DB::statement('CREATE INDEX idx_reposiciones_project_status ON reposiciones (project(191), status)');
     }
 
     public function down(): void

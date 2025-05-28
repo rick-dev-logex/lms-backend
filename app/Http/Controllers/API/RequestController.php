@@ -144,6 +144,8 @@ class RequestController extends Controller
 
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
+            } else {
+                $query->where('status', "pending");
             }
             if ($period === 'last_3_months') {
                 $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth());

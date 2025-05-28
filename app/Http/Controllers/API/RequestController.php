@@ -253,10 +253,10 @@ class RequestController extends Controller
             ];
 
             // Validación condicional para when basado en tipo
-            if (in_array($request->input('type'), ['discount', 'income'])) {
-                $baseRules['when'] = 'required|in:liquidacion,decimo_tercero,decimo_cuarto,rol,utilidades';
-                $baseRules['month'] = 'required|regex:/^\d{4}-\d{2}$/'; // Formato YYYY-MM
-            }
+            // if (in_array($request->input('type'), ['discount', 'income'])) {
+            //     $baseRules['when'] = 'required|in:liquidacion,decimo_tercero,decimo_cuarto,rol,utilidades';
+            //     $baseRules['month'] = 'required|regex:/^\d{4}-\d{2}$/'; // Formato YYYY-MM
+            // }
 
             if ($request->input('personnel_type') === 'nomina') {
                 $baseRules['responsible_id'] = 'required|string|max:255';
@@ -316,8 +316,6 @@ class RequestController extends Controller
                 'personnel_type' => $validated['personnel_type'],
                 'project' => strtoupper($validated['project']), // Normalizar
                 'request_date' => $validated['request_date'],
-                'month' => $validated['month'] ?? Carbon::parse($validated['request_date'])->format('Y-m'),
-                'when' => $validated['when'] ?? null,
                 'invoice_number' => trim($validated['invoice_number']),
                 'account_id' => trim($validated['account_id']),
                 'amount' => round($validated['amount'], 2), // Normalizar decimales

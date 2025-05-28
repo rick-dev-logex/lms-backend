@@ -381,13 +381,6 @@ class ReposicionController extends Controller
         }
     }
 
-    private function generateUniqueFileName($file): string
-    {
-        $extension = $file->getClientOriginalExtension();
-        $fileName = $file->getClientOriginalName();
-        return "{$fileName}.{$extension}";
-    }
-
     public function update(HttpRequest $request, $id)
     {
         try {
@@ -553,7 +546,7 @@ class ReposicionController extends Controller
             }
 
             // Usar la relación requests para actualizar las solicitudes
-            Request::whereIn('unique_id', $reposicion->detail)
+            Request::whereIn('reposicion_id', $reposicion->id)
                 ->update(['status' => 'deleted']);
 
             $reposicion->delete();

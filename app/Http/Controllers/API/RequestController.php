@@ -27,62 +27,349 @@ class RequestController extends Controller
     private $uniqueIdService;
     protected $authService;
 
-    /**
-     * Constructor del controlador
-     * 
-     * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
-     */
     public function __construct(UniqueIdService $uniqueIdService, AuthService $authService)
     {
         $this->uniqueIdService = $uniqueIdService;
         $this->authService = $authService;
     }
 
-    public function import(HttpRequest $request, Excel $excel)
+    /**
+     * Maneja tanto solicitudes individuales como masivas
+     */
+    public function store(HttpRequest $request)
     {
-        $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv',
-            'context' => 'required|in:discounts,expenses,income',
-        ]);
-
         try {
-            DB::beginTransaction();
+            $user = $this->authService->getUser($request);
 
-            $file = $request->file('file');
-            $context = $request->input('context');
-
-            $jwtToken = $request->cookie('jwt-token');
-            if (!$jwtToken) {
-                throw new Exception("No se encontró el token de autenticación en la cookie.");
+            // Detectar si es una solicitud masiva
+            $isBatchRequest = $request->has('batch_data') || $request->has('requests');
+            
+            if ($isBatchRequest) {
+                return $this->storeBatch($request, $user);
+            } else {
+                return $this->storeSingle($request, $user);
             }
+        } catch (\Exception $e) {
+            Log::error('Error in store method', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user' => $user->email ?? 'unknown'
+            ]);
 
-            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
-            $userId = $decoded->user_id ?? null;
-
-            if (!$userId) {
-                throw new Exception("No se encontró el ID de usuario en el token JWT.");
-            }
-
-            $import = new RequestsImport($context, $userId, $this->uniqueIdService);
-            $excel->import($import, $file);
-
-            if (!empty($import->errors)) {
-                throw new Exception(json_encode($import->errors));
-            }
-
-            DB::commit();
-            return response()->json(['message' => 'Importación exitosa'], 200);
-        } catch (Exception $e) {
-            DB::rollBack();
-            Log::error('Error en la importación: ' . $e->getMessage());
-            $errors = json_decode($e->getMessage(), true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($errors)) {
-                return response()->json(['errors' => $errors], 400);
-            }
-            return response()->json(['errors' => [$e->getMessage()]], 500);
+            return response()->json([
+                'message' => 'Error al procesar la solicitud',
+                'error' => 'INTERNAL_ERROR'
+            ], 500);
         }
     }
 
+    /**
+     * Procesa una solicitud individual
+     */
+    private function storeSingle(HttpRequest $request, $user)
+    {
+        $baseRules = [
+            'type' => 'required|in:expense,discount,income',
+            'personnel_type' => 'required|in:nomina,transportista',
+            'request_date' => 'required|date',
+            'invoice_number' => 'required|string|max:100',
+            'account_id' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01|max:999999.99',
+            'project' => 'required|string|max:50',
+            'note' => 'required|string|max:1000',
+        ];
+
+        if ($request->input('personnel_type') === 'nomina') {
+            $baseRules['responsible_id'] = 'required|string|max:255';
+        } else {
+            $baseRules['vehicle_plate'] = 'required|string|max:20';
+            $baseRules['vehicle_number'] = 'nullable|string|max:50';
+        }
+
+        $validated = $request->validate($baseRules);
+
+        DB::beginTransaction();
+
+        try {
+            // Validación de duplicados más flexible para solicitudes individuales
+            $duplicateQuery = Request::where([
+                'type' => $validated['type'],
+                'project' => $validated['project'],
+                'request_date' => $validated['request_date'],
+                'invoice_number' => $validated['invoice_number'],
+                'account_id' => $validated['account_id'],
+                'amount' => $validated['amount']
+            ])->where('created_at', '>=', now()->subMinutes(2)); // Ventana reducida a 2 minutos
+
+            if ($validated['personnel_type'] === 'nomina') {
+                $duplicateQuery->where('responsible_id', $validated['responsible_id']);
+            } else {
+                $duplicateQuery->where('vehicle_plate', $validated['vehicle_plate']);
+            }
+
+            if ($duplicateQuery->exists()) {
+                DB::rollBack();
+                return response()->json([
+                    'message' => 'Ya existe una solicitud idéntica creada recientemente.',
+                    'error' => 'DUPLICATE_REQUEST'
+                ], 422);
+            }
+
+            $newRequest = $this->createRequestRecord($validated, $user);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Solicitud creada exitosamente',
+                'data' => $newRequest
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Procesa solicitudes masivas con control de concurrencia
+     */
+    private function storeBatch(HttpRequest $request, $user)
+    {
+        // Validar que sea una solicitud masiva válida
+        $batchData = $request->input('batch_data') ?? $request->input('requests');
+        
+        if (!$batchData || !is_array($batchData)) {
+            return response()->json([
+                'message' => 'Datos de lote inválidos',
+                'error' => 'INVALID_BATCH_DATA'
+            ], 422);
+        }
+
+        $maxBatchSize = 50; // Limitar el tamaño del lote
+        if (count($batchData) > $maxBatchSize) {
+            return response()->json([
+                'message' => "El lote excede el máximo de {$maxBatchSize} registros",
+                'error' => 'BATCH_TOO_LARGE'
+            ], 422);
+        }
+
+        $results = [
+            'success' => [],
+            'errors' => [],
+            'total' => count($batchData),
+            'processed' => 0
+        ];
+
+        // Procesar en lotes más pequeños para evitar timeouts
+        $chunkSize = 10;
+        $chunks = array_chunk($batchData, $chunkSize);
+
+        foreach ($chunks as $chunkIndex => $chunk) {
+            try {
+                DB::beginTransaction();
+                
+                $chunkResults = $this->processBatchChunk($chunk, $user, $chunkIndex * $chunkSize);
+                
+                $results['success'] = array_merge($results['success'], $chunkResults['success']);
+                $results['errors'] = array_merge($results['errors'], $chunkResults['errors']);
+                $results['processed'] += count($chunk);
+
+                DB::commit();
+
+                // Pequeña pausa entre chunks para evitar sobrecarga
+                usleep(100000); // 0.1 segundos
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+                
+                Log::error("Error procesando chunk {$chunkIndex}", [
+                    'error' => $e->getMessage(),
+                    'chunk_size' => count($chunk)
+                ]);
+
+                // Agregar errores para todos los items del chunk fallido
+                foreach ($chunk as $itemIndex => $item) {
+                    $results['errors'][] = [
+                        'index' => $chunkIndex * $chunkSize + $itemIndex,
+                        'data' => $item,
+                        'error' => 'Error en el procesamiento del lote: ' . $e->getMessage()
+                    ];
+                }
+            }
+        }
+
+        $successCount = count($results['success']);
+        $errorCount = count($results['errors']);
+
+        return response()->json([
+            'message' => "Procesamiento completado: {$successCount} exitosos, {$errorCount} errores",
+            'results' => $results,
+            'summary' => [
+                'total' => $results['total'],
+                'success' => $successCount,
+                'errors' => $errorCount,
+                'success_rate' => $results['total'] > 0 ? round(($successCount / $results['total']) * 100, 2) : 0
+            ]
+        ], $errorCount > 0 ? 207 : 201); // 207 = Multi-Status
+    }
+
+    /**
+     * Procesa un chunk de datos del lote
+     */
+    private function processBatchChunk(array $chunk, $user, int $baseIndex)
+    {
+        $results = ['success' => [], 'errors' => []];
+
+        foreach ($chunk as $index => $requestData) {
+            try {
+                // Validar datos individuales
+                $validated = $this->validateBatchItem($requestData);
+                
+                // Crear registro sin validación de duplicados estricta para lotes
+                $newRequest = $this->createRequestRecord($validated, $user, true);
+                
+                $results['success'][] = [
+                    'index' => $baseIndex + $index,
+                    'unique_id' => $newRequest->unique_id,
+                    'data' => $newRequest
+                ];
+
+            } catch (\Exception $e) {
+                $results['errors'][] = [
+                    'index' => $baseIndex + $index,
+                    'data' => $requestData,
+                    'error' => $e->getMessage()
+                ];
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Valida un item individual del lote
+     */
+    private function validateBatchItem(array $data)
+    {
+        $rules = [
+            'type' => 'required|in:expense,discount,income',
+            'personnel_type' => 'required|in:nomina,transportista',
+            'request_date' => 'required|date',
+            'invoice_number' => 'required|string|max:100',
+            'account_id' => 'required|string|max:255',
+            'amount' => 'required|numeric|min:0.01|max:999999.99',
+            'project' => 'required|string|max:50',
+            'note' => 'required|string|max:1000',
+        ];
+
+        if (($data['personnel_type'] ?? null) === 'nomina') {
+            $rules['responsible_id'] = 'required|string|max:255';
+        } else {
+            $rules['vehicle_plate'] = 'required|string|max:20';
+            $rules['vehicle_number'] = 'nullable|string|max:50';
+        }
+
+        $validator = Validator::make($data, $rules);
+
+        if ($validator->fails()) {
+            throw new ValidationException($validator);
+        }
+
+        return $validator->validated();
+    }
+
+    /**
+     * Crea un registro de solicitud
+     */
+    private function createRequestRecord(array $validated, $user, bool $isBatch = false)
+    {
+        // Para lotes, verificar duplicados de manera más eficiente
+        if ($isBatch) {
+            $this->checkForBatchDuplicates($validated);
+        }
+
+        // Generar unique_id con retry limitado
+        $maxRetries = $isBatch ? 3 : 5; // Menos reintentos para lotes
+        $uniqueId = null;
+
+        for ($i = 0; $i < $maxRetries; $i++) {
+            $tempId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
+            
+            // Para lotes, usar una consulta más rápida
+            $exists = $isBatch 
+                ? Request::where('unique_id', $tempId)->exists()
+                : Request::lockForUpdate()->where('unique_id', $tempId)->exists();
+                
+            if (!$exists) {
+                $uniqueId = $tempId;
+                break;
+            }
+            
+            // Pausa más corta para lotes
+            if ($i < $maxRetries - 1) {
+                usleep($isBatch ? 1000 : 10000); // 1ms vs 10ms
+            }
+        }
+
+        if (!$uniqueId) {
+            throw new \Exception('No se pudo generar un ID único después de varios intentos');
+        }
+
+        // Preparar datos
+        $requestData = [
+            'type' => $validated['type'],
+            'personnel_type' => $validated['personnel_type'],
+            'project' => strtoupper(trim($validated['project'])),
+            'request_date' => $validated['request_date'],
+            'invoice_number' => trim($validated['invoice_number']),
+            'account_id' => trim($validated['account_id']),
+            'amount' => round($validated['amount'], 2),
+            'note' => trim($validated['note']),
+            'unique_id' => $uniqueId,
+            'status' => 'pending',
+            'created_by' => $user->name,
+            'responsible_id' => $validated['responsible_id'] ?? null,
+            'vehicle_plate' => $validated['vehicle_plate'] ?? null,
+            'vehicle_number' => $validated['vehicle_number'] ?? null,
+        ];
+
+        // Manejar responsible_id y cédula
+        if (isset($validated['responsible_id'])) {
+            $cedula = DB::connection('sistema_onix')
+                ->table('onix_personal')
+                ->where('nombre_completo', $requestData['responsible_id'])
+                ->value('name');
+            $requestData['cedula_responsable'] = $cedula;
+        }
+
+        return Request::create($requestData);
+    }
+
+    /**
+     * Verificación optimizada de duplicados para lotes
+     */
+    private function checkForBatchDuplicates(array $validated)
+    {
+        // Solo verificar duplicados exactos recientes para lotes (ventana más pequeña)
+        $recentDuplicate = Request::where([
+            'type' => $validated['type'],
+            'project' => $validated['project'],
+            'request_date' => $validated['request_date'],
+            'invoice_number' => $validated['invoice_number'],
+            'account_id' => $validated['account_id'],
+            'amount' => $validated['amount']
+        ])
+        ->where('created_at', '>=', now()->subSeconds(30)) // Solo 30 segundos para lotes
+        ->exists();
+
+        if ($recentDuplicate) {
+            throw new \Exception(
+                "Duplicado detectado: {$validated['invoice_number']} - {$validated['account_id']}"
+            );
+        }
+    }
+
+    // Mantener el resto de métodos existentes...
     public function index(HttpRequest $request)
     {
         try {
@@ -238,137 +525,6 @@ class RequestController extends Controller
         }
     }
 
-    public function store(HttpRequest $request)
-    {
-        try {
-            $user = $this->authService->getUser($request);
-
-            $baseRules = [
-                'type' => 'required|in:expense,discount,income',
-                'personnel_type' => 'required|in:nomina,transportista',
-                'request_date' => 'required|date',
-                'invoice_number' => 'required|string|max:100',
-                'account_id' => 'required|string|max:255',
-                'amount' => 'required|numeric|min:0.01|max:999999.99',
-                'project' => 'required|string|max:4', // Validar tamaño correcto
-                'note' => 'required|string|max:1000',
-            ];
-
-            // Validación condicional para when basado en tipo
-            // if (in_array($request->input('type'), ['discount', 'income'])) {
-            //     $baseRules['when'] = 'required|in:liquidacion,decimo_tercero,decimo_cuarto,rol,utilidades';
-            //     $baseRules['month'] = 'required|regex:/^\d{4}-\d{2}$/'; // Formato YYYY-MM
-            // }
-
-            if ($request->input('personnel_type') === 'nomina') {
-                $baseRules['responsible_id'] = 'required|string|max:255';
-            } else {
-                $baseRules['vehicle_plate'] = 'required|string|max:20';
-                $baseRules['vehicle_number'] = 'nullable|string|max:50';
-            }
-
-            $validated = $request->validate($baseRules);
-
-            DB::beginTransaction();
-
-            // **VALIDACIÓN DE DUPLICADOS MEJORADA**
-            $duplicateQuery = Request::where([
-                'type' => $validated['type'],
-                'project' => $validated['project'],
-                'request_date' => $validated['request_date'],
-                'invoice_number' => $validated['invoice_number'],
-                'account_id' => $validated['account_id'],
-                'amount' => $validated['amount']
-            ])->where('created_at', '>=', now()->subMinutes(5)); // Ventana de 5 minutos
-
-            // Validación más específica por tipo de personal
-            if ($validated['personnel_type'] === 'nomina') {
-                $duplicateQuery->where('responsible_id', $validated['responsible_id']);
-            } else {
-                $duplicateQuery->where('vehicle_plate', $validated['vehicle_plate']);
-            }
-
-            if ($duplicateQuery->exists()) {
-                DB::rollBack();
-                return response()->json([
-                    'message' => 'Ya existe una solicitud idéntica creada recientemente.',
-                    'error' => 'DUPLICATE_REQUEST'
-                ], 422);
-            }
-
-            // Generar unique_id con retry en caso de colisión
-            $maxRetries = 5;
-            $uniqueId = null;
-
-            for ($i = 0; $i < $maxRetries; $i++) {
-                $tempId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
-                if (!Request::where('unique_id', $tempId)->exists()) {
-                    $uniqueId = $tempId;
-                    break;
-                }
-            }
-
-            if (!$uniqueId) {
-                throw new \Exception('No se pudo generar un ID único después de varios intentos');
-            }
-
-            // Preparar datos con validaciones adicionales
-            $requestData = [
-                'type' => $validated['type'],
-                'personnel_type' => $validated['personnel_type'],
-                'project' => strtoupper($validated['project']), // Normalizar
-                'request_date' => $validated['request_date'],
-                'invoice_number' => trim($validated['invoice_number']),
-                'account_id' => trim($validated['account_id']),
-                'amount' => round($validated['amount'], 2), // Normalizar decimales
-                'note' => trim($validated['note']),
-                'unique_id' => $uniqueId,
-                'status' => 'pending',
-                'created_by' => $user->name,
-                'responsible_id' => $validated['responsible_id'] ?? null,
-                'vehicle_plate' => $validated['vehicle_plate'] ?? null,
-                'vehicle_number' => $validated['vehicle_number'] ?? null,
-            ];
-
-            // Manejar responsible_id y cédula
-            if ($request->has('responsible_id')) {
-                $requestData['responsible_id'] = $request->input('responsible_id');
-                $cedula = DB::connection('sistema_onix')
-                    ->table('onix_personal')
-                    ->where('nombre_completo', $requestData['responsible_id'])
-                    ->value('name');
-                $requestData['cedula_responsable'] = $cedula;
-            }
-
-            $newRequest = Request::create($requestData);
-
-            DB::commit();
-
-            return response()->json([
-                'message' => 'Solicitud creada exitosamente',
-                'data' => $newRequest
-            ], 201);
-        } catch (ValidationException $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Error de validación',
-                'errors' => $e->errors()
-            ], 422);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Error creating request', [
-                'message' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'user' => $user->email ?? 'unknown'
-            ]);
-
-            return response()->json([
-                'message' => 'No se pudo crear la solicitud',
-                'error' => 'INTERNAL_ERROR'
-            ], 500);
-        }
-    }
-
 
     public function update(HttpRequest $request, $id)
     {
@@ -485,8 +641,13 @@ class RequestController extends Controller
         try {
             DB::beginTransaction();
 
+            // Marcar la reposicion como deleted antes del soft delete
             $requestRecord = Request::where('unique_id', $id)->firstOrFail();
-
+                if($requestRecord->reposicion_id) {
+                    $reposicion = Reposicion::find($requestRecord->reposicion_id);
+                    $reposicion->update(['status' => 'deleted']);
+                    $reposicion->delete();
+                }
             // Marcar la solicitud como deleted antes del soft delete
             $requestRecord->update(['status' => 'deleted']);
             $requestRecord->delete();

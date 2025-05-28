@@ -192,13 +192,28 @@ class ReposicionController extends Controller
 
             // **VALIDACIÓN MEJORADA: Verificar estado y reposición**
             $invalidRequests = $existingRequests->filter(function ($req) {
-                return $req->reposicion_id !== null || !in_array($req->status, ['pending', 'approved']);
+                return $req->reposicion_id !== null || $req->status !== 'pending';
             });
 
-            if ($invalidRequests->count() > 0) {
-                $invalidIds = $invalidRequests->pluck('unique_id')->toArray();
+            $alreadyAssigned = $existingRequests->filter(function ($req) {
+                return $req->reposicion_id !== null;
+            });
+
+            if ($alreadyAssigned->count() > 0) {
+                $invalidIds = $alreadyAssigned->pluck('unique_id')->toArray();
                 throw ValidationException::withMessages([
-                    'request_ids' => ['Las siguientes solicitudes no están disponibles: ' . implode(', ', $invalidIds)]
+                    'request_ids' => ['Las siguientes solicitudes ya tienen una reposición asignada: ' . implode(', ', $invalidIds)]
+                ]);
+            }
+
+            $invalidStatus = $existingRequests->filter(function ($req) {
+                return $req->status !== 'pending';
+            });
+
+            if ($invalidStatus->count() > 0) {
+                $invalidIds = $invalidStatus->pluck('unique_id')->toArray();
+                throw ValidationException::withMessages([
+                    'request_ids' => ['Las siguientes solicitudes no están en estado pendiente: ' . implode(', ', $invalidIds)]
                 ]);
             }
 
@@ -233,7 +248,7 @@ class ReposicionController extends Controller
                 $allowedUsers = [
                     'michelle.quintana@logex.ec',
                     'nicolas.iza@logex.ec',
-                    'ricardo.estrella@logex.ec',
+                    // 'ricardo.estrella@logex.ec',
                     'diego.merisalde@logex.ec'
                 ];
 

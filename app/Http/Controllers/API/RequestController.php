@@ -162,7 +162,7 @@ class RequestController extends Controller
                 $query->orderBy($sortField, $sortOrder);
             }
 
-            $requests = $query->orderByDesc('id')->get();
+            $requests = $query->orderByDesc('created_at')->get();
 
             if ($request->type === 'income') {
                 $requests->where('type', "income");

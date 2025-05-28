@@ -11,8 +11,7 @@ class ProjectController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        // $query = Project::where('deleted', '0')->where('activo', '1');
-        $query = Project::where('deleted', '0');
+        $query = Project::where('deleted', '0')->where('activo', '1');
 
         if ($request->filled('projects')) {
             $projectIds = explode(',', $request->input('projects'));

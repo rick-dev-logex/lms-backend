@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Models\Reposicion;
+use App\Models\ReposicionProyecto;
 use App\Models\Request;
 use App\Models\User;
 use App\Services\AuthService;

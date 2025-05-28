@@ -3,7 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Notifications\Notifiable;    
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Builder;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,6 +43,12 @@ class Reposicion extends Model
     public function requests()
     {
         return $this->hasMany(Request::class, 'reposicion_id');
+    }
+
+    // Relación con la tabla pivote de proyectos para optimizar consultas
+    public function proyectos()
+    {
+        return $this->hasMany(ReposicionProyecto::class);
     }
 
     // Relación con eager loading para optimizar consultas

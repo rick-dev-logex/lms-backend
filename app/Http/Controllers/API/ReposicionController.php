@@ -52,102 +52,87 @@ class ReposicionController extends Controller
                 throw new \Exception("Usuario no encontrado.");
             }
 
-            // Procesar proyectos asignados correctamente
+            // Proyectos asignados
             $assignedProjectIds = [];
+
             if ($user && isset($user->assignedProjects)) {
                 if (is_object($user->assignedProjects) && isset($user->assignedProjects->projects)) {
                     $projectsValue = $user->assignedProjects->projects;
-                    if (is_string($projectsValue)) {
-                        $assignedProjectIds = json_decode($projectsValue, true) ?: [];
-                    } elseif (is_array($projectsValue)) {
-                        $assignedProjectIds = $projectsValue;
-                    }
+                    $assignedProjectIds = is_string($projectsValue)
+                        ? json_decode($projectsValue, true) ?: []
+                        : (is_array($projectsValue) ? $projectsValue : []);
                 } elseif (is_array($user->assignedProjects)) {
                     $assignedProjectIds = $user->assignedProjects;
                 }
             }
 
-            $assignedProjectIds = !empty($assignedProjectIds)
-                ? array_map('strval', $assignedProjectIds)
-                : [];
+            $assignedProjectIds = array_map('strval', $assignedProjectIds);
 
             $query = Reposicion::query();
 
+            // Period, Status, Mode
             $period = $request->input('period', 'last_month');
             $status = $request->input('status', 'pending');
             $mode = $request->input('mode', 'all');
 
-            // Fetch project names for the user's assigned UUIDs
+            // Convert UUIDs a nombres de proyectos
             $projectNames = [];
             if (!empty($assignedProjectIds)) {
                 $projectNames = DB::connection('sistema_onix')
                     ->table('onix_proyectos')
                     ->whereIn('id', $assignedProjectIds)
                     ->pluck('name')
+                    ->map(fn($name) => strtoupper(trim($name))) // aseguramos consistencia
                     ->toArray();
+
+                // Filtrar por nombre de proyecto usando REGEXP exacto
                 $query->where(function ($q) use ($projectNames) {
                     foreach ($projectNames as $projectName) {
-                        $q->orWhere('project', 'LIKE', "%$projectName%");
+                        $escaped = preg_quote($projectName, '/');
+                        $q->orWhereRaw("CONCAT(',', project, ',') REGEXP ?", ["(,{$escaped},)"]);
                     }
                 });
             }
 
-            // Period
-            if ($period === 'last_3_months') {
-                $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth());
-            }
-            if ($period === 'last_month') {
-                $query->where('created_at', '>=', Carbon::now()->subMonth()->startOfMonth());
-            }
-            if ($period === 'last_week') {
-                $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek());
-            }
-            if ($period === 'all') {
-                $query->where('created_at', '<=', Carbon::now());
-            }
-            // Status
-            if ($status === 'pending') {
-                $query->where('status', 'pending');
-            }
-            if ($status === 'paid') {
-                $query->where('status', 'paid');
-            }
-            if ($status === 'rejected') {
-                $query->where('status', 'rejected');
-            }
-            if ($status === 'all') {
-                $query->where('status', "!=", 'in_reposition');
-            }
+            // Periodo
+            match ($period) {
+                'last_3_months' => $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth()),
+                'last_month'    => $query->where('created_at', '>=', Carbon::now()->subMonth()->startOfMonth()),
+                'last_week'     => $query->where('created_at', '>=', Carbon::now()->subWeek()->startOfWeek()),
+                'all'           => $query->where('created_at', '<=', Carbon::now()),
+                default         => null
+            };
 
+            // Estado
+            match ($status) {
+                'pending'  => $query->where('status', 'pending'),
+                'paid'     => $query->where('status', 'paid'),
+                'rejected' => $query->where('status', 'rejected'),
+                'all'      => $query->where('status', '!=', 'in_reposition'),
+                default    => null
+            };
+
+            // Filtros adicionales
             if ($request->filled('project')) {
                 $query->where('project', $request->input('project'));
             }
+
             if ($request->filled('month')) {
                 $query->where('month', $request->input('month'));
             }
 
-            $reposiciones = $query->orderByDesc('id')->get();
+            // Consultar reposiciones con relaciones
+            $reposiciones = $query->with('requestsWithRelations')->orderByDesc('id')->get();
 
-            $reposiciones->each(function ($reposicion) {
-                $reposicion->setRelation('requests', $reposicion->requestsWithRelations()->get());
+            // Filtrar según el tipo
+            $reposiciones = $reposiciones->filter(function ($reposicion) use ($mode) {
+                $requestIds = $reposicion->requests->pluck('unique_id')->all();
+                $allIncome = count($requestIds) > 0 && count($requestIds) === count(array_filter($requestIds, fn($id) => str_starts_with($id, 'I-')));
+
+                return $mode === 'income' ? $allIncome : !$allIncome;
             });
 
-            // Filtrar según el parámetro type
-            if ($mode === 'income') {
-                // Mostrar solo ingresos (todas las solicitudes son I-XXXX)
-                $reposiciones = $reposiciones->filter(function ($reposicion) {
-                    $requestIds = $reposicion->requests->pluck('unique_id')->all();
-                    return !empty($requestIds) && count($requestIds) === count(array_filter($requestIds, fn($id) => str_starts_with($id, 'I-')));
-                });
-            } else {
-                // Excluir ingresos (no todas las solicitudes son I-XXXX)
-                $reposiciones = $reposiciones->filter(function ($reposicion) {
-                    $requestIds = $reposicion->requests->pluck('unique_id')->all();
-                    return empty($requestIds) || count($requestIds) !== count(array_filter($requestIds, fn($id) => str_starts_with($id, 'I-')));
-                });
-            }
-
-            // Transform data
+            // Obtener nombres de proyectos para vista
             $projects = !empty($assignedProjectIds)
                 ? DB::connection('sistema_onix')
                 ->table('onix_proyectos')
@@ -160,13 +145,13 @@ class ReposicionController extends Controller
 
             $data = $reposiciones->map(function ($reposicion) use ($projects) {
                 $repoData = $reposicion->toArray();
-                $repoData['project_name'] = $reposicion->project; // Already a name
+                $repoData['project_name'] = $reposicion->project; // ya es string
                 return $repoData;
             })->values()->all();
 
             return response()->json($data);
         } catch (\Exception $e) {
-            Log::error('Error in ReposicionController@index:', [
+            Log::error('Error en ReposicionController@index', [
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

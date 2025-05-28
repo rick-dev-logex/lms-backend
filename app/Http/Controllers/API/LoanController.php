@@ -200,6 +200,16 @@ class LoanController extends Controller
                 'status' => 'pending',
             ];
 
+            // Manejar responsible_id y cédula
+            if ($request->has('responsible_id')) {
+                $loanData['responsible_id'] = $request->input('responsible_id');
+                $cedula = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('nombre_completo', $loanData['responsible_id'])
+                    ->value('name');
+                $loanData['cedula_responsable'] = $cedula;
+            }
+
             // Log::info('Loan data:', $loanData);
 
             $loan = Loan::create($loanData);

@@ -248,7 +248,7 @@ class ReposicionController extends Controller
                 $allowedUsers = [
                     'michelle.quintana@logex.ec',
                     'nicolas.iza@logex.ec',
-                    // 'ricardo.estrella@logex.ec',
+                    'ricardo.estrella@logex.ec',
                     'diego.merisalde@logex.ec'
                 ];
 

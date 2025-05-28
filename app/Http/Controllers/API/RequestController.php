@@ -328,6 +328,16 @@ class RequestController extends Controller
                 'vehicle_number' => $validated['vehicle_number'] ?? null,
             ];
 
+            // Manejar responsible_id y cédula
+            if ($request->has('responsible_id')) {
+                $requestData['responsible_id'] = $request->input('responsible_id');
+                $cedula = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('nombre_completo', $requestData['responsible_id'])
+                    ->value('name');
+                $requestData['cedula_responsable'] = $cedula;
+            }
+
             $newRequest = Request::create($requestData);
 
             DB::commit();

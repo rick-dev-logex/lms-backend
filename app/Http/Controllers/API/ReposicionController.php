@@ -406,12 +406,12 @@ class ReposicionController extends Controller
                 };
 
                 // Verificación adicional para aprobación
-                if ($requestStatus === 'paid') {
-                    $calculatedTotal = $reposicion->calculateTotal();
-                    if (abs($calculatedTotal - $reposicion->total_reposicion) > 0.009) { // Acepta diferencias menores a un centavo asumiendo que la division de installments es de 0.010009, etc.
-                        throw new \Exception('Total mismatch between requests and reposicion');
-                    }
-                }
+                // if ($requestStatus === 'paid') {
+                //     $calculatedTotal = $reposicion->calculateTotal();
+                //     if (abs($calculatedTotal - $reposicion->total_reposicion) > 0.009) { // Acepta diferencias menores a un centavo asumiendo que la division de installments es de 0.010009, etc.
+                //         throw new \Exception('Total mismatch between requests and reposicion');
+                //     }
+                // }
 
                 // Actualizar el estado de todas las solicitudes asociadas
                 if (is_array($reposicion->detail) && !empty($reposicion->detail)) {

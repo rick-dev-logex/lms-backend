@@ -33,6 +33,51 @@ class RequestController extends Controller
         $this->authService = $authService;
     }
 
+    public function import(HttpRequest $request, Excel $excel)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+            'context' => 'required|in:discounts,expenses,income',
+        ]);
+
+        try {
+            DB::beginTransaction();
+
+            $file = $request->file('file');
+            $context = $request->input('context');
+
+            $jwtToken = $request->cookie('jwt-token');
+            if (!$jwtToken) {
+                throw new Exception("No se encontró el token de autenticación en la cookie.");
+            }
+
+            $decoded = JWT::decode($jwtToken, new Key(env('JWT_SECRET'), 'HS256'));
+            $userId = $decoded->user_id ?? null;
+
+            if (!$userId) {
+                throw new Exception("No se encontró el ID de usuario en el token JWT.");
+            }
+
+            $import = new RequestsImport($context, $userId, $this->uniqueIdService);
+            $excel->import($import, $file);
+
+            if (!empty($import->errors)) {
+                throw new Exception(json_encode($import->errors));
+            }
+
+            DB::commit();
+            return response()->json(['message' => 'Importación exitosa'], 200);
+        } catch (Exception $e) {
+            DB::rollBack();
+            Log::error('Error en la importación: ' . $e->getMessage());
+            $errors = json_decode($e->getMessage(), true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($errors)) {
+                return response()->json(['errors' => $errors], 400);
+            }
+            return response()->json(['errors' => [$e->getMessage()]], 500);
+        }
+    }
+
     /**
      * Maneja tanto solicitudes individuales como masivas
      */

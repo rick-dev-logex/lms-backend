@@ -148,6 +148,7 @@ class LoanController extends Controller
 
             // Obtener el nombre del responsable (si es nomina) o vehículo (si es proveedor)
             $responsibleName = null;
+            $cedulaResponsable = null;
             $vehicleName = null;
             if ($validated['type'] === 'nomina') {
                 $responsibleName = DB::connection('sistema_onix')
@@ -159,6 +160,10 @@ class LoanController extends Controller
                         'responsible_id' => 'El responsable seleccionado no existe.',
                     ]);
                 }
+                $cedulaResponsable = DB::connection('sistema_onix')
+                    ->table('onix_personal')
+                    ->where('id', $validated['responsible_id'])
+                    ->value('name');
             } else {
                 $vehicleName = DB::connection('sistema_onix')
                     ->table('onix_vehiculos')
@@ -237,6 +242,7 @@ class LoanController extends Controller
                     'amount' => round($amountPerInstallment, 2),
                     'project' => $projectUuid,
                     'responsible_id' => $responsibleName,
+                    'cedula_responsable' => $cedulaResponsable,
                     'transport_id' => $vehicleName,
                     'note' => $validated['note'] ?? "Cuota " . ($index + 1) . " de préstamo ID: {$loan->uniqueId}",
                 ];

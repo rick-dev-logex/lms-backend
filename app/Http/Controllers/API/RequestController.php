@@ -190,7 +190,7 @@ class RequestController extends Controller
             ], 422);
         }
 
-        $maxBatchSize = 5000; // Limitar el tamaño del lote
+        $maxBatchSize = 2500; // Limitar el tamaño del lote
         if (count($batchData) > $maxBatchSize) {
             return response()->json([
                 'message' => "El lote excede el máximo de {$maxBatchSize} registros",
@@ -206,7 +206,7 @@ class RequestController extends Controller
         ];
 
         // Procesar en lotes más pequeños para evitar timeouts
-        $chunkSize = 50;
+        $chunkSize = 500;
         $chunks = array_chunk($batchData, $chunkSize);
 
         foreach ($chunks as $chunkIndex => $chunk) {

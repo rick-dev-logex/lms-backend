@@ -149,7 +149,7 @@ Route::middleware(['verify.jwt'])->group(function () {
 
     // Eliminar mútiples
     Route::post('/requests/batch-delete', [RequestController::class, 'batchDelete']);
-
+    
     // Rutas para importación de préstamos
     Route::post('/loans/import', [LoanImportController::class, 'import']);
 

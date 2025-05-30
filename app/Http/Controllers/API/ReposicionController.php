@@ -396,7 +396,7 @@ class ReposicionController extends Controller
                 'note' => 'sometimes|string',
             ]);
 
-            $requests = Request::where('reposicion_id', $reposicion->id)->get();
+            $requests = Request::where('reposicion_id', (string) $reposicion->id)->get(); // ✅ Agregado casting
 
             // Si se está actualizando el estado
             if (isset($validated['status']) && $validated['status'] !== $reposicion->status) {
@@ -426,7 +426,7 @@ class ReposicionController extends Controller
             }
 
             $user = $this->authService->getUser($request);
-            Request::where('reposicion_id', $reposicion->id)
+            Request::where('reposicion_id', (string) $reposicion->id) // ✅ Agregado casting
                 ->update(['updated_by' => $user->name]);
 
             $reposicion->update($validated);

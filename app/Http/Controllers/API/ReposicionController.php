@@ -396,7 +396,7 @@ class ReposicionController extends Controller
                 'note' => 'sometimes|string',
             ]);
 
-            $requests = Request::where('reposicion_id', $id)->get();
+            $requests = Request::where('reposicion_id', $reposicion->id)->get();
 
             // Si se está actualizando el estado
             if (isset($validated['status']) && $validated['status'] !== $reposicion->status) {
@@ -416,11 +416,11 @@ class ReposicionController extends Controller
 
             // Actualizar el campo 'when' si está presente
             if (isset($validated['when'])) {
-                Request::where('reposicion_id', $id)->update(['when' => $validated['when']]);
+                Request::where('reposicion_id', (string) $reposicion->id)->update(['when' => $validated['when']]);
             }
             // Actualizar el campo 'month' si está presente y NO es prestamo
             if (isset($validated['month'])) {
-                Request::where('reposicion_id', $id)
+                Request::where('reposicion_id', (string) $reposicion->id)
                     ->whereRaw("LEFT(unique_id, 1) != 'P'")
                     ->update(['month' => $validated['month']]);
             }

@@ -15,6 +15,7 @@ use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Google\Cloud\Storage\StorageClient;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 
@@ -395,6 +396,8 @@ class ReposicionController extends Controller
                 'note' => 'sometimes|string',
             ]);
 
+            $requests = Request::where('reposicion_id', $id)->get();
+
             // Si se está actualizando el estado
             if (isset($validated['status']) && $validated['status'] !== $reposicion->status) {
                 $requestStatus = match ($validated['status']) {
@@ -405,44 +408,26 @@ class ReposicionController extends Controller
                     default => 'pending'
                 };
 
-                // Verificación adicional para aprobación
-                // if ($requestStatus === 'paid') {
-                //     $calculatedTotal = $reposicion->calculateTotal();
-                //     if (abs($calculatedTotal - $reposicion->total_reposicion) > 0.009) { // Acepta diferencias menores a un centavo asumiendo que la division de installments es de 0.010009, etc.
-                //         throw new \Exception('Total mismatch between requests and reposicion');
-                //     }
-                // }
-
                 // Actualizar el estado de todas las solicitudes asociadas
-                if (is_array($reposicion->detail) && !empty($reposicion->detail)) {
-                    Request::whereIn('unique_id', $reposicion->detail)
-                        ->update([
-                            'status' => $requestStatus
-                        ]);
+                foreach ($requests as $req) {
+                    $req->update(['status' => $requestStatus]);
                 }
             }
 
             // Actualizar el campo 'when' si está presente
-            if (isset($validated['when']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
-                Request::whereIn('unique_id', $reposicion->detail)
-                    ->update([
-                        'when' => $validated['when']
-                    ]);
+            if (isset($validated['when'])) {
+                Request::where('reposicion_id', $id)->update(['when' => $validated['when']]);
             }
-
-            // Actualizar el campo 'month' si está presente
-            if (isset($validated['month']) && is_array($reposicion->detail) && !empty($reposicion->detail)) {
-                Request::whereIn('unique_id', $reposicion->detail)
-                    ->update([
-                        'month' => $validated['month']
-                    ]);
+            // Actualizar el campo 'month' si está presente y NO es prestamo
+            if (isset($validated['month'])) {
+                Request::where('reposicion_id', $id)
+                    ->whereRaw("LEFT(unique_id, 1) != 'P'")
+                    ->update(['month' => $validated['month']]);
             }
 
             $user = $this->authService->getUser($request);
-            Request::whereIn('unique_id', $reposicion->detail)
-                ->update([
-                    'updated_by' => $user->name
-                ]);
+            Request::where('reposicion_id', $reposicion->id)
+                ->update(['updated_by' => $user->name]);
 
             $reposicion->update($validated);
             $reposicion = $reposicion->fresh();

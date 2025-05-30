@@ -238,6 +238,7 @@ class LoanController extends Controller
                     'status' => 'in_reposition',
                     'request_date' => Carbon::createFromFormat('Y-m', $date)->startOfMonth(),
                     'invoice_number' => $validated['invoice_number'],
+                    'month' => Carbon::createFromFormat('Y-m', $date)->startOfMonth(),
                     'account_id' => $accountName,
                     'amount' => round($amountPerInstallment, 2),
                     'project' => $projectUuid,
@@ -424,7 +425,7 @@ class LoanController extends Controller
             }
 
             // Obtener la reposición asociada (si existe)
-            $reposicion = Reposicion::whereJsonContains('detail', $loan->requests->pluck('unique_id')->first())->first();
+            $reposicion = Reposicion::where('id', $loan->requests->pluck('reposicion_id')->first())->first();
             if ($reposicion) {
                 if ($reposicion->attachment_name) {
                     $bucket = $this->storage->bucket($this->bucketName);

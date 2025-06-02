@@ -374,11 +374,6 @@ class RequestController extends Controller
             'vehicle_number' => $validated['vehicle_number'] ?? null,
         ];
 
-        // Si el unique_id comienza con 'P-', es préstamo: calcular el mes
-        if (str_starts_with($uniqueId, 'P-')) {
-            $requestData['month'] = \Carbon\Carbon::parse($validated['request_date'])->format('Y-m');
-        }
-
         // Manejar responsible_id y cédula
         if (isset($validated['responsible_id'])) {
             $cedula = DB::connection('sistema_onix')

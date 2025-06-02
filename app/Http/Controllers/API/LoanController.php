@@ -238,7 +238,7 @@ class LoanController extends Controller
                     'status' => 'in_reposition',
                     'request_date' => Carbon::createFromFormat('Y-m', $date)->startOfMonth(),
                     'invoice_number' => $validated['invoice_number'],
-                    'month' => Carbon::createFromFormat('Y-m', $date)->startOfMonth(),
+                    'month' => $date,
                     'account_id' => $accountName,
                     'amount' => round($amountPerInstallment, 2),
                     'project' => $projectUuid,

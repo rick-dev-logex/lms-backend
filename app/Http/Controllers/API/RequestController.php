@@ -374,9 +374,9 @@ class RequestController extends Controller
             'vehicle_number' => $validated['vehicle_number'] ?? null,
         ];
 
-        // Solo calcular y agregar el campo 'month' si es préstamo
-        if ($validated['type'] === 'loan') {
-            $requestData['month'] = Carbon::parse($validated['request_date'])->format('Y-m');
+        // Si el unique_id comienza con 'P-', es préstamo: calcular el mes
+        if (str_starts_with($uniqueId, 'P-')) {
+            $requestData['month'] = \Carbon\Carbon::parse($validated['request_date'])->format('Y-m');
         }
 
         // Manejar responsible_id y cédula

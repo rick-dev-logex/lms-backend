@@ -88,7 +88,7 @@ class RequestController extends Controller
 
             // Detectar si es una solicitud masiva
             $isBatchRequest = $request->has('batch_data') || $request->has('requests');
-            
+
             if ($isBatchRequest) {
                 return $this->storeBatch($request, $user);
             } else {
@@ -168,7 +168,6 @@ class RequestController extends Controller
                 'message' => 'Solicitud creada exitosamente',
                 'data' => $newRequest
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -182,7 +181,7 @@ class RequestController extends Controller
     {
         // Validar que sea una solicitud masiva válida
         $batchData = $request->input('batch_data') ?? $request->input('requests');
-        
+
         if (!$batchData || !is_array($batchData)) {
             return response()->json([
                 'message' => 'Datos de lote inválidos',
@@ -212,9 +211,9 @@ class RequestController extends Controller
         foreach ($chunks as $chunkIndex => $chunk) {
             try {
                 DB::beginTransaction();
-                
+
                 $chunkResults = $this->processBatchChunk($chunk, $user, $chunkIndex * $chunkSize);
-                
+
                 $results['success'] = array_merge($results['success'], $chunkResults['success']);
                 $results['errors'] = array_merge($results['errors'], $chunkResults['errors']);
                 $results['processed'] += count($chunk);
@@ -226,7 +225,7 @@ class RequestController extends Controller
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                
+
                 Log::error("Error procesando chunk {$chunkIndex}", [
                     'error' => $e->getMessage(),
                     'chunk_size' => count($chunk)
@@ -269,16 +268,15 @@ class RequestController extends Controller
             try {
                 // Validar datos individuales
                 $validated = $this->validateBatchItem($requestData);
-                
+
                 // Crear registro sin validación de duplicados estricta para lotes
                 $newRequest = $this->createRequestRecord($validated, $user, true);
-                
+
                 $results['success'][] = [
                     'index' => $baseIndex + $index,
                     'unique_id' => $newRequest->unique_id,
                     'data' => $newRequest
                 ];
-
             } catch (\Exception $e) {
                 $results['errors'][] = [
                     'index' => $baseIndex + $index,
@@ -339,17 +337,17 @@ class RequestController extends Controller
 
         for ($i = 0; $i < $maxRetries; $i++) {
             $tempId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
-            
+
             // Para lotes, usar una consulta más rápida
-            $exists = $isBatch 
+            $exists = $isBatch
                 ? Request::where('unique_id', $tempId)->exists()
                 : Request::lockForUpdate()->where('unique_id', $tempId)->exists();
-                
+
             if (!$exists) {
                 $uniqueId = $tempId;
                 break;
             }
-            
+
             // Pausa más corta para lotes
             if ($i < $maxRetries - 1) {
                 usleep($isBatch ? 1000 : 10000); // 1ms vs 10ms
@@ -404,8 +402,8 @@ class RequestController extends Controller
             'account_id' => $validated['account_id'],
             'amount' => $validated['amount']
         ])
-        ->where('created_at', '>=', now()->subSeconds(30)) // Solo 30 segundos para lotes
-        ->exists();
+            ->where('created_at', '>=', now()->subSeconds(30)) // Solo 30 segundos para lotes
+            ->exists();
 
         if ($recentDuplicate) {
             throw new \Exception(
@@ -479,6 +477,9 @@ class RequestController extends Controller
             } else {
                 $query->where('status', "pending");
             }
+
+            $query->whereNull('reposicion_id');
+
             if ($period === 'last_3_months') {
                 $query->where('created_at', '>=', Carbon::now()->subMonths(3)->startOfMonth());
             }
@@ -686,15 +687,23 @@ class RequestController extends Controller
         try {
             DB::beginTransaction();
 
-            // Marcar la reposicion como deleted antes del soft delete
+            $user = $this->authService->getUser($request);
+
+            // Buscar la solicitud
             $requestRecord = Request::where('unique_id', $id)->firstOrFail();
-                if($requestRecord->reposicion_id) {
-                    $reposicion = Reposicion::find($requestRecord->reposicion_id);
-                    $reposicion->update(['status' => 'deleted']);
-                    $reposicion->delete();
-                }
-            // Marcar la solicitud como deleted antes del soft delete
-            $requestRecord->update(['status' => 'deleted']);
+
+            // Si ya tiene una reposición, impedir eliminación
+            if ($requestRecord->reposicion_id) {
+                return response()->json([
+                    'message' => 'No se puede eliminar la solicitud porque ya está asociada a una reposición.'
+                ], 403);
+            }
+
+            // Marcar la solicitud como deleted y hacer soft delete
+            $requestRecord->update([
+                'status' => 'deleted',
+                'updated_by' => $user->name,
+            ]);
             $requestRecord->delete();
 
             DB::commit();

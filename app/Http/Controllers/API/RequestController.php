@@ -332,13 +332,12 @@ class RequestController extends Controller
         }
 
         // Generar unique_id con retry limitado
-        $maxRetries = $isBatch ? 3 : 5; // Menos reintentos para lotes
+        $maxRetries = $isBatch ? 3 : 5;
         $uniqueId = null;
 
         for ($i = 0; $i < $maxRetries; $i++) {
             $tempId = $this->uniqueIdService->generateUniqueRequestId($validated['type']);
 
-            // Para lotes, usar una consulta más rápida
             $exists = $isBatch
                 ? Request::where('unique_id', $tempId)->exists()
                 : Request::lockForUpdate()->where('unique_id', $tempId)->exists();
@@ -348,9 +347,8 @@ class RequestController extends Controller
                 break;
             }
 
-            // Pausa más corta para lotes
             if ($i < $maxRetries - 1) {
-                usleep($isBatch ? 1000 : 10000); // 1ms vs 10ms
+                usleep($isBatch ? 1000 : 10000);
             }
         }
 
@@ -375,6 +373,11 @@ class RequestController extends Controller
             'vehicle_plate' => $validated['vehicle_plate'] ?? null,
             'vehicle_number' => $validated['vehicle_number'] ?? null,
         ];
+
+        // Solo calcular y agregar el campo 'month' si es préstamo
+        if ($validated['type'] === 'loan') {
+            $requestData['month'] = Carbon::parse($validated['request_date'])->format('Y-m');
+        }
 
         // Manejar responsible_id y cédula
         if (isset($validated['responsible_id'])) {

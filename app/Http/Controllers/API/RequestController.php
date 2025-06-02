@@ -754,9 +754,26 @@ class RequestController extends Controller
                 ], 422);
             }
 
+            // Verificar si alguna solicitud tiene reposición asociada
+            $conReposicion = $requests->filter(fn($r) => !is_null($r->reposicion_id));
 
-            // Eliminar solicitudes
-            Request::whereIn('unique_id', $requestIds)->delete();
+            if ($conReposicion->isNotEmpty()) {
+                return response()->json([
+                    'message' => 'Algunas solicitudes no pueden eliminarse porque están asociadas a una reposición.',
+                    'errors' => [
+                        'con_reposicion' => $conReposicion->pluck('unique_id')->values()
+                    ]
+                ], 403);
+            }
+
+            // Actualizar el estado y eliminar (soft delete)
+            foreach ($requests as $req) {
+                $req->update([
+                    'status' => 'deleted',
+                    'updated_by' => $this->authService->getUser($request)->name,
+                ]);
+                $req->delete();
+            }
 
             DB::commit();
 

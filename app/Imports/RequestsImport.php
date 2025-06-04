@@ -156,7 +156,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         }
 
         $estado = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('estado_personal');
-        if ($estado !== "activo") {
+        if ($mappedRow['personnel_type'] != "Transportista" && $estado !== "activo") {
             $error = "Fila {$this->rowNumber}: No puedes realizar operaciones con personal cesante";
             $this->errors[] = $error;
             Log::warning($error);

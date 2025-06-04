@@ -58,16 +58,12 @@ class RequestController extends Controller
                 throw new Exception("No se encontró el ID de usuario en el token JWT.");
             }
 
-            // Primera pasada: Validar datos
             $import = new RequestsImport($context, $userId, $this->uniqueIdService);
             $excel->import($import, $file);
 
-            if ($import->hasErrors()) {
+            if (!empty($import->errors)) {
                 throw new Exception(json_encode($import->errors));
             }
-
-            // Segunda pasada: Insertar los datos validados
-            $import->persist();
 
             DB::commit();
             return response()->json(['message' => 'Importación exitosa'], 200);

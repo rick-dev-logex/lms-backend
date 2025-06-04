@@ -164,7 +164,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         }
 
         $proyecto = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('proyecto');
-        if ($proyecto !== $mappedRow['proyecto']) {
+        if ($mappedRow['personnel_type'] != "Transportista" && $proyecto !== $mappedRow['proyecto']) {
             $error = "Fila {$this->rowNumber}: {$mappedRow['responsable']} no pertenece al proyecto {$mappedRow['proyecto']}.";
             $this->errors[] = $error;
             Log::warning($error);

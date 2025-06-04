@@ -23,13 +23,6 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     protected $uniqueIdService;
     public $errors = []; // Para acumular errores
 
-    /**
-     * Constructor de la clase
-     * 
-     * @param string $context Contexto de la importación ('discounts', 'expenses', 'income')
-     * @param string|null $userId ID del usuario que realiza la importación
-     * @param UniqueIdService $uniqueIdService Servicio para generar IDs únicos
-     */
     public function __construct(string $context = 'discounts', $userId = null, UniqueIdService $uniqueIdService = null)
     {
         $this->context = $this->normalizeContext($context);
@@ -38,27 +31,17 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         $this->rowNumber = 0;
     }
 
-    /**
-     * Normaliza el contexto para asegurar que sea uno de los valores permitidos
-     * 
-     * @param string $context Contexto original
-     * @return string Contexto normalizado
-     */
     private function normalizeContext(string $context): string
     {
         $allowedContexts = ['expense', 'discount', 'income'];
         $normalized = strtolower($context);
 
-        // Manejar caso especial: 'expenses' → 'expense'
         if ($normalized === 'expenses') {
             return 'expense';
         }
-
-        // Manejar caso especial: 'discounts' → 'discount'
         if ($normalized === 'discounts') {
             return 'discount';
         }
-
         return in_array($normalized, $allowedContexts) ? $normalized : 'discount';
     }
 
@@ -76,152 +59,174 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
     {
         $this->rowNumber++;
 
-        try {
-            // Verificar si la fila está vacía o solo contiene un elemento
-            if (empty($row) || (count($row) === 1) || (count($row) > 1 && count(array_filter($row)) <= 1)) {
-                // Simplemente ignoramos esta fila sin registrar errores
-                return null;
+        // Validaciones básicas y mapeo
+        if (empty($row) || (count($row) === 1) || (count($row) > 1 && count(array_filter($row)) <= 1)) {
+            return null;
+        }
+
+        if (count($row) < 10) {
+            $error = "Fila {$this->rowNumber}: Datos incompletos, se requieren al menos 10 columnas";
+            $this->errors[] = $error;
+            Log::warning($error, $row);
+            return null;
+        }
+
+        $mappedRow = [
+            'fecha' => $row[0] ?? null,
+            'personnel_type' => $row[1] ?? null,
+            'no_factura' => $row[2] ?? null,
+            'cuenta' => $row[3] ?? null,
+            'valor' => $row[4] ?? null,
+            'proyecto' => $row[5] ?? null,
+            'responsable' => $row[6] ?? null,
+            'vehicle_plate' => $row[7] ?? null,
+            'cedula_responsable' => $row[8] ?? null,
+            'note' => $row[9] ?? "—",
+        ];
+
+        $rowErrors = [];
+
+        if (empty($mappedRow['personnel_type'])) {
+            $rowErrors[] = "Falta el tipo de personal";
+        }
+
+        if (empty($mappedRow['no_factura'])) {
+            $rowErrors[] = "Falta el número de factura";
+        }
+
+        if (!is_numeric($mappedRow['valor'])) {
+            $rowErrors[] = "El valor no es numérico";
+        }
+
+        if (empty($mappedRow['proyecto'])) {
+            $rowErrors[] = "Falta el proyecto";
+        }
+
+        $date = null;
+        if (is_numeric($mappedRow['fecha']) && $mappedRow['fecha'] > 0) {
+            try {
+                $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($mappedRow['fecha']);
+            } catch (Exception $e) {
+                $rowErrors[] = "Fecha Excel inválida: " . $e->getMessage();
             }
-
-            if (count($row) < 10) {
-                $error = "Fila {$this->rowNumber}: Datos incompletos, se requieren al menos 10 columnas";
-                $this->errors[] = $error;
-                Log::warning($error, $row);
-                return null;
-            }
-
-            $mappedRow = [
-                'fecha' => $row[0] ?? null,
-                'personnel_type' => $row[1] ?? null,
-                'no_factura' => $row[2] ?? null,
-                'cuenta' => $row[3] ?? null,
-                'valor' => $row[4] ?? null,
-                'proyecto' => $row[5] ?? null,
-                'responsable' => $row[6] ?? null,
-                'vehicle_plate' => $row[7] ?? null,
-                'cedula_responsable' => $row[8] ?? null,
-                'note' => $row[9] ?? "—",
-            ];
-
-            $rowErrors = [];
-
-            if (empty($mappedRow['personnel_type'])) {
-                $rowErrors[] = "Falta el tipo de personal";
-            }
-
-            if (empty($mappedRow['no_factura'])) {
-                $rowErrors[] = "Falta el número de factura";
-            }
-
-            if (!is_numeric($mappedRow['valor'])) {
-                $rowErrors[] = "El valor no es numérico";
-            }
-
-            if (empty($mappedRow['proyecto'])) {
-                $rowErrors[] = "Falta el proyecto";
-            }
-
-            // Manejo de fechas mejorado con validación más robusta
-            $date = null;
-
-            if (is_numeric($mappedRow['fecha']) && $mappedRow['fecha'] > 0) {
-                // Si es un número serial de Excel
-                try {
-                    $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($mappedRow['fecha']);
-                } catch (Exception $e) {
-                    $rowErrors[] = "Fecha Excel inválida: " . $e->getMessage();
+        } else if (is_string($mappedRow['fecha']) && !empty($mappedRow['fecha'])) {
+            try {
+                $date = Carbon::parse($mappedRow['fecha']);
+                if (!$date->isValid()) {
+                    $rowErrors[] = "Fecha inválida";
                 }
-            } else if (is_string($mappedRow['fecha']) && !empty($mappedRow['fecha'])) {
-                // Si es una fecha en formato string
-                try {
-                    $date = Carbon::parse($mappedRow['fecha']);
-                    // Verificar que sea una fecha válida
-                    if (!$date->isValid()) {
-                        throw new Exception("Fecha inválida");
-                    }
-                } catch (Exception $e) {
-                    $rowErrors[] = "Fecha string inválida: " . $e->getMessage();
-                }
-            } else {
-                $rowErrors[] = "Fecha inválida o faltante";
+            } catch (Exception $e) {
+                $rowErrors[] = "Fecha string inválida: " . $e->getMessage();
+            }
+        } else {
+            $rowErrors[] = "Fecha inválida o faltante";
+        }
+
+        if (!empty($mappedRow['cedula_responsable']) && (!is_numeric($mappedRow['cedula_responsable']) || strlen((string)$mappedRow['cedula_responsable']) < 10)) {
+            $rowErrors[] = "Cédula del responsable inválida";
+        }
+
+        if (!empty($rowErrors) || $date === null) {
+            $error = "Fila {$this->rowNumber}: " . implode(", ", $rowErrors);
+            $this->errors[] = $error;
+            Log::warning($error);
+            return null;
+        }
+
+        // Consultas y validaciones adicionales sin lanzar excepciones, acumulando errores
+
+        $cedulaOnix = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('nombre_completo');
+        if ($cedulaOnix !== $mappedRow['responsable']) {
+            $error = "Fila {$this->rowNumber}: La cédula '{$mappedRow['cedula_responsable']}' no corresponde a '{$mappedRow['responsable']}'";
+            $this->errors[] = $error;
+            Log::warning($error);
+            return null;
+        }
+
+        $estado = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('estado_personal');
+        if ($estado !== "activo") {
+            $error = "Fila {$this->rowNumber}: No puedes realizar operaciones con personal cesante";
+            $this->errors[] = $error;
+            Log::warning($error);
+            return null;
+        }
+        
+        $proyecto = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('proyecto');
+        if ($proyecto !== $mappedRow['proyecto']) {
+            $error = "Fila {$this->rowNumber}: {$mappedRow['responsable']} no pertenece al proyecto {$mappedRow['proyecto']}.";
+            $this->errors[] = $error;
+            Log::warning($error);
+            return null;
+        }
+
+        $normalizedInput = $this->normalize($mappedRow['cuenta']);
+        $cuenta = Account::all()->first(function ($account) use ($normalizedInput) {
+            return $this->normalize($account->name) === $normalizedInput;
+        });
+
+        if (!$cuenta) {
+            $error = "Fila {$this->rowNumber}: La cuenta '{$mappedRow['cuenta']}' no existe en el sistema. Asegúrate de escribirla correctamente.";
+            $this->errors[] = $error;
+            Log::warning($error);
+            return null;
+        }
+
+        $requestData = [
+            'unique_id' => $this->uniqueIdService->generateUniqueRequestId($this->context),
+            'type' => $this->context,
+            'personnel_type' => $mappedRow['personnel_type'],
+            'status' => 'pending',
+            'request_date' => $date instanceof \DateTime ? $date->format('Y-m-d') : null,
+            'invoice_number' => $mappedRow['no_factura'],
+            'account_id' => $cuenta->name, // nombre oficial
+            'amount' => floatval($mappedRow['valor']),
+            'project' => $mappedRow['proyecto'],
+            'responsible_id' => $mappedRow['responsable'],
+            'vehicle_plate' => $mappedRow['vehicle_plate'],
+            'cedula_responsable' => $mappedRow['cedula_responsable'],
+            'note' => $mappedRow['note'] ?? "—",
+            'created_at' => now()->toDateTimeString(),
+            'updated_at' => now()->toDateTimeString(),
+        ];
+
+        // Validaciones de fechas según contexto
+        $today = Carbon::today();
+
+        if ($this->context === 'expense') {
+            $firstAllowed = $today->copy()->subMonth()->startOfMonth();
+            $lastAllowed = $today->copy()->startOfMonth()->addDays(4);
+
+            if ($today->day >= 6) {
+                $firstAllowed = $today->copy()->startOfMonth();
+                $lastAllowed = $today->copy()->addMonth()->startOfMonth()->addDays(4);
             }
 
-            if (!empty($mappedRow['cedula_responsable']) && (!is_numeric($mappedRow['cedula_responsable']) || strlen((string)$mappedRow['cedula_responsable']) < 10)) {
-                $rowErrors[] = "Cédula del responsable inválida";
-            }
-
-            if (!empty($rowErrors) || $date === null) {
-                $error = "Fila {$this->rowNumber}: " . implode(", ", $rowErrors);
+            if (!$date->between($firstAllowed, $lastAllowed)) {
+                $error = "Fila {$this->rowNumber}: Fecha de gasto fuera del rango permitido ({$firstAllowed->format('Y-m-d')} al {$lastAllowed->format('Y-m-d')})";
                 $this->errors[] = $error;
                 Log::warning($error);
                 return null;
             }
+        } elseif ($this->context === 'discount') {
+            $firstAllowed = $today->copy()->subMonth()->day(29);
+            $lastAllowed = $today->copy()->day(28);
 
-            // Generar ID único usando el servicio
-            $uniqueId = $this->uniqueIdService->generateUniqueRequestId($this->context);
-
-            // Preparar datos para el registro
-            $requestData = [
-                'unique_id' => $uniqueId,
-                'type' => $this->context,
-                'personnel_type' => $mappedRow['personnel_type'],
-                'status' => 'pending',
-                'request_date' => $date instanceof \DateTime ? $date->format('Y-m-d') : null,
-                'invoice_number' => $mappedRow['no_factura'],
-                'account_id' => $mappedRow['cuenta'],
-                'amount' => floatval($mappedRow['valor']),
-                'project' => $mappedRow['proyecto'],
-                'responsible_id' => $mappedRow['responsable'],
-                'vehicle_plate' => $mappedRow['vehicle_plate'],
-                'cedula_responsable' => $mappedRow['cedula_responsable'],
-                'note' => $mappedRow['note'] ?? "—",
-                'created_at' => now()->toDateTimeString(),
-                'updated_at' => now()->toDateTimeString(),
-            ];
-
-            $cedulaOnix = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('nombre_completo');
-            if ($cedulaOnix !== $mappedRow['responsable']) {
-                Log::warning("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".");
-                throw new Exception("La cédula '" . $mappedRow['cedula_responsable'] . "' no corresponde a " . $mappedRow['responsable'] . ".", 422);
-            }
-            
-            $estado = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('estado_personal');
-            if ($estado !== "activo") {
-                Log::warning($mappedRow['responsable'] . "' corresponde a un personal cesante; no se puede asignar a esta persona.");
-                throw new Exception("No puedes realizar operaciones con personal cesante.", 422);
+            if ($today->day >= 29) {
+                $firstAllowed = $today->copy()->subMonth()->day(28);
             }
 
-            $normalizedInput = $this->normalize($requestData['account_id']);
-            $cuenta = Account::all()->first(function ($account) use ($normalizedInput) {
-                return $this->normalize($account->name) === $normalizedInput;
-            });
-
-            if (!$cuenta) {
-                Log::warning("La cuenta '" . $requestData['account_id'] . "' no existe en el sistema.");
-                throw new Exception("La cuenta '" . $requestData['account_id'] . "' no existe en el sistema. Asegúrate de escribirla correctamente.", 422);
+            if (!$date->between($firstAllowed, $lastAllowed)) {
+                $error = "Fila {$this->rowNumber}: Fecha de descuento fuera del rango permitido ({$firstAllowed->format('Y-m-d')} al {$lastAllowed->format('Y-m-d')})";
+                $this->errors[] = $error;
+                Log::warning($error);
+                return null;
             }
-
-            // Usar el nombre oficial tal como está en la BD
-            $requestData['account_id'] = $cuenta->name;
-
-            // Crear registro principal
-            $newRequest = new Request($requestData);
-
-            return $newRequest;
-        } catch (Exception $e) {
-            $error = "Error en fila {$this->rowNumber}: " . $e->getMessage();
-            $this->errors[] = $error;
-            Log::error($error);
-            return null;
         }
+
+        // Finalmente retornamos el modelo para la fila actual
+        return new Request($requestData);
     }
 
-    /**
-     * Normaliza el texto eliminando tildes, caracteres especiales y no es case-sensitive
-     * 
-     * @param string $text nombre de la cuenta
-     * @return void
-     */
     private function normalize(string $text): string
     {
         return mb_strtolower(\Illuminate\Support\Str::ascii(trim($text)));

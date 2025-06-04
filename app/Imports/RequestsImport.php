@@ -15,13 +15,15 @@ use Carbon\Carbon;
 use Exception;
 use Str;
 
-class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows
+// class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows
+class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
 {
     protected $rowNumber = 0;
     protected $context;
     protected $userId;
     protected $uniqueIdService;
     public $errors = []; // Para acumular errores
+    public $validRows = []; // Para acumular las filas validas
 
     public function __construct(string $context = 'discounts', $userId = null, UniqueIdService $uniqueIdService = null)
     {
@@ -150,7 +152,7 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
             Log::warning($error);
             return null;
         }
-        
+
         $proyecto = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('proyecto');
         if ($proyecto !== $mappedRow['proyecto']) {
             $error = "Fila {$this->rowNumber}: {$mappedRow['responsable']} no pertenece al proyecto {$mappedRow['proyecto']}.";
@@ -224,7 +226,9 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
         }
 
         // Finalmente retornamos el modelo para la fila actual
-        return new Request($requestData);
+        // Esto solo inserta si es que TODAS las filas son validas, no inserta parcialmente.
+        $this->validRows[] = new Request($requestData);
+        return null; // Ya no insertamos aquí
     }
 
     private function normalize(string $text): string

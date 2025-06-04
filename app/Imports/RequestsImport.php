@@ -4,19 +4,23 @@ namespace App\Imports;
 
 use App\Models\Account;
 use App\Models\Request;
+use App\Models\User;
+use App\Services\AuthService;
 use App\Services\UniqueIdService;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithStartRow;
+use Maatwebsite\Excel\Concerns\WithBatchInserts;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 use Exception;
+use Maatwebsite\Excel\Events\AfterImport;
 use Str;
 
-// class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows
-class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
+class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEmptyRows, WithEvents, WithBatchInserts
 {
     protected $rowNumber = 0;
     protected $context;
@@ -24,13 +28,19 @@ class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
     protected $uniqueIdService;
     public $errors = []; // Para acumular errores
     public $validRows = []; // Para acumular las filas validas
+    protected int $uniqueIdCounter;
 
-    public function __construct(string $context = 'discounts', $userId = null, UniqueIdService $uniqueIdService = null)
-    {
+    public function __construct(
+        string $context,
+        int $userId,
+        UniqueIdService $uniqueIdService,
+    ) {
         $this->context = $this->normalizeContext($context);
         $this->userId = $userId;
-        $this->uniqueIdService = $uniqueIdService ?: app(UniqueIdService::class);
-        $this->rowNumber = 0;
+        $this->uniqueIdService = $uniqueIdService;
+
+        // Obtener el último número base una vez y preparar contador para el lote
+        $this->uniqueIdCounter = $this->uniqueIdService->getNextBaseNumber($this->context);
     }
 
     private function normalizeContext(string $context): string
@@ -105,9 +115,11 @@ class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
         }
 
         $date = null;
+        // Convertir la fecha a Carbon para que funcione between()
         if (is_numeric($mappedRow['fecha']) && $mappedRow['fecha'] > 0) {
             try {
                 $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($mappedRow['fecha']);
+                $date = Carbon::instance($date); // <-- Convertir DateTime a Carbon
             } catch (Exception $e) {
                 $rowErrors[] = "Fecha Excel inválida: " . $e->getMessage();
             }
@@ -120,8 +132,6 @@ class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
             } catch (Exception $e) {
                 $rowErrors[] = "Fecha string inválida: " . $e->getMessage();
             }
-        } else {
-            $rowErrors[] = "Fecha inválida o faltante";
         }
 
         if (!empty($mappedRow['cedula_responsable']) && (!is_numeric($mappedRow['cedula_responsable']) || strlen((string)$mappedRow['cedula_responsable']) < 10)) {
@@ -174,7 +184,7 @@ class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
         }
 
         $requestData = [
-            'unique_id' => $this->uniqueIdService->generateUniqueRequestId($this->context),
+            'unique_id' => $this->uniqueIdService->generateUniqueRequestId($this->context, $this->uniqueIdCounter++),
             'type' => $this->context,
             'personnel_type' => $mappedRow['personnel_type'],
             'status' => 'pending',
@@ -187,6 +197,7 @@ class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
             'vehicle_plate' => $mappedRow['vehicle_plate'],
             'cedula_responsable' => $mappedRow['cedula_responsable'],
             'note' => $mappedRow['note'] ?? "—",
+            'created_by' => User::find($this->userId)->name,
             'created_at' => now()->toDateTimeString(),
             'updated_at' => now()->toDateTimeString(),
         ];
@@ -225,14 +236,47 @@ class RequestsImport implements ToModel, WithStartRow, SkipsEmptyRows
             }
         }
 
-        // Finalmente retornamos el modelo para la fila actual
         // Esto solo inserta si es que TODAS las filas son validas, no inserta parcialmente.
-        $this->validRows[] = new Request($requestData);
+        $this->validRows[] = $requestData;
         return null; // Ya no insertamos aquí
     }
 
     private function normalize(string $text): string
     {
         return mb_strtolower(\Illuminate\Support\Str::ascii(trim($text)));
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterImport::class => function (AfterImport $event) {
+                if (!empty($this->validRows)) {
+                    try {
+                        Request::insert($this->validRows); // Inserción masiva
+                        Log::info("Se insertaron " . count($this->validRows) . " solicitudes correctamente.");
+                    } catch (\Exception $e) {
+                        Log::error("Error al insertar las solicitudes: " . $e->getMessage());
+                        $this->errors[] = $e->getMessage();
+                    }
+                }
+            },
+        ];
+    }
+
+    public function batchSize(): int
+    {
+        return 1000;
+    }
+
+    public function insertValidRows()
+    {
+        if (count($this->errors) === 0 && count($this->validRows) > 0) {
+            try {
+                DB::table('requests')->insert($this->validRows);
+            } catch (\Exception $e) {
+                $this->errors[] = $e->getMessage();
+                Log::error($e->getMessage());
+            }
+        }
     }
 }

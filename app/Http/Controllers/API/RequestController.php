@@ -65,6 +65,8 @@ class RequestController extends Controller
                 throw new Exception(json_encode($import->errors));
             }
 
+            // Aquí NO se inserta nada más.
+
             DB::commit();
             return response()->json(['message' => 'Importación exitosa'], 200);
         } catch (Exception $e) {

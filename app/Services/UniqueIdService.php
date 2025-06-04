@@ -20,36 +20,48 @@ class UniqueIdService
     private const CACHE_TTL = 3600;
 
     /**
+     * Obtiene el próximo número base para un tipo de solicitud
+     *
+     * @param string $type
+     * @return int
+     */
+    public function getNextBaseNumber(string $type): int
+    {
+        $prefix = $this->getPrefixForType($type);
+        return $this->getLastIdNumberFromDB($prefix) + 1;
+    }
+
+    /**
      * Genera un ID único para solicitudes que no exista en la base de datos
      * 
      * @param string $type Tipo de solicitud ('expense', 'discount', 'income')
+     * @param int|null $offset Opcional: incremento adicional para generar múltiples IDs en lote
      * @return string ID único generado
      */
-    public function generateUniqueRequestId($type)
+    public function generateUniqueRequestId($type, ?int $offset = null)
     {
         $prefix = $this->getPrefixForType($type);
 
-        // Obtener el último ID generado directamente de la base de datos
-        // No usamos caché para garantizar que siempre obtenemos el valor más actualizado
-        $nextNumber = $this->getLastIdNumberFromDB($prefix) + 1;
+        // Obtener el último número base
+        $lastNumber = $this->getLastIdNumberFromDB($prefix);
 
-        // Generar el ID con ceros a la izquierda
+        // Definir el siguiente número a partir de lastNumber o offset
+        $nextNumber = $offset !== null && $offset > 0 ? $offset : $lastNumber + 1;
+
         $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
 
-        // Verificar si existe (por seguridad, aunque no debería pasar)
+        // Si ya existe, buscar siguiente libre incrementando hasta encontrar uno
         if ($this->idExists($uniqueId)) {
-            Log::warning("ID duplicado detectado: {$uniqueId}. Recalculando último ID desde la base de datos.");
+            Log::warning("ID duplicado detectado: {$uniqueId}. Buscando siguiente ID libre.");
 
-            // Si existe, volvemos a consultar la base de datos (posible inserción concurrente)
-            $nextNumber = $this->getLastIdNumberFromDB($prefix) + 1;
-            $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+            // Iniciar desde el mayor entre lastNumber + 1 y offset (si existe)
+            $nextNumber = max($lastNumber + 1, $offset ?? 0);
 
-            // Si aún existe, incrementamos hasta encontrar uno disponible
-            while ($this->idExists($uniqueId)) {
-                $nextNumber++;
+            do {
                 $uniqueId = $prefix . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+                $nextNumber++;
                 Log::info("Probando ID siguiente: {$uniqueId}");
-            }
+            } while ($this->idExists($uniqueId));
         }
 
         return $uniqueId;

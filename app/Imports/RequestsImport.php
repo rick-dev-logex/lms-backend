@@ -207,11 +207,11 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
         if ($this->context === 'expense') {
             $firstAllowed = $today->copy()->subMonth()->startOfMonth();
-            $lastAllowed = $today->copy()->startOfMonth()->addDays(4);
+            $lastAllowed = $today->copy()->startOfMonth()->addDays(5);
 
             if ($today->day >= 6) {
                 $firstAllowed = $today->copy()->startOfMonth();
-                $lastAllowed = $today->copy()->addMonth()->startOfMonth()->addDays(4);
+                $lastAllowed = $today->copy()->addMonth()->startOfMonth()->addDays(5);
             }
 
             if (!$date->between($firstAllowed, $lastAllowed)) {

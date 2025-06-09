@@ -191,11 +191,6 @@ class ReposicionController extends Controller
                 ]);
             }
 
-            // **VALIDACIÓN MEJORADA: Verificar estado y reposición**
-            $invalidRequests = $existingRequests->filter(function ($req) {
-                return $req->reposicion_id !== null || $req->status !== 'pending';
-            });
-
             $alreadyAssigned = $existingRequests->filter(function ($req) {
                 return $req->reposicion_id !== null;
             });
@@ -232,14 +227,6 @@ class ReposicionController extends Controller
                     'attachment' => ['El archivo excede el límite de 20MB.']
                 ]);
             }
-
-            // Validar tipo de archivo
-            // $allowedMimes = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
-            // if (!in_array($file->getClientOriginalExtension(), $allowedMimes)) {
-            //     throw ValidationException::withMessages([
-            //         'attachment' => ['Tipo de archivo no permitido. Use: ' . implode(', ', $allowedMimes)]
-            //     ]);
-            // }
 
             $user = $this->authService->getUser($request);
             $projects = $existingRequests->pluck('project')->unique();

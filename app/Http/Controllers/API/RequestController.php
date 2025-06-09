@@ -366,7 +366,7 @@ class RequestController extends Controller
             'request_date' => $validated['request_date'],
             'invoice_number' => trim($validated['invoice_number']),
             'account_id' => trim($validated['account_id']),
-            'amount' => number_format((float) $validated['amount'], 2, '.', ''),
+            'amount' => (float) $validated['amount'],
             'note' => trim($validated['note']),
             'unique_id' => $uniqueId,
             'status' => 'pending',

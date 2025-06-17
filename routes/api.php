@@ -10,8 +10,11 @@ use App\Http\Controllers\API\StatsController;
 use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
+use App\Http\Controllers\API\AuditLogController;
 use App\Http\Controllers\API\ComprobanteController;
 use App\Http\Controllers\API\DocumentGenerationController;
+use App\Http\Controllers\API\InvoiceController;
+use App\Http\Controllers\API\InvoiceImportController;
 use App\Http\Controllers\API\LoanController;
 use App\Http\Controllers\API\MobileDataController;
 use App\Http\Controllers\API\PermissionController;
@@ -73,6 +76,13 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::post('/change-password', [AuthController::class, 'changePassword']);
     Route::post('/refresh-token', [AuthController::class, 'refresh']);
     Route::patch('/users/{user}', [UserController::class, 'patch']);
+
+    //Rutas para auditorias de XML:
+    Route::get('/auditoria', [AuditLogController::class, 'index']);
+
+    // Para facturacion
+    Route::post('/facturas/importar', [InvoiceImportController::class, 'import']);
+    Route::apiResource('/facturas', InvoiceController::class);
 
 
     // Rutas para documentos SRI

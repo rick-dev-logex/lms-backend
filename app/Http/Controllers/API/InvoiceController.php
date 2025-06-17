@@ -83,7 +83,8 @@ class InvoiceController extends Controller
                 'old'        => array_intersect_key($original, $changes),
                 'attributes' => $changes,
                 'updated_by' => $user->name,
-                'date_deleted' => now()->format('d-m-Y'),
+                'update_date' => now()->format('d-m-Y'),
+                'update_time' => now()->format('H:i:s'),
             ])
             ->log('updated');
 
@@ -112,6 +113,7 @@ class InvoiceController extends Controller
                 'old' => $original,
                 'deleted_by' => $user->name,
                 'date_deleted' => now()->format('d-m-Y'),
+                'time_deleted' => now()->format('H:i:s'),
             ])
             ->log('deleted');
 

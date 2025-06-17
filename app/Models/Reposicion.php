@@ -60,8 +60,7 @@ class Reposicion extends Model
     // Calcular total basado en la suma de requests relacionados
     public function calculateTotal(): float
     {
-        // return (float) $this->requests()->sum('amount');
-        return round((float) $this->requests()->sum('amount'));
+        return (float) $this->requests()->sum('amount');
     }
 
     // Obtener los unique_ids de las requests (para compatibilidad con código existente)

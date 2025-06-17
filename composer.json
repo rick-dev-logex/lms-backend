@@ -21,6 +21,7 @@
         "php-open-source-saver/jwt-auth": "^2.3",
         "pusher/pusher-php-server": "^7.2",
         "s-ichikawa/laravel-sendgrid-driver": "^4.0",
+        "spatie/laravel-activitylog": "^4.10",
         "tightenco/ziggy": "^2.0"
     },
     "require-dev": {

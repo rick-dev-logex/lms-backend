@@ -48,7 +48,7 @@ return new class extends Migration {
             $table->string('centro_costo')->nullable();
             $table->text('notas')->nullable();
             $table->text('observacion')->nullable();
-            $table->boolean('contabilizado')->default(false);
+            $table->integer('contabilizado')->nullable();
             $table->string('tipo')->nullable();
             $table->string('proveedor_latinium')->nullable();
             $table->string('nota_latinium')->nullable();

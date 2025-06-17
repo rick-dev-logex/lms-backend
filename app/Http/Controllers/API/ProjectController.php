@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
@@ -133,5 +134,33 @@ class ProjectController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Get Latinium projects
+     */
+    public function latiniumProjects()
+    {
+        $projects = DB::connection('latinium')
+            // especificamos el schema dbo y la tabla Proyecto_rs
+            ->table('dbo.Proyecto_rs AS pr')
+            // unimos con SubProyecto para obtener el nombre
+            ->join('dbo.SubProyecto AS sp', 'pr.idSubProyecto', '=', 'sp.idSubProyecto')
+            ->select([
+                'pr.CodSubproyecto AS code',
+                'sp.Nombre          AS name',
+            ])->where('visible', '1')
+            ->orderBy('pr.CodSubproyecto')
+            ->get();
+
+        // Para devolverlo listo para un <select> tipo { value: name, text: code }:
+        $formatted = $projects->map(fn($p) => [
+            'value' => $p->name,
+            'label'  => $p->code,
+        ]);
+
+        return response()->json([
+            'data' => $formatted,
+        ]);
     }
 }

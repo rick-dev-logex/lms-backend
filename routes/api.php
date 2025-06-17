@@ -67,7 +67,9 @@ Route::get('/download-discounts-template', [TemplateController::class, 'download
 // Descargar plantilla de excel descuentos y both
 Route::get('/download-expenses-template', [TemplateController::class, 'downloadExpensesTemplate'])
     ->withoutMiddleware([\App\Http\Middleware\ValidateApiToken::class])->middleware(\App\Http\Middleware\HandleCors::class);
-// Descargar plantilla de excel con cuentas solo de discount
+
+
+Route::get('/latinium/projects', [ProjectController::class, 'latiniumProjects']);
 
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->group(function () {

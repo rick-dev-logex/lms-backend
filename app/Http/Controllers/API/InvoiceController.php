@@ -65,7 +65,7 @@ class InvoiceController extends Controller
             'centro_costo'  => 'nullable|string',
             'notas'         => 'nullable|string',
             'observacion'   => 'nullable|string',
-            'contabilizado' => 'boolean',
+            'contabilizado' => 'nullabel|string',
             'serie_factura' => 'nullable|string',
             'tipo'          => 'nullable|string',
         ]);

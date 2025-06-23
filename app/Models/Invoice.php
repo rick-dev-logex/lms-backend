@@ -37,10 +37,12 @@ class Invoice extends Model
         'notas',
         'observacion',
         'contabilizado',
-        'tipo',
+        'cuenta_contable',
+        'centro_costo',
         'proveedor_latinium',
         'nota_latinium',
         'estado',
+        'estado_latinium',
         'numero_asiento',
         'numero_transferencia',
         'correo_pago',
@@ -53,7 +55,6 @@ class Invoice extends Model
     ];
 
     protected $casts = [
-        'contabilizado' => 'boolean',
         'fecha_emision' => 'datetime',
         'fecha_autorizacion' => 'datetime',
         'total_sin_impuestos' => 'decimal:2',
@@ -72,8 +73,13 @@ class Invoice extends Model
         return $this->belongsTo(PurchaseOrder::class);
     }
 
+    public function details()
+    {
+        return $this->hasOne(InvoiceDetail::class);
+    }
+
     public function notes()
     {
-        return $this->hasMany(InvoiceNote::class); // antiguo InvoiceDetail
+        return $this->hasMany(InvoiceNote::class);
     }
 }

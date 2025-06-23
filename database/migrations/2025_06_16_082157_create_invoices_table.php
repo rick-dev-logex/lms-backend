@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->string('ruc_emisor');
             $table->string('razon_social_emisor');
             $table->string('nombre_comercial_emisor')->nullable();
-            $table->string('identificacion_comprador');
+            $table->string('identificacion_comprador')->nullable();
             $table->string('razon_social_comprador');
             $table->string('direccion_comprador')->nullable();
 

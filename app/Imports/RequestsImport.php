@@ -149,7 +149,8 @@ class RequestsImport implements ToModel, WithStartRow, WithChunkReading, SkipsEm
 
         $cedulaOnix = DB::connection('sistema_onix')->table('onix_personal')->where('name', $mappedRow['cedula_responsable'])->value('nombre_completo');
         if ($cedulaOnix !== $mappedRow['responsable']) {
-            $error = "Fila {$this->rowNumber}: La cédula '{$mappedRow['cedula_responsable']}' no corresponde a '{$mappedRow['responsable']}'";
+            $updatedRowNumber = $this->rowNumber + 3;
+            $error = "Fila {$updatedRowNumber}: La cédula '{$mappedRow['cedula_responsable']}' no corresponde a '{$mappedRow['responsable']}'";
             $this->errors[] = $error;
             Log::warning($error);
             return null;

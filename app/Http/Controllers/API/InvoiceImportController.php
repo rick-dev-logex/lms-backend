@@ -3,17 +3,23 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Services\InvoiceImportService;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\File;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Str;
-use Exception;
+use Throwable;
 
 class InvoiceImportController extends Controller
 {
     protected InvoiceImportService $importService;
+
+    /**
+     * Mapeo de identificaciónComprador => source.
+     */
+    private array $sourceMap = [
+        '0992301066001' => 'PREBAM',
+        '1792162696001' => 'SERSUPPORT',
+    ];
 
     public function __construct(InvoiceImportService $importService)
     {
@@ -23,34 +29,53 @@ class InvoiceImportController extends Controller
     public function import(Request $request): JsonResponse
     {
         $request->validate([
-            'xml_files' => 'required|array',
-            'xml_files.*' => 'file|mimes:xml,text/plain,text/xml,application/xml|max:512',
+            'xml_files'   => 'required|array',
+            'xml_files.*' => 'file|mimes:xml,txt,application/xml|max:512',
         ]);
 
         $imported = [];
-        $errors = [];
+        $errors   = [];
 
         foreach ($request->file('xml_files') as $file) {
             try {
-                $content = file_get_contents($file->getRealPath());
+                $content      = File::get($file->getRealPath());
+                $source       = $this->determineSource($content);
                 $originalName = $file->getClientOriginalName();
 
-                $factura = $this->importService->importFromXml($content, $originalName);
-                if ($factura) {
-                    $imported[] = $factura->id;
+                $invoice = $this->importService
+                    ->importFromXml($content, $originalName, $source);
+
+                if ($invoice) {
+                    $imported[] = $invoice->id;
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 $errors[] = [
-                    'file' => $file->getClientOriginalName(),
-                    'error' => $e->getMessage()
+                    'file'  => $file->getClientOriginalName(),
+                    'error' => $e->getMessage(),
                 ];
             }
         }
 
         return response()->json([
-            'success' => true,
+            'success'  => true,
             'imported' => $imported,
-            'errors' => $errors
+            'errors'   => $errors,
         ]);
+    }
+
+    private function determineSource(string $xmlContent): string
+    {
+        $xml = @simplexml_load_string($xmlContent);
+        if (! $xml) {
+            return 'DESCONOCIDA';
+        }
+
+        // Algunas facturas pueden venir directo en <factura> o bajo <comprobante>
+        $factNode = $xml->comprobante ?? $xml;
+
+        // Identificación siempre está en infoFactura->identificacionComprador
+        $idComprador = (string) ($factNode->infoFactura->identificacionComprador ?? '');
+
+        return $this->sourceMap[$idComprador] ?? 'DESCONOCIDA';
     }
 }

@@ -69,7 +69,12 @@ Route::get('/download-expenses-template', [TemplateController::class, 'downloadE
     ->withoutMiddleware([\App\Http\Middleware\ValidateApiToken::class])->middleware(\App\Http\Middleware\HandleCors::class);
 
 
-Route::get('/latinium/projects', [ProjectController::class, 'latiniumProjects']);
+Route::get('/latinium/accounts',     [InvoiceController::class, 'latiniumAccounts']);
+Route::get('/latinium/projects', [InvoiceController::class, 'latiniumProjects']);
+Route::get('/latinium/centro-costo', [InvoiceController::class, 'centroCosto']);
+Route::patch('/latinium/proveedores', [InvoiceController::class, 'actualizarProveedoresLatinium']);
+Route::patch('/latinium/estado-contable', [InvoiceController::class, 'actualizarEstadoContableLatinium']);
+
 
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->group(function () {
@@ -161,7 +166,7 @@ Route::middleware(['verify.jwt'])->group(function () {
 
     // Eliminar mútiples
     Route::post('/requests/batch-delete', [RequestController::class, 'batchDelete']);
-    
+
     // Rutas para importación de préstamos
     Route::post('/loans/import', [LoanImportController::class, 'import']);
 

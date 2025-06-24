@@ -37,5 +37,10 @@ return [
     'sendgrid' => [
         'api_key' => env('SENDGRID_API_KEY'),
     ],
-
+    'sri' => [
+        'autorizacion_wsdl' => env(
+            'SRI_AUTORIZACION_WSDL',
+            'https://cel.sri.gob.ec/comprobantes-electronicos-ws/AutorizacionComprobantesOffline?wsdl'
+        ),
+    ],
 ];

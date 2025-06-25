@@ -45,8 +45,7 @@ class SyncEstadoContable extends Command
             // 3) Consultamos por AutFactura = clave_acceso
             $existeCompra = DB::connection($connection)
                 ->table('Compra')
-                // ->where('AutFactura', $factura->clave_acceso)
-                ->where('Numero', $factura->secuencial)
+                ->where('AutFactura', $factura->clave_acceso)
                 ->exists();
 
             $this->line('¿Compra existe? ' . ($existeCompra ? 'Sí' : 'No'));

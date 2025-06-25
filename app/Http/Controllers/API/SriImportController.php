@@ -4,6 +4,7 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessSriTxt;
+use App\Jobs\SyncEstadoContableJob;
 use App\Models\SriRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -24,6 +25,8 @@ class SriImportController extends Controller
             true,
             'sri-txt'
         );
+
+        SyncEstadoContableJob::dispatch($relativePath);
 
         return response()->json([
             'success'   => true,

@@ -214,7 +214,7 @@ class InvoiceImportService
         $latConn = $invoice->identificacion_comprador === '0992301066001' ? 'latinium_prebam' : 'latinium_sersupport';
         $existe = DB::connection($latConn)
             ->table('Compra')
-            ->where('Numero', $invoice->secuencial)
+            ->where('AutFactura', $invoice->clave_acceso)
             ->exists();
 
         // 8.2) Actualizar la factura **sin** disparar observers

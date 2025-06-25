@@ -57,6 +57,7 @@ class SriAuthorizationService
             ]);
         } catch (Throwable $e) {
             throw new \Exception("Error SOAP SRI: " . $e->getMessage());
+            return response()->json(['success' => false, 'data' => 'Los servidores del SRI no responden. Intenta nuevamente más tarde.']);
         }
 
         $aut = $resp

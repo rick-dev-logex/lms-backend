@@ -21,6 +21,16 @@ class ProcessSriTxt implements ShouldQueue
     private string $relativePath = '';
     private bool $ignoreHeader = true;
     private string $sourceTag = 'default';
+    /**
+     * Tiempo máximo (en segundos) que Laravel esperará antes de matar el job.
+     * 0 para timeout infinito, o en un valor mayor (p.ej. 600 = 10 min).
+     */
+    public $timeout = 600;
+
+    /**
+     * Cuántas veces volver a intentar un job fallido si lanza excepción.
+     */
+    public $tries = 1;
 
     public function __construct(string $relativePath, bool $ignoreHeader = true, string $sourceTag = 'default')
     {

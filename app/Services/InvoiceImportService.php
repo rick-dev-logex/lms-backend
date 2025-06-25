@@ -119,8 +119,10 @@ class InvoiceImportService
         $nombreProveedor  = $cliente?->Nombre ?? null;
 
         if (empty($nombreProveedor)) {
-            Log::info('Proveedor no encontrado en ' . $connection . '. Tratando en la otra base');
             $otraConn = $connection === 'latinium_prebam' ? 'latinium_sersupport' : 'latinium_prebam';
+            
+            Log::info('Proveedor no encontrado en ' . $connection . '. Tratando en ' . $otraConn . '.');
+
             $otro     = DB::connection($otraConn)
                 ->table('Cliente')
                 ->select('idCliente', 'Nombre')
@@ -144,6 +146,7 @@ class InvoiceImportService
             ->exists()
             : false;
         $estadoContable = $isContabilizado ? 'CONTABILIZADO' : 'PENDIENTE';
+        $estadoContableLatinium = $isContabilizado ? 'contabilizado' : 'pendiente';
 
         // 8. Crear la factura en nuestra BD
         $invoice = Invoice::create([
@@ -198,6 +201,7 @@ class InvoiceImportService
             'proveedor_latinium'          => $nombreProveedor,
             'nota_latinium'               => null,
             'estado'                      => 'ingresada',
+            'estado_latinium'             => $estadoContableLatinium,
             'numero_asiento'              => null,
             'numero_transferencia'        => null,
             'correo_pago'                 => null,

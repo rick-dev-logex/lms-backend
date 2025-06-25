@@ -52,30 +52,13 @@ class InvoiceImportService
             throw new \Exception("Clave de acceso no encontrada en la línea: “{$txtLine}”");
         }
 
-        // guardamos el SriRequest
-        $sriRequest = SriRequest::create([
-            'raw_path'     => $relativePath,
-            'raw_line'     => $line,
-            'clave_acceso' => $claveAcceso,
-            'status'       => 'pending',
-        ]);
-
         try {
             $xmlComprobante = $this->sriAuth->getComprobanteXml($claveAcceso);
             $xmlFileName    = pathinfo($originalFileName, PATHINFO_FILENAME) . '.xml';
             $invoice        = $this->importFromXml($xmlComprobante, $xmlFileName, $source, $fechaAuth, $relativePath, $txtLine);
 
-            $sriRequest->update([
-                'status'     => 'processed',
-                'invoice_id' => $invoice?->id,
-            ]);
-
             return $invoice;
         } catch (Throwable $e) {
-            $sriRequest->update([
-                'status'        => 'error',
-                'error_message' => $e->getMessage(),
-            ]);
             throw $e;
         }
     }
@@ -115,19 +98,7 @@ class InvoiceImportService
         $infoFact = $factura->infoFactura;
         $claveAcceso = (string) $infoTrib->claveAcceso;
         $rucEmisor   = (string) $infoTrib->ruc;
-        $autorizacion = (string) ($xmlObj->autorizacion ?? '');
-
-        // Ignorar duplicados
-        if (Invoice::where('clave_acceso', $claveAcceso)->exists()) {
-            Log::info("Factura duplicada ignorada: $claveAcceso");
-            SriRequest::create([
-                'raw_path'     => $relativePath,
-                'raw_line'     => $txtLine,
-                'clave_acceso' => $claveAcceso,
-                'status'       => 'skipped',
-            ]);
-            return null;
-        }
+        // $autorizacion = (string) ($xmlObj->autorizacion ?? '');
 
         // Fecha de emisión y empresa
         $fechaEmision = Carbon::createFromFormat('d/m/Y', (string) $infoFact->fechaEmision);
@@ -145,18 +116,21 @@ class InvoiceImportService
             ->where('Ruc', 'like', '%' . $rucEmisor . '%')
             ->first();
         $idCliente        = $cliente->idCliente ?? null;
-        $nombreProveedor  = $cliente->Nombre    ?? null;
+        $nombreProveedor  = $cliente?->Nombre ?? null;
 
-        if (!$cliente->Nombre) {
+        if (empty($nombreProveedor)) {
             Log::info('Proveedor no encontrado en ' . $connection . '. Tratando en la otra base');
-            $nombreProveedor = DB::connection($connection == 'latinium_prebam' ? 'latinium_sersupport' : 'latinium_prebam')
+            $otraConn = $connection === 'latinium_prebam' ? 'latinium_sersupport' : 'latinium_prebam';
+            $otro     = DB::connection($otraConn)
                 ->table('Cliente')
                 ->select('idCliente', 'Nombre')
-                ->whereRaw('LTRIM(RTRIM(Ruc)) =?', [$rucEmisor])
-                ->first()->Nombre ?? null;
+                ->whereRaw('LTRIM(RTRIM(Ruc)) = ?', [$rucEmisor])
+                ->first();
+            $idCliente       = $otro->idCliente ?? $idCliente;
+            $nombreProveedor = $otro?->Nombre ?? null;
 
             if ($nombreProveedor) {
-                Log::info('Proveedor encontrado!');
+                Log::info('Proveedor encontrado en ' . $otraConn);
             } else {
                 Log::info('No se pudo encontrar el proveedor en ninguna de las bases.');
             }

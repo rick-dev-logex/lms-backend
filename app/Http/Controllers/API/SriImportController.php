@@ -56,23 +56,31 @@ class SriImportController extends Controller
             ]);
         }
 
-        // Contamos líneas reales (sin cabecera ni vacías)
+        // 1) Leemos líneas reales (sin cabecera ni vacías)
+        $raw   = File::get($fullPath);
         $lines = array_filter(
-            preg_split('/\r?\n/', File::get($fullPath)),
-            fn($l) => trim($l) !== '' && ! str_starts_with($l, 'RUC_EMISOR')
+            preg_split('/\r?\n/', trim($raw)),
+            fn($l) => trim($l) !== '' && !str_starts_with(trim($l), 'RUC_EMISOR')
         );
         $total = count($lines);
 
-        // Obtenemos conteos desde BD
+        // 2) Extraemos claves de acceso del lote
+        $claves = array_map(fn($l) => explode("\t", $l)[4] ?? null, $lines);
+        $claves = array_filter($claves);
+
+        // 3) Contamos sólo este lote (hoy) y diferenciamos estados
+        $hoy    = now()->toDateString();
         $counts = SriRequest::where('raw_path', $path)
-            ->selectRaw("SUM(status = 'processed') as processed")
-            ->selectRaw("SUM(status = 'skipped')   as skipped")
-            ->selectRaw("SUM(status = 'error')     as errors")
+            ->whereIn('clave_acceso', $claves)
+            ->whereDate('created_at', $hoy)
+            ->selectRaw("SUM(status = 'processed' AND invoice_id IS NOT NULL)   as processed")
+            ->selectRaw("SUM(status = 'skipped')                               as skipped")
+            ->selectRaw("SUM(status = 'error')                                 as errors")
             ->first();
 
-        $processed = (int) optional($counts)->processed;
-        $skipped   = (int) optional($counts)->skipped;
-        $errors    = (int) optional($counts)->errors;
+        $processed = (int) $counts->processed;
+        $skipped   = (int) $counts->skipped;
+        $errors    = (int) $counts->errors;
         $done      = $processed + $skipped + $errors;
 
         return response()->json([

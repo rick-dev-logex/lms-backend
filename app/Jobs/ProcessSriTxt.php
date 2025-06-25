@@ -31,6 +31,21 @@ class ProcessSriTxt implements ShouldQueue
 
     public function handle(InvoiceImportService $importService): void
     {
+        // 1) Intentamos levantar el servicio de importación
+        try {
+            /** @var \App\Services\InvoiceImportService $importService */
+            $importService = app(\App\Services\InvoiceImportService::class);
+        } catch (\Throwable $e) {
+            Log::error("[{$this->sourceTag}] No se pudo inicializar InvoiceImportService: " . $e->getMessage());
+            // Marcamos todo el lote como error y salimos
+            SriRequest::where('raw_path', $this->relativePath)
+                ->update([
+                    'status'        => 'error',
+                    'error_message' => 'Servicio SRI no disponible: ' . $e->getMessage(),
+                ]);
+            return;
+        }
+
         $fullPath = storage_path("app/{$this->relativePath}");
         $content  = File::get($fullPath);
         $lines    = preg_split('/\r?\n/', trim($content));
@@ -57,29 +72,42 @@ class ProcessSriTxt implements ShouldQueue
             $line = trim($rawLine);
             if ($line === '') continue;
 
-            $parts = str_getcsv($line, "\t");
-            $clave = $parts[4] ?? null;
+            $clave = str_getcsv($line, "\t")[4] ?? null;
+            $sr    = SriRequest::firstWhere([
+                'raw_path' => $this->relativePath,
+                'raw_line' => $line,
+            ]);
 
-            $sr = SriRequest::where('raw_path', $this->relativePath)
-                ->where('raw_line', $line)
-                ->first();
+            // 1) Si ya existe la factura → la marcamos como skipped y saltamos
+            $existing = Invoice::where('clave_acceso', $clave)->first();
+            if ($existing) {
+                Log::info("[{$this->sourceTag}] Factura duplicada omitida: {$clave}");
+                $sr->update([
+                    'status'     => 'skipped',
+                    'invoice_id' => $existing->id,
+                ]);
+                continue;
+            }
 
-            if (Invoice::where('clave_acceso', $clave)->exists()) {
-                Log::info("[{$this->sourceTag}] Duplicate skipped: {$clave}");
-                $sr->update(['status' => 'skipped']);
-            } else {
-                try {
-                    $importService->importFromTxt(
-                        $line,
-                        basename($this->relativePath),
-                        $this->sourceTag,
-                        $this->relativePath,
-                        $line
-                    );
-                } catch (Throwable $e) {
-                    Log::error("[{$this->sourceTag}] Error importing line: {$e->getMessage()}", ['line' => $line]);
-                }
-                $sr->update(['status' => 'processed']);
+            // 2) Intentar importar; al éxito guardo invoice_id, al fallo marco error
+            try {
+                $invoice = $importService->importFromTxt(
+                    $line,
+                    basename($this->relativePath),
+                    $this->sourceTag,
+                    $this->relativePath,
+                    $line
+                );
+                $sr->update([
+                    'status'     => 'processed',
+                    'invoice_id' => $invoice->id,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error("[{$this->sourceTag}] Error importing line: {$e->getMessage()}", ['line' => $line]);
+                $sr->update([
+                    'status'        => 'error',
+                    'error_message' => $e->getMessage(),
+                ]);
             }
         }
     }

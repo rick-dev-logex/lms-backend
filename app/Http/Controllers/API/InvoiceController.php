@@ -331,7 +331,7 @@ class InvoiceController extends Controller
     /**
      * Genera y devuelve la factura en PDF on-the-fly a partir de los datos del SRI.
      */
-    public function pdf(Invoice $invoice): Response
+    public function pdf(Request $request, Invoice $invoice): Response
     {
         try {
             // 1) Cargar relaciones
@@ -394,6 +394,10 @@ class InvoiceController extends Controller
                 'total'         => $total,
             ])->setPaper('a4', 'portrait');
 
+            // Si vienen ?download=1 → attachment, sino inline
+            if ($request->query('download')) {
+                return $pdf->download($fileName);
+            }
             return $pdf->stream($fileName);
         } catch (\Throwable $e) {
             Log::error("PDF Error [Invoice {$invoice->id}]: " . $e->getMessage(), [

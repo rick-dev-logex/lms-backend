@@ -33,7 +33,6 @@ class Invoice extends Model
         'forma_pago',
         'placa',
         'project',
-        'centro_costo',
         'notas',
         'observacion',
         'contabilizado',

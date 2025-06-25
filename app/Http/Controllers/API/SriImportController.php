@@ -5,38 +5,26 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessSriTxt;
 use App\Models\SriRequest;
-use App\Services\InvoiceImportService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
-use Throwable;
+use Illuminate\Support\Facades\Log;
 
 class SriImportController extends Controller
 {
-    public function __construct(private InvoiceImportService $importService) {}
-
+    /**
+     * Sube el archivo al storage local y despacha el job de procesamiento.
+     * Retorna JSON con la ruta relativa (jobPath).
+     */
     public function uploadTxt(Request $request)
     {
-        // permitir tiempo indefinido
-        set_time_limit(0);
-        // aumentar memoria si hace falta
-        ini_set('memory_limit', '512M');
-
-        $request->validate([
-            'file' => 'required|file|mimes:txt,text/plain',
-        ]);
-
-        // 1) Guarda el TXT en storage/app/imports y captura el path relativo
         $relativePath = $request->file('file')->store('imports', 'local');
 
-        // 2) Despacha el job pasándole el path RELATIVO
         ProcessSriTxt::dispatch(
-            $relativePath,   // ej: "imports/0992301066001_Recibidos.txt"
-            true,            // ignore-header
+            $relativePath,
+            true,
             'sri-txt'
         );
 
-        // 3) Responder de inmediato
         return response()->json([
             'success'   => true,
             'message'   => 'Importación iniciada en segundo plano.',
@@ -44,24 +32,55 @@ class SriImportController extends Controller
         ]);
     }
 
+    /**
+     * Devuelve el progreso de importación.
+     * JSON:
+     * {
+     *   countTotal: number,
+     *   countProcessed: number,
+     *   countSkipped: number,
+     *   countErrors: number,
+     *   countDone: number
+     * }
+     */
     public function status(string $path)
     {
         $fullPath = storage_path("app/{$path}");
         if (! File::exists($fullPath)) {
-            return response()->json(['countTotal' => 0, 'countDone' => 0]);
+            return response()->json([
+                'countTotal'     => 0,
+                'countProcessed' => 0,
+                'countSkipped'   => 0,
+                'countErrors'    => 0,
+                'countDone'      => 0,
+            ]);
         }
 
+        // Contamos líneas reales (sin cabecera ni vacías)
         $lines = array_filter(
-            preg_split('/\r?\n/', File::get($fullPath), -1, PREG_SPLIT_NO_EMPTY),
-            fn(string $l) => trim($l) !== '' && ! str_starts_with($l, 'RUC_EMISOR')
+            preg_split('/\r?\n/', File::get($fullPath)),
+            fn($l) => trim($l) !== '' && ! str_starts_with($l, 'RUC_EMISOR')
         );
         $total = count($lines);
 
-        // Ahora incluimos skipped en el conteo de “done”
-        $done = SriRequest::where('raw_path', $path)
-            ->whereIn('status', ['processed', 'error', 'skipped'])
-            ->count();
+        // Obtenemos conteos desde BD
+        $counts = SriRequest::where('raw_path', $path)
+            ->selectRaw("SUM(status = 'processed') as processed")
+            ->selectRaw("SUM(status = 'skipped')   as skipped")
+            ->selectRaw("SUM(status = 'error')     as errors")
+            ->first();
 
-        return response()->json(compact('total', 'done'));
+        $processed = (int) optional($counts)->processed;
+        $skipped   = (int) optional($counts)->skipped;
+        $errors    = (int) optional($counts)->errors;
+        $done      = $processed + $skipped + $errors;
+
+        return response()->json([
+            'countTotal'     => $total,
+            'countProcessed' => $processed,
+            'countSkipped'   => $skipped,
+            'countErrors'    => $errors,
+            'countDone'      => $done,
+        ]);
     }
 }

@@ -19,24 +19,38 @@ class InvoiceImportService
         private SriAuthorizationService $sriAuth,
     ) {}
 
+
+    protected function consultaSRI(string $claveAcceso): object
+    {
+        $wsdl = config('sri.wsdl');
+        $opts = [
+            'cache_wsdl'         => WSDL_CACHE_NONE,
+            'exceptions'         => true,
+            'connection_timeout' => 10,
+            'stream_context'     => stream_context_create([
+                'ssl' => [
+                    'verify_peer'      => false,
+                    'verify_peer_name' => false,
+                ],
+            ]),
+        ];
+
+        return retry(3, function () use ($wsdl, $opts, $claveAcceso) {
+            $client = new \SoapClient($wsdl, $opts);
+            return $client->verificarComprobante($claveAcceso, /* credenciales, etc. */);
+        }, 100 /* milisegundos entre intentos */);
+    }
+
+
     public function importFromTxt(string $txtLine, string $originalFileName, string $source, string $relativePath, string $line): ?Invoice
     {
         $parts       = str_getcsv(trim($txtLine), "\t");
         $claveAcceso = $parts[4] ?? null;
         $fechaAuth = $parts[5] ?? null;
-        $rucTxt      = $parts[0] ?? null;
-        Log::debug('RUC en TXT línea', ['rucTxt' => $rucTxt]);
 
         if (!$claveAcceso) {
             throw new \Exception("Clave de acceso no encontrada en la línea: “{$txtLine}”");
         }
-
-        // <<<— chequeo de duplicado:
-        if (Invoice::where('clave_acceso', $claveAcceso)->exists()) {
-            Log::info("Factura duplicada ignorada: {$claveAcceso}");
-            return null;
-        }
-        // —>>>
 
         // guardamos el SriRequest
         $sriRequest = SriRequest::create([
@@ -49,7 +63,7 @@ class InvoiceImportService
         try {
             $xmlComprobante = $this->sriAuth->getComprobanteXml($claveAcceso);
             $xmlFileName    = pathinfo($originalFileName, PATHINFO_FILENAME) . '.xml';
-            $invoice        = $this->importFromXml($xmlComprobante, $xmlFileName, $source, $fechaAuth, $rucTxt);
+            $invoice        = $this->importFromXml($xmlComprobante, $xmlFileName, $source, $fechaAuth, $relativePath, $txtLine);
 
             $sriRequest->update([
                 'status'     => 'processed',
@@ -66,7 +80,7 @@ class InvoiceImportService
         }
     }
 
-    public function importFromXml(string $xmlContent, string $originalFileName, string $source, ?string $fechaAuthStr = null, ?string $rucTxt = null): ?Invoice
+    public function importFromXml(string $xmlContent, string $originalFileName, string $source, ?string $fechaAuthStr = null, ?string $relativePath = null, ?string $txtLine = null): ?Invoice
     {
         // 1) Forzar errores internos de libxml
         libxml_use_internal_errors(true);
@@ -100,12 +114,18 @@ class InvoiceImportService
         $infoTrib = $factura->infoTributaria;
         $infoFact = $factura->infoFactura;
         $claveAcceso = (string) $infoTrib->claveAcceso;
-        $rucEmisor = preg_replace('/\D+/', '', trim((string)$infoTrib->ruc));
+        $rucEmisor   = (string) $infoTrib->ruc;
         $autorizacion = (string) ($xmlObj->autorizacion ?? '');
 
         // Ignorar duplicados
         if (Invoice::where('clave_acceso', $claveAcceso)->exists()) {
             Log::info("Factura duplicada ignorada: $claveAcceso");
+            SriRequest::create([
+                'raw_path'     => $relativePath,
+                'raw_line'     => $txtLine,
+                'clave_acceso' => $claveAcceso,
+                'status'       => 'skipped',
+            ]);
             return null;
         }
 
@@ -115,37 +135,33 @@ class InvoiceImportService
         $empresa       = (string) $infoFact->razonSocialComprador;
 
         // 6. Datos de proveedor en sistema externo
-        $connection = $infoFact->identificacionComprador === '0992301066001'
+        $connection       = $infoFact->identificacionComprador === '0992301066001'
             ? 'latinium_prebam'
             : 'latinium_sersupport';
 
-        Log::debug("Conexión activa para buscar Cliente:", ['conn' => $connection]);
-
-        Log::debug('Buscando cliente', [
-            'ruc'        => $rucEmisor,
-            'connection' => $connection,
-        ]);
-
-        $rucClean = preg_replace('/\D+/', '', (string)$infoTrib->ruc);
-
-        $cliente = DB::connection($connection)
+        $cliente          = DB::connection($connection)
             ->table('Cliente')
             ->select('idCliente', 'Nombre')
-            ->whereRaw('LTRIM(RTRIM(Ruc)) = ?', [$rucClean])
+            ->where('Ruc', 'like', '%' . $rucEmisor . '%')
             ->first();
+        $idCliente        = $cliente->idCliente ?? null;
+        $nombreProveedor  = $cliente->Nombre    ?? null;
 
-        if (! $cliente) {
-            Log::warning("Cliente no encontrado para RUC={$rucClean}");
-        } else {
-            Log::info("Cliente encontrado para RUC={$rucClean}", [
-                'idCliente' => $cliente->idCliente,
-                'Nombre'    => $cliente->Nombre,
-            ]);
+        if (!$cliente->Nombre) {
+            Log::info('Proveedor no encontrado en ' . $connection . '. Tratando en la otra base');
+            $nombreProveedor = DB::connection($connection == 'latinium_prebam' ? 'latinium_sersupport' : 'latinium_prebam')
+                ->table('Cliente')
+                ->select('idCliente', 'Nombre')
+                ->whereRaw('LTRIM(RTRIM(Ruc)) =?', [$rucEmisor])
+                ->first()->Nombre ?? null;
+
+            if ($nombreProveedor) {
+                Log::info('Proveedor encontrado!');
+            } else {
+                Log::info('No se pudo encontrar el proveedor en ninguna de las bases.');
+            }
         }
 
-
-        $idCliente       = $cliente->idCliente ?? null;
-        $nombreProveedor = $cliente->Nombre    ?? null;
         $isContabilizado  = $idCliente
             ? DB::connection($connection)
             ->table('Compra')

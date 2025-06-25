@@ -5,10 +5,13 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Services\AuthService;
+use Barryvdh\DomPDF\Facade\Pdf as PDF;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class InvoiceController extends Controller
 {
@@ -323,6 +326,81 @@ class InvoiceController extends Controller
             ->get();
 
         return response()->json(['data' => $accounts]);
+    }
+
+    /**
+     * Genera y devuelve la factura en PDF on-the-fly a partir de los datos del SRI.
+     */
+    public function pdf(Invoice $invoice): Response
+    {
+        try {
+            // 1) Cargar relaciones
+            $invoice->load(['details', 'notes']);
+
+            // 2) Determinar empresa (PreBam o SerSupport) y logo
+            $empresaKey = $invoice->identificacion_comprador === '0992301066001'
+                ? 'prebam'
+                : 'sersupport';
+
+            $logoFile = public_path("storage/logos/{$empresaKey}.png");
+            $logoData = file_exists($logoFile)
+                ? 'data:image/png;base64,' . base64_encode(file_get_contents($logoFile))
+                : null;
+
+            // 3) Obtener colección de detalles y notas
+            $details = $invoice->details()->get();
+            $notes   = $invoice->notes()->get();
+
+            // 4) Calcular parciales
+            $subtotal12 = $details
+                ->filter(fn($d) => $d->codigo_porcentaje == 4)
+                ->sum(fn($d) => ($d->precioUnitario ?? 0) * (0.15));
+            $subtotal0 = $details
+                ->filter(fn($d) => $d->codigo_porcentaje == 0)
+                ->sum(fn($d) => ($d->precioUnitario ?? 0) * ($d->cantidad ?? 0));
+            $subtotal = $subtotal12 + $subtotal0;
+            $iva      = $details->sum(fn($d) => $d->valor_impuestos ?? 0);
+            $total    = $invoice->importe_total;
+
+            // 5) Construir filename
+            $date     = $invoice->fecha_emision->format('j-n-Y'); // ej. 18-6-2025
+            $ruc      = $invoice->ruc_emisor;                     // ej. 0190444112001
+            $slugName = Str::upper(Str::slug($invoice->razon_social_emisor, '')); // ej. TRANSPORTEDECARGAPESAD
+            $estab    = $invoice->estab;                          // ej. 001
+            $pto      = $invoice->pto_emi;                        // ej. 005
+            $seq      = $invoice->secuencial;                     // ej. 000000202
+
+            $fileName = sprintf(
+                '%s-%s-Factura-%s-%s-%s-%s.pdf',
+                $date,
+                $ruc,
+                $slugName,
+                $estab,
+                $pto,
+                $seq
+            );
+
+            // 6) Renderizar y devolver inline
+            $pdf = PDF::loadView('pdf.factura', [
+                'invoice'       => $invoice,
+                'logoData'      => $logoData,
+                'empresaKey'    => $empresaKey,
+                'detalles'      => $details,
+                'infoAdicional' => $notes->pluck('name', 'description')->all(),
+                'subtotal12'    => $subtotal12,
+                'subtotal0'     => $subtotal0,
+                'subtotal'      => $subtotal,
+                'iva'           => $iva,
+                'total'         => $total,
+            ])->setPaper('a4', 'portrait');
+
+            return $pdf->stream($fileName);
+        } catch (\Throwable $e) {
+            Log::error("PDF Error [Invoice {$invoice->id}]: " . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+            abort(500, "No se pudo generar el PDF.");
+        }
     }
     // No permitir editar, solo se pueden Claudia, John y Nico 
 }

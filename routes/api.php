@@ -77,6 +77,8 @@ Route::get('/latinium/centro-costo', [InvoiceController::class, 'centroCosto']);
 Route::patch('/latinium/proveedores', [InvoiceController::class, 'actualizarProveedoresLatinium']);
 Route::patch('/latinium/estado-contable', [InvoiceController::class, 'actualizarEstadoContableLatinium']);
 
+Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf']);
+
 
 // Rutas protegidas por autenticación
 Route::middleware(['verify.jwt'])->group(function () {

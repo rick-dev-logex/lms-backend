@@ -363,7 +363,7 @@ class InvoiceController extends Controller
             $total    = $invoice->importe_total;
 
             // 5) Construir filename
-            $date     = $invoice->fecha_emision->format('j-n-Y'); // ej. 18-6-2025
+            $date     = $invoice->fecha_emision->format('d-m-Y'); // ej. 08-06-2025
             $ruc      = $invoice->ruc_emisor;                     // ej. 0190444112001
             $slugName = Str::upper(Str::slug($invoice->razon_social_emisor, '')); // ej. TRANSPORTEDECARGAPESAD
             $estab    = $invoice->estab;                          // ej. 001
@@ -406,5 +406,32 @@ class InvoiceController extends Controller
             abort(500, "No se pudo generar el PDF.");
         }
     }
+    public function viewPdf(Invoice $invoice)
+    {
+        // 1) Recrea el mismo filename que en pdf()
+        $date     = $invoice->fecha_emision->format('d-m-Y');
+        $ruc      = $invoice->ruc_emisor;
+        $slugName = Str::upper(Str::slug($invoice->razon_social_emisor, ''));
+        $estab    = $invoice->estab;
+        $pto      = $invoice->pto_emi;
+        $seq      = $invoice->secuencial;
+
+        $fileName = sprintf(
+            '%s-%s-Factura-%s-%s-%s-%s.pdf',
+            $date,
+            $ruc,
+            $slugName,
+            $estab,
+            $pto,
+            $seq
+        );
+
+        // 2) Manda a la vista “wrapper”
+        return view('pdf.wrapper', [
+            'invoice'  => $invoice,
+            'fileName' => $fileName,
+        ]);
+    }
+
     // No permitir editar, solo se pueden Claudia, John y Nico 
 }

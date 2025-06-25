@@ -78,6 +78,7 @@ Route::patch('/latinium/proveedores', [InvoiceController::class, 'actualizarProv
 Route::patch('/latinium/estado-contable', [InvoiceController::class, 'actualizarEstadoContableLatinium']);
 
 Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'pdf']);
+Route::get('invoices/{invoice}/view', [InvoiceController::class, 'viewPdf']);
 
 
 // Rutas protegidas por autenticación

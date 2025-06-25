@@ -54,42 +54,55 @@ class ProcessSriTxt implements ShouldQueue
             array_shift($lines);
         }
 
-        // Pre-crear registros pending
+        // 1) Creamos un SriRequest PENDING por cada línea del TXT (incluso duplicados)
         foreach ($lines as $rawLine) {
             $line = trim($rawLine);
-            if ($line === '') continue;
-
+            if ($line === '') {
+                continue;
+            }
             $parts = str_getcsv($line, "\t");
             $clave = $parts[4] ?? null;
-            SriRequest::updateOrCreate(
-                ['raw_path' => $this->relativePath, 'raw_line' => $line],
-                ['clave_acceso' => $clave, 'status' => 'pending']
-            );
+            SriRequest::create([
+                'raw_path'     => $this->relativePath,
+                'raw_line'     => $line,
+                'clave_acceso' => $clave,
+                'status'       => 'pending',
+            ]);
         }
 
-        // Procesar cada línea y actualizar el estado
+        // 2) Recorremos otra vez y actualizamos SOLO los PENDING de cada línea
         foreach ($lines as $rawLine) {
             $line = trim($rawLine);
-            if ($line === '') continue;
-
-            $clave = str_getcsv($line, "\t")[4] ?? null;
-            $sr    = SriRequest::firstWhere([
-                'raw_path' => $this->relativePath,
-                'raw_line' => $line,
-            ]);
-
-            // 1) Si ya existe la factura → la marcamos como skipped y saltamos
-            $existing = Invoice::where('clave_acceso', $clave)->first();
-            if ($existing) {
-                Log::info("[{$this->sourceTag}] Factura duplicada omitida: {$clave}");
-                $sr->update([
-                    'status'     => 'skipped',
-                    'invoice_id' => $existing->id,
-                ]);
+            if ($line === '') {
                 continue;
             }
 
-            // 2) Intentar importar; al éxito guardo invoice_id, al fallo marco error
+            $parts = str_getcsv($line, "\t");
+            $clave = $parts[4] ?? null;
+
+            // Tomamos todos los SriRequest PENDING para esta línea
+            $pending = SriRequest::where('raw_path', $this->relativePath)
+                ->where('raw_line', $line)
+                ->where('status', 'pending')
+                ->get();
+            if ($pending->isEmpty()) {
+                continue;
+            }
+
+            // 2.a) Si ya existe la factura, marcamos todos esos PENDING como skipped
+            $existing = Invoice::where('clave_acceso', $clave)->first();
+            if ($existing) {
+                Log::info("[{$this->sourceTag}] Duplicate skipped: {$clave}");
+                foreach ($pending as $sr) {
+                    $sr->update([
+                        'status'     => 'skipped',
+                        'invoice_id' => $existing->id,
+                    ]);
+                }
+                continue;
+            }
+
+            // 2.b) Si no existe, intentamos importar y marcamos SOLO el primer PENDING
             try {
                 $invoice = $importService->importFromTxt(
                     $line,
@@ -98,16 +111,18 @@ class ProcessSriTxt implements ShouldQueue
                     $this->relativePath,
                     $line
                 );
-                $sr->update([
+                $pending->first()->update([
                     'status'     => 'processed',
                     'invoice_id' => $invoice->id,
                 ]);
             } catch (\Throwable $e) {
                 Log::error("[{$this->sourceTag}] Error importing line: {$e->getMessage()}", ['line' => $line]);
-                $sr->update([
-                    'status'        => 'error',
-                    'error_message' => $e->getMessage(),
-                ]);
+                foreach ($pending as $sr) {
+                    $sr->update([
+                        'status'        => 'error',
+                        'error_message' => $e->getMessage(),
+                    ]);
+                }
             }
         }
     }

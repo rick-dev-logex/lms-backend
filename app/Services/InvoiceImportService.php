@@ -146,7 +146,6 @@ class InvoiceImportService
             ->exists()
             : false;
         $estadoContable = $isContabilizado ? 'CONTABILIZADO' : 'PENDIENTE';
-        $estadoContableLatinium = $isContabilizado ? 'contabilizado' : 'pendiente';
 
         // 8. Crear la factura en nuestra BD
         $invoice = Invoice::create([
@@ -201,7 +200,7 @@ class InvoiceImportService
             'proveedor_latinium'          => $nombreProveedor,
             'nota_latinium'               => null,
             'estado'                      => 'ingresada',
-            'estado_latinium'             => $estadoContableLatinium,
+            'estado_latinium'             => 'pendiente',
             'numero_asiento'              => null,
             'numero_transferencia'        => null,
             'correo_pago'                 => null,

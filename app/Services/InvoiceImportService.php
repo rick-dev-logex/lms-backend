@@ -120,7 +120,7 @@ class InvoiceImportService
 
         if (empty($nombreProveedor)) {
             $otraConn = $connection === 'latinium_prebam' ? 'latinium_sersupport' : 'latinium_prebam';
-            
+
             Log::info('Proveedor no encontrado en ' . $connection . '. Tratando en ' . $otraConn . '.');
 
             $otro     = DB::connection($otraConn)
@@ -208,6 +208,19 @@ class InvoiceImportService
             'empresa'                     => $empresa,
             'xml_path'                    => null,
             'pdf_path'                    => null,
+        ]);
+
+        // 8.1 Actualizar el estado contable de inmediato
+        $latConn = $invoice->identificacion_comprador === '0992301066001' ? 'latinium_prebam' : 'latinium_sersupport';
+        $existe = DB::connection($latConn)
+            ->table('Compra')
+            ->where('Numero', $invoice->secuencial)
+            ->exists();
+
+        // 8.2) Actualizar la factura **sin** disparar observers
+        $invoice->updateQuietly([
+            'contabilizado'      => $existe ? 'CONTABILIZADO' : 'PENDIENTE',
+            'estado_latinium'    => $existe ? 'contabilizado' : 'pendiente',
         ]);
 
         // 9. Detalles de la factura

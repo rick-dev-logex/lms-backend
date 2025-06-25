@@ -292,9 +292,13 @@ class InvoiceController extends Controller
                 : false;
 
             $estadoContable = $isContabilizado ? 'CONTABILIZADO' : 'PENDIENTE';
+            $estadoContableLatinium = $isContabilizado ? 'contabilizado' : 'pendiente';
 
             // Actualizar en la base de datos local
-            Invoice::where('id', $factura['id'])->update(['contabilizado' => $estadoContable]);
+            Invoice::where('id', $factura['id'])->update([
+                'contabilizado' => $estadoContable,
+                'estado_latinium' => $estadoContableLatinium
+            ]);
         }
 
         return response()->json(['message' => 'Sincronización manual completa']);

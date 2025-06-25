@@ -11,7 +11,6 @@ use App\Http\Controllers\API\TransportController;
 use App\Http\Controllers\API\UserController;
 use App\Http\Controllers\API\AreaController;
 use App\Http\Controllers\API\AuditLogController;
-use App\Http\Controllers\API\ComprobanteController;
 use App\Http\Controllers\API\DocumentGenerationController;
 use App\Http\Controllers\API\InvoiceController;
 use App\Http\Controllers\API\InvoiceImportController;
@@ -70,6 +69,7 @@ Route::get('/download-expenses-template', [TemplateController::class, 'downloadE
 
 // Importa el txt
 Route::post('/import-sri-txt', [SriImportController::class, 'uploadTxt']);
+Route::get('/import-status/{path}', [SriImportController::class, 'status'])->where('path', '.*');
 
 Route::get('/latinium/accounts',     [InvoiceController::class, 'latiniumAccounts']);
 Route::get('/latinium/projects', [InvoiceController::class, 'latiniumProjects']);
@@ -94,18 +94,12 @@ Route::middleware(['verify.jwt'])->group(function () {
     Route::apiResource('/facturas', InvoiceController::class);
 
     //Para el Job del archivo txt para facturas SRI
-    Route::get('/import-status/{path}', [SriImportController::class, 'status'])->where('path', '.*');
+    // Route::get('/import-status/{path}', [SriImportController::class, 'status'])->where('path', '.*');
 
     // Rutas para documentos SRI
     Route::post('/generate-documents', [DocumentGenerationController::class, 'generate']);
     Route::get('/sri-documents-stats', [StatsController::class, 'index']);
     Route::post('/reports/generate', [ReportController::class, 'generate']);
-
-    Route::prefix('comprobantes')->group(function () {
-        Route::post('/consultar', [ComprobanteController::class, 'consultarComprobante']);
-        Route::post('/guardar', [ComprobanteController::class, 'guardarComprobante']);
-        Route::post('/guardar-varios', [ComprobanteController::class, 'guardarVariosComprobantes']);
-    });
 
     Route::apiResource('/accounts', AccountController::class);
     Route::apiResource('/transports', TransportController::class);

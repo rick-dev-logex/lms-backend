@@ -29,19 +29,20 @@ class SyncEstadoContable extends Command
     {
         $this->info('Sincronizando estado contable con LATINIUM');
 
+        // 1) Traemos sólo las pendientes
         $facturas = Invoice::where('contabilizado', 'PENDIENTE')->get();
-
         $this->info('Facturas pendientes: ' . $facturas->count());
-
         foreach ($facturas as $factura) {
             $this->line('Clave acceso: ' . $factura->clave_acceso);
 
-            $connection = $factura->identificacion_comprador === "0992301066001"
+            // 2) Elegimos la conexión correcta
+            $connection = $factura->identificacion_comprador === '0992301066001'
                 ? 'latinium_prebam'
                 : 'latinium_sersupport';
 
             $this->line('Usando conexión: ' . $connection);
-
+            
+            // 3) Consultamos por AutFactura = clave_acceso
             $existeCompra = DB::connection($connection)
                 ->table('Compra')
                 // ->where('AutFactura', $factura->clave_acceso)

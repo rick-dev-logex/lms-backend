@@ -51,23 +51,20 @@ class SriAuthorizationService
     public function getComprobanteXml(string $claveAcceso): string
     {
         // Número máximo de intentos y pausa entre ellos (ms)
-        $maxAttempts  = 5;
-        $sleepMillis  = 1000; // 1 segundo
+        $maxAttempts = 5;
+        $sleepMillis = 1000;
 
-        try {
-            $resp = retry($maxAttempts, function () use ($claveAcceso) {
+        $resp = retry($maxAttempts, function () use ($claveAcceso) {
+            try {
                 return $this->client->autorizacionComprobante([
                     'claveAccesoComprobante' => $claveAcceso,
                 ]);
-            }, $sleepMillis);
-        } catch (Throwable $e) {
-            Log::error("Error SOAP SRI tras {$maxAttempts} intentos", [
-                'claveAcceso' => $claveAcceso,
-                'message'     => $e->getMessage(),
-            ]);
-
-            throw new \Exception("Error SOAP SRI tras {$maxAttempts} intentos: " . $e->getMessage());
-        }
+            } catch (Throwable $e) {
+                // logea cada intento fallido
+                Log::warning("[sri-txt] Intento SOAP fallido para $claveAcceso: " . $e->getMessage());
+                throw $e;
+            }
+        }, $sleepMillis);
 
         $aut = $resp
             ->RespuestaAutorizacionComprobante

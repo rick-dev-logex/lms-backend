@@ -78,25 +78,13 @@ class ProcessSriTxt implements ShouldQueue
             $clean = mb_convert_encoding($line, 'UTF-8', 'Windows-1252');
             $clean = iconv('UTF-8', 'UTF-8//IGNORE', $clean);
 
-            // codifica a Base64
-            $b64   = base64_encode($clean);
-
-            // Si alguna vez se necesita ver la línea, se la decodifica asi:
-            // echo base64_decode($sriRequest->raw_line);
-
             $parts = str_getcsv($clean, "\t");
             $clave = $parts[4] ?? null;
 
             try {
                 SriRequest::updateOrCreate(
-                    [
-                        'raw_path'     => $this->relativePath,
-                        'clave_acceso' => $clave
-                    ],
-                    [
-                        'raw_line'     => $b64,
-                        'status'       => 'pending'
-                    ]
+                    ['raw_path'     => $this->relativePath, 'clave_acceso' => $clave],
+                    ['raw_line'     => $clean, 'status'       => 'pending']
                 );
             } catch (\Throwable $e) {
                 Log::error("[{$this->sourceTag}] SriRequest insert failed: " . $e->getMessage(), ['line' => $clean]);

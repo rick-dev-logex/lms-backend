@@ -50,14 +50,23 @@ class SriAuthorizationService
      */
     public function getComprobanteXml(string $claveAcceso): string
     {
-        // ini_set('default_socket_timeout', 120);
+        // Número máximo de intentos y pausa entre ellos (ms)
+        $maxAttempts  = 5;
+        $sleepMillis  = 1000; // 1 segundo
+
         try {
-            $resp = $this->client->autorizacionComprobante([
-                'claveAccesoComprobante' => $claveAcceso,
-            ]);
+            $resp = retry($maxAttempts, function () use ($claveAcceso) {
+                return $this->client->autorizacionComprobante([
+                    'claveAccesoComprobante' => $claveAcceso,
+                ]);
+            }, $sleepMillis);
         } catch (Throwable $e) {
-            throw new \Exception("Error SOAP SRI: " . $e->getMessage());
-            return response()->json(['success' => false, 'data' => 'Los servidores del SRI no responden. Intenta nuevamente más tarde.']);
+            Log::error("Error SOAP SRI tras {$maxAttempts} intentos", [
+                'claveAcceso' => $claveAcceso,
+                'message'     => $e->getMessage(),
+            ]);
+
+            throw new \Exception("Error SOAP SRI tras {$maxAttempts} intentos: " . $e->getMessage());
         }
 
         $aut = $resp
@@ -65,14 +74,14 @@ class SriAuthorizationService
             ->autorizaciones
             ->autorizacion;
 
-        // puede venir array o single
+        // Puede venir como array o como objeto único
         if (is_array($aut)) {
             $aut = array_shift($aut);
         }
 
         $xml = (string) ($aut->comprobante ?? '');
         if (! $xml) {
-            throw new \Exception("No se pudo obtener el XML para clave $claveAcceso");
+            throw new \Exception("No se pudo obtener el XML para clave {$claveAcceso}");
         }
 
         return $xml;

@@ -68,18 +68,29 @@ class ProcessSriTxt implements ShouldQueue
         // 1) Creamos un SriRequest PENDING por cada línea del TXT (incluso duplicados)
         foreach ($lines as $rawLine) {
             $line = trim($rawLine);
-            if ($line === '') {
+            if ($line === '') continue;
+
+            // Forzamos conversión ISO-8859-1 → UTF-8 y descartamos bytes inválidos
+            $clean = mb_convert_encoding($line, 'UTF-8', 'ISO-8859-1');
+            // O bien, con iconv para ignorar lo que no encaje
+            $clean = iconv('ISO-8859-1', 'UTF-8//IGNORE', $clean);
+
+            $parts = str_getcsv($clean, "\t");
+            $clave = $parts[4] ?? null;
+
+            try {
+                SriRequest::updateOrCreate(
+                    ['raw_path' => $this->relativePath, 'raw_line' => $clean],
+                    ['clave_acceso' => $clave, 'status' => 'pending']
+                );
+            } catch (\Throwable $e) {
+                Log::error("[{$this->sourceTag}] No pude crear SriRequest: " . $e->getMessage(), [
+                    'line' => $clean,
+                ]);
                 continue;
             }
-            $parts = str_getcsv($line, "\t");
-            $clave = $parts[4] ?? null;
-            SriRequest::create([
-                'raw_path'     => $this->relativePath,
-                'raw_line'     => $line,
-                'clave_acceso' => $clave,
-                'status'       => 'pending',
-            ]);
         }
+
 
         // 2) Recorremos otra vez y actualizamos SOLO los PENDING de cada línea
         foreach ($lines as $rawLine) {

@@ -70,26 +70,40 @@ class ProcessSriTxt implements ShouldQueue
             $line = trim($rawLine);
             if ($line === '') continue;
 
-            // Forzamos conversión ISO-8859-1 → UTF-8 y descartamos bytes inválidos
-            $clean = mb_convert_encoding($line, 'UTF-8', 'ISO-8859-1');
-            // O bien, con iconv para ignorar lo que no encaje
-            $clean = iconv('ISO-8859-1', 'UTF-8//IGNORE', $clean);
+            // 1) Detectar codificación (solo para debugging):
+            // $enc = mb_detect_encoding($line, ['UTF-8','ISO-8859-1','Windows-1252'], true);
+            // Log::info("Detected encoding: $enc");
+
+            // 2) Convertir CP1252 (Windows) → UTF-8 y descartar inválidos
+            $clean = mb_convert_encoding($line, 'UTF-8', 'Windows-1252');
+            $clean = iconv('UTF-8', 'UTF-8//IGNORE', $clean);
+
+            // codifica a Base64
+            $b64   = base64_encode($clean);
+
+            // Si alguna vez se necesita ver la línea, se la decodifica asi:
+            // echo base64_decode($sriRequest->raw_line);
 
             $parts = str_getcsv($clean, "\t");
             $clave = $parts[4] ?? null;
 
             try {
                 SriRequest::updateOrCreate(
-                    ['raw_path' => $this->relativePath, 'raw_line' => $clean],
-                    ['clave_acceso' => $clave, 'status' => 'pending']
+                    [
+                        'raw_path'     => $this->relativePath,
+                        'clave_acceso' => $clave
+                    ],
+                    [
+                        'raw_line'     => $b64,
+                        'status'       => 'pending'
+                    ]
                 );
             } catch (\Throwable $e) {
-                Log::error("[{$this->sourceTag}] No pude crear SriRequest: " . $e->getMessage(), [
-                    'line' => $clean,
-                ]);
+                Log::error("[{$this->sourceTag}] SriRequest insert failed: " . $e->getMessage(), ['line' => $clean]);
                 continue;
             }
         }
+
 
 
         // 2) Recorremos otra vez y actualizamos SOLO los PENDING de cada línea

@@ -1,71 +1,39 @@
-# Use composer stage for dependencies
-FROM composer:2.2 AS composer
-
-WORKDIR /app
-COPY composer.json composer.lock ./
-
-# Instalar dependencias ignorando requisitos de plataforma temporalmente
-RUN composer install \
-    --optimize-autoloader \
-    --no-dev \
-    --no-scripts \
-    --ignore-platform-req=ext-gd \
-    --ignore-platform-req=php
-
-# Final image
+# 1. Base PHP con Apache
 FROM php:8.2-apache
 
-# Install all dependencies in a single layer
-RUN apt-get update && apt-get install -y \
+# 2. Instala extensiones necesarias
+RUN apt-get update \
+ && apt-get install -y \
+    libonig-dev \
+    libzip-dev \
     zip \
     unzip \
     git \
-    curl \
-    libpng-dev \
-    libjpeg-dev \
-    libfreetype6-dev \
-    libonig-dev \
-    libxml2-dev \
-    libzip-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j$(nproc) \
+ && docker-php-ext-install \
     pdo_mysql \
+    mbstring \
     zip \
-    gd \
-    && a2enmod rewrite \
-    && a2enmod headers \
-    && echo 'ServerName localhost' >> /etc/apache2/apache2.conf \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    bcmath
 
-# Create necessary directories
-RUN mkdir -p /var/www/html/storage/framework/{sessions,views,cache} \
-    && mkdir -p /var/www/html/storage/app/google \
-    && mkdir -p /var/www/html/bootstrap/cache \
-    && mkdir -p /var/www/html/storage/framework/views/cache
+# 3. Habilita mod_rewrite de Apache
+RUN a2enmod rewrite
 
-# Copy source files
-COPY . /var/www/html/
-COPY storage/app/google/google-cloud-key.json /var/www/html/storage/app/google/
+# 4. Copia composer y dependencias
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Configure Apache
-RUN sed -i 's/80/${PORT}/g' /etc/apache2/sites-available/000-default.conf /etc/apache2/ports.conf \
-    && sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
+# 5. Copia todo el código Laravel
+WORKDIR /var/www/html
+COPY . /var/www/html
 
-# Copy vendor from composer stage
-COPY --from=composer /app/vendor /var/www/html/vendor
+# 6. Instala dependencias de PHP
+RUN composer install --no-interaction --optimize-autoloader --no-dev
 
-# Copy application files
-COPY . /var/www/html/
-
-# Set permissions
+# 7. Ajuste de permisos
 RUN chown -R www-data:www-data /var/www/html \
-    && find /var/www/html -type f -exec chmod 644 {} \; \
-    && find /var/www/html -type d -exec chmod 755 {} \; \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod 644 /var/www/html/storage/app/google/google-cloud-key.json
+ && chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Ensure storage directory is writable
-RUN chown -R www-data:www-data /var/www/html/storage
+# 8. Expone puerto 80
+EXPOSE 80
 
+# 9. Arranca Apache en foreground
 CMD ["apache2-foreground"]
